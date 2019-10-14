@@ -9,7 +9,7 @@ import sys
 
 ## User-defined constants
 MAX_EVT = 0
-#MAX_EVT = 5000  ## Maximum number of events to process
+#MAX_EVT = 10000  ## Maximum number of events to process
 PRT_EVT = 1000   ## Print to screen every Nth event
 VERBOSE = False  ## Print extra info about each event
 F_PREFIX = True  ## Attach a prefix that denotes which file the plots came from. Only uses the 1st file.
@@ -165,6 +165,20 @@ def main(batch=0):
                 mu_eta = ch.Muon_eta[iMu]
                 mu_phi = ch.Muon_phi[iMu]
 
+                badMu = False
+                ## Check if the muon is a match for any GEN muons from W, Z, or A decays
+                for i in range(len(muEta)):
+                    ## Check all our W, Z and A candidates to see if our muon matches one
+                    if (abs(mu_eta - muEta[i]) < 0.1
+                        ) and (abs(mu_pt - muPt[i]) < muPt[i]*.2
+                        ) and ((abs(mu_phi - muPhi[i]) < 0.1) or (abs(mu_phi - muPhi[i]) > 6.23)):
+                        badMu = True        ## This muon comes from something we're not interested in
+                        break
+                
+                if badMu: continue          ## Skip to the next muon that might actually be of interest
+
+                goodMu.append(iMu)          ## This muon might come from a A->bb decay. Save it
+
                 if VERBOSE: print '  * Muon_pt[%d] = %.2f GeV' % (iMu, mu_pt)
 
                 ## Fill the histograms
@@ -172,17 +186,7 @@ def main(batch=0):
     
                 ## Fill only muons with |eta| < 1.5
                 if abs(ch.Muon_eta[iMu]) < 1.5:
-                    plots["h_mu_pt_eta"].cfill(mu_pt)
-                
-                ## Check if the muon is a match for any GEN muons from W, Z, or A decays
-                for i in range(len(muEta)):
-                    ## Check all our W, Z and A candidates to see if our muon matches one
-                    if (abs(mu_eta - muEta[i]) < 0.1
-                        ) and (abs(mu_pt - muPt[i]) < muPt[i]*.2
-                        ) and ((abs(mu_phi - muPhi[i]) < 0.1) or (abs(mu_phi - muPhi[i] > 6.23))):
-                        continue            ## This muon comes from something we're not interested in
-                    else:
-                       goodMu.append(iMu)   ## This muon could have come from an A->bb decay. We'll save it
+                    plots["h_mu_pt_eta"].cfill(mu_pt)                
 
             if len(goodMu) > 0:             ## We have useful muons in this event
                 plots["h_cutflow"].cfill(1) 
