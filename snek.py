@@ -87,7 +87,7 @@ def main(batch=0):
         "h_mu_pt": histo('h_mu_pt', 'Muon pT;pT (GeV);Events', mu_pt_bins),
         "h_mu_pt_eta": histo('h_mu_pt_eta', 'Muon pT (|eta| < 1.5);pT (GeV);Events', mu_pt_bins),
         "h_met": histo('h_met', 'MET;Missing Transverse Energy (Gev);Events; ', [200,0,200]),
-        "h_cutflow": histo('h_cutflow', 'Total Muons // Non-Prompt Muons', [3,0,2])
+        "h_cutflow": histo('h_cutflow', 'Total Muons // Non-Prompt Muons', [3,-0.5,2.5])
     }
 
 #############
@@ -157,7 +157,7 @@ def main(batch=0):
                         muPt.append(ch.GenPart_pt[iGen])            ## Store its eta, phi, and pT
 
             ## Loop over RECO muons
-            hasWZAmuon = False
+            goodMu = []
             for iMu in range(nMuons):
 
                 ## Get variable quantities out of the tree
@@ -180,10 +180,11 @@ def main(batch=0):
                     if (abs(mu_eta - muEta[i]) < 0.1
                         ) and (abs(mu_pt - muPt[i]) < muPt[i]*.2
                         ) and ((abs(mu_phi - muPhi[i]) < 0.1) or (abs(mu_phi - muPhi[i] > 6.23))):
-                        hasWZAmuon = True
-                        break                       ## If our muon matches, we're done here
+                        continue            ## This muon comes from something we're not interested in
+                    else:
+                       goodMu.append(iMu)   ## This muon could have come from an A->bb decay. We'll save it
 
-            if not hasWZAmuon:
+            if len(goodMu) > 0:             ## We have useful muons in this event
                 plots["h_cutflow"].cfill(1) 
 
             ## End loop over RECO muons pairs (iMu)
