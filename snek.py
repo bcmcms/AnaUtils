@@ -87,7 +87,8 @@ def main(batch=0):
         "h_mu_pt": histo('h_mu_pt', 'Muon pT;pT (GeV);Events', mu_pt_bins),
         "h_mu_pt_eta": histo('h_mu_pt_eta', 'Muon pT (|eta| < 1.5);pT (GeV);Events', mu_pt_bins),
         "h_met": histo('h_met', 'MET;Missing Transverse Energy (Gev);Events; ', [200,0,200]),
-        "h_cutflow": histo('h_cutflow', 'Total Muons // Non-Prompt Muons // L1T // HLT', [5,-0.5,4.5])
+        "h_cutflow_l": histo('h_cutflow_l', 'Total Muons // Non-Prompt Muons // Loose L1T // HLT', [5,-0.5,4.5]),
+        "h_cutflow_t": histo('h_cutflow_t', 'Total Muons // Non-Prompt Muons // Tight L1T // HLT', [5,-0.5,4.5])
     }
 
 #############
@@ -119,7 +120,8 @@ def main(batch=0):
 
             ## Fill pre-cut histos
             plots["h_met"].cfill(ch.MET_pt)
-            plots["h_cutflow"].cfill(0)
+            plots["h_cutflow_l"].cfill(0)
+            plots["h_cutflow_t"].cfill(0)
 
             ## Looking for 'A' (Spoilers: It's PDG ID = 36)
             #for iGen in range(nGen):
@@ -160,7 +162,9 @@ def main(batch=0):
             goodMu = []
             promptCut=False
             L1TCut=False
+            L1TCutT=False
             HLTCut=False
+            HLTCutT=False
             for iMu in range(nMuons):
 
                 ## Get variable quantities out of the tree
@@ -179,21 +183,37 @@ def main(batch=0):
                         badMu = True        ## This muon comes from something we're not interested in
                         break
                 if badMu:
-                    continue        ## Skip to the next muon if this one isn't wanted
+                    continue            ## Skip to the next muon if this one isn't wanted
                 else:
-                    promptCut = True  ## Otherwise, mark that the cut passed
+                    promptCut = True    ## Otherwise, mark that the cut passed
 
-                ## L1Trigger cut based on L1_SingleMu6er1p5
+                ## L1Trigger cut based on L1_SingleMu6er1p5 (loose)
                 if (abs(mu_eta) > 1.5) or (abs(mu_pt) < 6.0):
                     badMu = True
-                    continue
-                L1TCut = True
+                    continue      
+                else:
+                    L1TCut = True
 
-                ## HLT cut based on HLT_Mu7_IP4
+                ## L1Trigger cut based on L1_vSingleMu18er1p5 (tight)
+                if (abs(mu_eta) > 1.5) or (abs(mu_pt) < 18.0):
+                    badMu = True
+                    #continue           ## Failing a tight trigger can still allow loose trigger data to be collected
+                else:
+                    L1TCutT = True
+
+                ## HLT cut based on HLT_Mu7_IP4 (loose)
                 if (abs(mu_pt) < 7.0) or (mu_sip < 4):
                     badMu = True
                     continue
-                HLTCut = True
+                else:
+                    HLTCut = True
+
+                ## HLT cut based on HLT_Mu12_IP6 (tight)
+                if ((abs(mu_pt) < 12.0) or (mu_sip < 6)) and not badMu:
+                    badMu = True
+                    #continue
+                elif not badMu:
+                    HLTCutT = True
 
                 goodMu.append(iMu)          ## This muon passes all of our cuts, so we save it
 
@@ -208,11 +228,16 @@ def main(batch=0):
 
             ## Fill cut flow plots based on what was passed (order matters)
             if promptCut:
-                plots["h_cutflow"].cfill(1) 
+                plots["h_cutflow_l"].cfill(1) 
+                plots["h_cutflow_t"].cfill(1)
             if L1TCut:
-                plots["h_cutflow"].cfill(2)
+                plots["h_cutflow_l"].cfill(2)
+            if L1TCutT:
+                plots["h_cutflow_t"].cfill(2)
             if HLTCut:
-                plots["h_cutflow"].cfill(3) 
+                plots["h_cutflow_l"].cfill(3)
+            if HLTCutT: 
+                plots["h_cutflow_t"].cfill(3)
 
             ## End loop over RECO muons pairs (iMu)
             
@@ -225,8 +250,10 @@ def main(batch=0):
 ## Histogram formatting
 #######################
 
-    plots["h_cutflow"].h.Scale(1.0/plots["h_cutflow"].h.GetBinContent(1))
-    plots["h_cutflow"].h.SetMarkerSize(1.8)
+    plots["h_cutflow_l"].h.Scale(1.0/plots["h_cutflow_l"].h.GetBinContent(1))
+    plots["h_cutflow_l"].h.SetMarkerSize(1.8)
+    plots["h_cutflow_t"].h.Scale(1.0/plots["h_cutflow_t"].h.GetBinContent(1))
+    plots["h_cutflow_t"].h.SetMarkerSize(1.8)
 
 ######################
 ## Save the histograms
@@ -242,13 +269,15 @@ def main(batch=0):
 
     ## Example of plotting something that needs specific settings
     canv.cd()
-    hist = plots.pop("h_cutflow")
+    hist = plots.pop("h_cutflow_l")
+    hist.saveplot(canv, png_dir, drawop="htext")
+    hist = plots.pop("h_cutflow_t")
     hist.saveplot(canv, png_dir, drawop="htext")
 
     ## Generic plotting loop, for your histos that don't have anything special    
-    canvY.cd()
+    canv.cd()
     for i in plots:
-        plots[i].saveplot(canvY, png_dir)
+        plots[i].saveplot(canv, png_dir)
 
     del out_file
 
