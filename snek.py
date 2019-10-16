@@ -28,11 +28,11 @@ class histo:                    ## Define our histo object, to keep all these pr
     def cfill(s, var, weight=1):          ## Shorthand to allow for cleaner binning with no worry of overflow bins
         s.h.Fill(min(max(var, s.bounds[1]+0.01), s.bounds[2]-0.01), weight)
 
-    def saveplot(s, canvas, savedir, color=R.kBlue, width=2, suffix='.png'): ## Takes care of saving the plot
+    def saveplot(s, canvas, savedir, drawop='', color=R.kBlue, width=2, suffix='.png'): ## Takes care of saving the plot
         s.h.SetLineWidth(width)
         s.h.SetLineColor(color)
         s.h.Write()
-        s.h.Draw()
+        s.h.Draw(drawop)
         canvas.SaveAs(savedir+s.name+suffix)
 
 def main(batch=0):
@@ -87,7 +87,7 @@ def main(batch=0):
         "h_mu_pt": histo('h_mu_pt', 'Muon pT;pT (GeV);Events', mu_pt_bins),
         "h_mu_pt_eta": histo('h_mu_pt_eta', 'Muon pT (|eta| < 1.5);pT (GeV);Events', mu_pt_bins),
         "h_met": histo('h_met', 'MET;Missing Transverse Energy (Gev);Events; ', [200,0,200]),
-        "h_cutflow": histo('h_cutflow', 'Total Muons // Non-Prompt Muons', [3,-0.5,2.5])
+        "h_cutflow": histo('h_cutflow', 'Total Muons // Non-Prompt Muons // L1T // HLT', [5,-0.5,4.5])
     }
 
 #############
@@ -158,12 +158,16 @@ def main(batch=0):
 
             ## Loop over RECO muons
             goodMu = []
+            promptCut=False
+            L1TCut=False
+            HLTCut=False
             for iMu in range(nMuons):
 
                 ## Get variable quantities out of the tree
                 mu_pt = ch.Muon_pt[iMu]
                 mu_eta = ch.Muon_eta[iMu]
                 mu_phi = ch.Muon_phi[iMu]
+                mu_sip = ch.Muon_sip3d[iMu]
 
                 badMu = False
                 ## Check if the muon is a match for any GEN muons from W, Z, or A decays
@@ -174,10 +178,24 @@ def main(batch=0):
                         ) and ((abs(mu_phi - muPhi[i]) < 0.1) or (abs(mu_phi - muPhi[i]) > 6.23)):
                         badMu = True        ## This muon comes from something we're not interested in
                         break
-                
-                if badMu: continue          ## Skip to the next muon that might actually be of interest
+                if badMu:
+                    continue        ## Skip to the next muon if this one isn't wanted
+                else:
+                    promptCut = True  ## Otherwise, mark that the cut passed
 
-                goodMu.append(iMu)          ## This muon might come from a A->bb decay. Save it
+                ## L1Trigger cut based on L1_SingleMu6er1p5
+                if (abs(mu_eta) > 1.5) or (abs(mu_pt) < 6.0):
+                    badMu = True
+                    continue
+                L1TCut = True
+
+                ## HLT cut based on HLT_Mu7_IP4
+                if (abs(mu_pt) < 7.0) or (mu_sip < 4):
+                    badMu = True
+                    continue
+                HLTCut = True
+
+                goodMu.append(iMu)          ## This muon passes all of our cuts, so we save it
 
                 if VERBOSE: print '  * Muon_pt[%d] = %.2f GeV' % (iMu, mu_pt)
 
@@ -188,8 +206,13 @@ def main(batch=0):
                 if abs(ch.Muon_eta[iMu]) < 1.5:
                     plots["h_mu_pt_eta"].cfill(mu_pt)                
 
-            if len(goodMu) > 0:             ## We have useful muons in this event
+            ## Fill cut flow plots based on what was passed (order matters)
+            if promptCut:
                 plots["h_cutflow"].cfill(1) 
+            if L1TCut:
+                plots["h_cutflow"].cfill(2)
+            if HLTCut:
+                plots["h_cutflow"].cfill(3) 
 
             ## End loop over RECO muons pairs (iMu)
             
@@ -198,22 +221,34 @@ def main(batch=0):
 
     print '\nOut of %d total events processed, %d passed selection cuts' % (iEvt+1, nPass)
 
+#######################
+## Histogram formatting
+#######################
+
+    plots["h_cutflow"].h.Scale(1.0/plots["h_cutflow"].h.GetBinContent(1))
+    plots["h_cutflow"].h.SetMarkerSize(1.8)
+
 ######################
 ## Save the histograms
 ######################
 
     out_file.cd()
 
+    canvY = R.TCanvas('canvY')
+    canvY.cd()
+    R.gPad.SetLogy()
     canv = R.TCanvas('canv')
-    canv.cd()
+
 
     ## Example of plotting something that needs specific settings
-    #hist = plots["key"].pop()
-    #hist.saveplot(args)
+    canv.cd()
+    hist = plots.pop("h_cutflow")
+    hist.saveplot(canv, png_dir, drawop="htext")
 
     ## Generic plotting loop, for your histos that don't have anything special    
+    canvY.cd()
     for i in plots:
-        plots[i].saveplot(canv, png_dir)
+        plots[i].saveplot(canvY, png_dir)
 
     del out_file
 
