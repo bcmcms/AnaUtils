@@ -12,7 +12,7 @@ MAX_EVT = 0
 #MAX_EVT = 10000  ## Maximum number of events to process
 PRT_EVT = 1000   ## Print to screen every Nth event
 VERBOSE = False  ## Print extra info about each event
-F_PREFIX = True  ## Attach a prefix that denotes which file the plots came from. Only uses the 1st file.
+F_PREFIX = False ## Attach a prefix that denotes which file the plots came from. Only uses the 1st file.
 
 
 ## User-defined selection
@@ -34,6 +34,26 @@ class histo:                    ## Define our histo object, to keep all these pr
         s.h.Write()
         s.h.Draw(drawop)
         canvas.SaveAs(savedir+s.name+suffix)
+
+    def markbins(s, markersize=1.8):
+        s.h.Scale(1.0/s.h.GetBinContent(1))
+        s.h.SetMarkerSize(markersize)
+
+
+class trigger:
+    def __init__(s, size):
+        s.size = size
+        s.list = [0]*size
+
+    def store(s, index, val):
+        if s.list[index] < val:
+            s.list[index] = val
+
+    def check(s, cutlevel, keepHigher=True):
+        if keepHigher:
+            return max(s.list[cutlevel:])
+        else:
+            return max(s.list[:cutlevel])
 
 def main(batch=0):
 
@@ -63,14 +83,16 @@ def main(batch=0):
         in_chains[i].Add( file_names[i] )
 
     ## Set output directories (create if they do not exist)
-    if not os.path.exists('plots/png/BasicNanoReader/'):
-        os.makedirs('plots/png/BasicNanoReader/')
+    f_prefix = file_names[0].split(".")[0]
+    print(f_prefix)
+    if not os.path.exists('plots/png/'+f_prefix+'/'):
+        os.makedirs('plots/png/'+f_prefix+'/')
         
     out_file = R.TFile('plots/BasicNanoReader.root', 'recreate')
-    png_dir  = 'plots/png/BasicNanoReader/'
+    png_dir  = 'plots/png/'+f_prefix+'/'
     ## Attach a prefix based on the first filename to the plots
-    if (F_PREFIX) or (batch < 0):
-        png_dir = png_dir + file_names[0].split(".")[0] + "-"
+    if (F_PREFIX): #or (batch < 0):
+        png_dir = png_dir + f_prefix + "-"
 
     
 #############
@@ -79,6 +101,7 @@ def main(batch=0):
 
     ## Histogram bins: [# of bins, minimum x, maximum x]
     mu_pt_bins = [200, 0, 201]
+    indiv_trigger_bins = [3,-0.5,2.5]
 
     ## Book 1D histograms
     ## Important to use '1D' instead of '1F' when dealing with large numbers of entries, and weighted events (higher precision)
@@ -87,9 +110,30 @@ def main(batch=0):
         "h_mu_pt": histo('h_mu_pt', 'Muon pT;pT (GeV);Events', mu_pt_bins),
         "h_mu_pt_eta": histo('h_mu_pt_eta', 'Muon pT (|eta| < 1.5);pT (GeV);Events', mu_pt_bins),
         "h_met": histo('h_met', 'MET;Missing Transverse Energy (Gev);Events; ', [200,0,200]),
-        "h_cutflow_l": histo('h_cutflow_l', 'Total Muons // Non-Prompt Muons // Loose L1T // HLT', [5,-0.5,4.5]),
-        "h_cutflow_t": histo('h_cutflow_t', 'Total Muons // Non-Prompt Muons // Tight L1T // HLT', [5,-0.5,4.5])
+        "h_cutflow_mc": histo('h_cutflow_mc', 'Total Events // Events with H->4b muons', [3,-0.5,2.5]),
     }
+    ## Specifically contains plots related to triggers
+    trigplots = {
+        "Mu12_IP6":     histo('HLT_Mu12_IP6',   'HLT_Mu12_IP6',     indiv_trigger_bins),
+        "Mu9_IP6":      histo('HLT_Mu9_IP6',    'HLT_Mu9_IP6',      indiv_trigger_bins),
+        "Mu9_IP5":      histo('HLT_Mu9_IP5',    'HLT_Mu9_IP5',      indiv_trigger_bins),
+        "Mu9_IP4":      histo('HLT_Mu9_IP4',    'HLT_Mu9_IP4',      indiv_trigger_bins),
+        "Mu8_IP6":      histo('HLT_Mu8_IP6',    'HLT_Mu8_IP6',      indiv_trigger_bins),
+        "Mu8_IP5":      histo('HLT_Mu8_IP5',    'HLT_Mu8_IP5',      indiv_trigger_bins),
+        "Mu8_IP3":      histo('HLT_Mu8_IP3',    'HLT_Mu8_IP3',      indiv_trigger_bins),
+        "Mu7_IP4":      histo('HLT_Mu7_IP4',    'HLT_Mu7_IP4',      indiv_trigger_bins),
+        "Mu18_ER1p5":   histo('L1_SingleMu18_er1p56',   'L1_SingleMu18_er1p56',     indiv_trigger_bins),
+        "Mu16_ER1p5":   histo('L1_SingleMu16_er1p56',   'L1_SingleMu16_er1p56',     indiv_trigger_bins),
+        "Mu14_ER1p5":   histo('L1_SingleMu14_er1p56',   'L1_SingleMu14_er1p56',     indiv_trigger_bins),
+        "Mu12_ER1p5":   histo('L1_SingleMu12_er1p56',   'L1_SingleMu12_er1p56',     indiv_trigger_bins),
+        "Mu10_ER1p5":   histo('L1_SingleMu10_er1p56',   'L1_SingleMu10_er1p56',     indiv_trigger_bins),
+        "Mu9_ER1p5":    histo('L1_SingleMu9_er1p56',    'L1_SingleMu9_er1p56',      indiv_trigger_bins),
+        "Mu8_ER1p5":    histo('L1_SingleMu8_er1p56',    'L1_SingleMu8_er1p56',      indiv_trigger_bins),
+        "Mu7_ER1p5":    histo('L1_SingleMu7_er1p56',    'L1_SingleMu7_er1p56',      indiv_trigger_bins),
+        "HLT_cutflow":  histo('HLT_cutflow',    'Passed//Mu7_IP4//Mu8_IP3/5/6//Mu9_IP4/5/6//Mu12_IP6', [10,-0.5,9.5]),
+        "L1T_cutflow":  histo('L1T_cutflow',    'Passed//MU7/8/9/10/12/14/16/18_er1p5', [10,-0.5,9.5])
+    }
+    
 
 #############
 ## Event loop
@@ -120,8 +164,7 @@ def main(batch=0):
 
             ## Fill pre-cut histos
             plots["h_met"].cfill(ch.MET_pt)
-            plots["h_cutflow_l"].cfill(0)
-            plots["h_cutflow_t"].cfill(0)
+            plots["h_cutflow_mc"].cfill(0)
 
             ## Looking for 'A' (Spoilers: It's PDG ID = 36)
             #for iGen in range(nGen):
@@ -161,10 +204,8 @@ def main(batch=0):
             ## Loop over RECO muons
             goodMu = []
             promptCut=False
-            L1TCut=False
-            L1TCutT=False
-            HLTCut=False
-            HLTCutT=False
+            HLTSIP = trigger(25)
+            L1TETA = trigger(25)
             for iMu in range(nMuons):
 
                 ## Get variable quantities out of the tree
@@ -173,6 +214,7 @@ def main(batch=0):
                 mu_phi = ch.Muon_phi[iMu]
                 mu_sip = ch.Muon_sip3d[iMu]
 
+                ## Cuts and Triggers
                 badMu = False
                 ## Check if the muon is a match for any GEN muons from W, Z, or A decays
                 for i in range(len(muEta)):
@@ -187,33 +229,13 @@ def main(batch=0):
                 else:
                     promptCut = True    ## Otherwise, mark that the cut passed
 
-                ## L1Trigger cut based on L1_SingleMu6er1p5 (loose)
-                if (abs(mu_eta) > 1.5) or (abs(mu_pt) < 6.0):
-                    badMu = True
-                    continue      
+                if mu_pt >= 24:                     ## If our pt is too large for our trigger object,
+                    HLTSIP.store(24,mu_sip)         ## Just fill the top bin
+                    L1TETA.store(24,abs(mu_eta))
                 else:
-                    L1TCut = True
+                    HLTSIP.store(int(mu_pt),mu_sip) ## Round each pT down and fill the SIP in that bin
+                    L1TETA.store(int(mu_pt),mu_eta)
 
-                ## L1Trigger cut based on L1_vSingleMu18er1p5 (tight)
-                if (abs(mu_eta) > 1.5) or (abs(mu_pt) < 18.0):
-                    badMu = True
-                    #continue           ## Failing a tight trigger can still allow loose trigger data to be collected
-                else:
-                    L1TCutT = True
-
-                ## HLT cut based on HLT_Mu7_IP4 (loose)
-                if (abs(mu_pt) < 7.0) or (mu_sip < 4):
-                    badMu = True
-                    continue
-                else:
-                    HLTCut = True
-
-                ## HLT cut based on HLT_Mu12_IP6 (tight)
-                if ((abs(mu_pt) < 12.0) or (mu_sip < 6)) and not badMu:
-                    badMu = True
-                    #continue
-                elif not badMu:
-                    HLTCutT = True
 
                 goodMu.append(iMu)          ## This muon passes all of our cuts, so we save it
 
@@ -227,17 +249,34 @@ def main(batch=0):
                     plots["h_mu_pt_eta"].cfill(mu_pt)                
 
             ## Fill cut flow plots based on what was passed (order matters)
-            if promptCut:
-                plots["h_cutflow_l"].cfill(1) 
-                plots["h_cutflow_t"].cfill(1)
-            if L1TCut:
-                plots["h_cutflow_l"].cfill(2)
-            if L1TCutT:
-                plots["h_cutflow_t"].cfill(2)
-            if HLTCut:
-                plots["h_cutflow_l"].cfill(3)
-            if HLTCutT: 
-                plots["h_cutflow_t"].cfill(3)
+            if promptCut:                           ## This signifies that a muon of interest was even in this event
+                plots["h_cutflow_mc"].cfill(1) 
+                trigplots["HLT_cutflow"].cfill(0)
+                trigplots["L1T_cutflow"].cfill(0)
+
+
+            stillMu = True
+            cutplace = 1
+            L1Tpt = [7, 8, 9, 10, 12, 14, 16, 18]           ## These are all the pt cuts for the L1 Trigger
+            for i in L1Tpt:                             
+                trigplots["Mu"+str(i)+"_ER1p5"].cfill(0)    ## Every event goes in the 0 bins
+                if (L1TETA.check(i) > 1.5) and stillMu:     ## If there's still a fitting muon at or above this pt,
+                    trigplots["Mu"+str(i)+"_ER1p5"].cfill(1)## Fill the appropriate plot with an event
+                    trigplots["L1T_cutflow"].cfill(cutplace)## And fill the appropriate cutflow bin
+                    cutplace = cutplace + 1
+                else:
+                    stillMu = False                     ## Once we run out of muons, stop looking
+
+            cutplace = 1
+            HLTpt = [7,8,8,8,9,9,9,12]                      ## Combined, these arrays cover our HLT values
+            HLTip = [4,3,5,6,4,5,6,6]
+
+            for i in range(len(HLTpt)):                     ## Loop over every HLT
+                trigplots["Mu"+str(HLTpt[i])+"_IP"+str(HLTip[i])].cfill(0)
+                if HLTSIP.check(HLTpt[i]) >= HLTip[i]:      ## If there's a fitting muon at or above this pt, fill
+                    trigplots["Mu"+str(HLTpt[i])+"_IP"+str(HLTip[i])].cfill(1)
+                    trigplots["HLT_cutflow"].cfill(cutplace)
+                cutplace = cutplace + 1
 
             ## End loop over RECO muons pairs (iMu)
             
@@ -250,10 +289,10 @@ def main(batch=0):
 ## Histogram formatting
 #######################
 
-    plots["h_cutflow_l"].h.Scale(1.0/plots["h_cutflow_l"].h.GetBinContent(1))
-    plots["h_cutflow_l"].h.SetMarkerSize(1.8)
-    plots["h_cutflow_t"].h.Scale(1.0/plots["h_cutflow_t"].h.GetBinContent(1))
-    plots["h_cutflow_t"].h.SetMarkerSize(1.8)
+    plots["h_cutflow_mc"].markbins()
+
+    for i in trigplots:
+        trigplots[i].markbins()
 
 ######################
 ## Save the histograms
@@ -269,13 +308,13 @@ def main(batch=0):
 
     ## Example of plotting something that needs specific settings
     canv.cd()
-    hist = plots.pop("h_cutflow_l")
-    hist.saveplot(canv, png_dir, drawop="htext")
-    hist = plots.pop("h_cutflow_t")
-    hist.saveplot(canv, png_dir, drawop="htext")
+    for i in trigplots:
+        trigplots[i].saveplot(canv, png_dir, drawop="htext")
 
     ## Generic plotting loop, for your histos that don't have anything special    
     canv.cd()
+    hist = plots.pop("h_cutflow_mc")
+    hist.saveplot(canv, png_dir, drawop="htext")
     for i in plots:
         plots[i].saveplot(canv, png_dir)
 
