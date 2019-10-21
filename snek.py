@@ -102,6 +102,7 @@ def main(batch=0):
     ## Histogram bins: [# of bins, minimum x, maximum x]
     mu_pt_bins = [200, 0, 201]
     indiv_trigger_bins = [3,-0.5,2.5]
+    index_bins = [4,-0.5,3.5]
 
     ## Book 1D histograms
     ## Important to use '1D' instead of '1F' when dealing with large numbers of entries, and weighted events (higher precision)
@@ -132,6 +133,21 @@ def main(batch=0):
         "Mu7_ER1p5":    histo('L1_SingleMu7_er1p56',    'L1_SingleMu7_er1p56',      indiv_trigger_bins),
         "HLT_cutflow":  histo('HLT_cutflow',    'Passed//Mu7_IP4//Mu8_IP3/5/6//Mu9_IP4/5/6//Mu12_IP6', [10,-0.5,9.5]),
         "L1T_cutflow":  histo('L1T_cutflow',    'Passed//MU7/8/9/10/12/14/16/18_er1p5', [10,-0.5,9.5])
+    }
+    indexplots = {
+        #"Index2":       histo('Index2',     'Index 2 2.0e34+ZB+HLTPhysics',     index_bins),	
+        "Index3":       histo('Index3',     'Index 3 1.7e34',                   index_bins),
+        "Index4":       histo('Index4',     'Index 4 1.5e34',                   index_bins),
+        "Index5":       histo('Index5',     'Index 5 1.3e34',                   index_bins),
+        "Index6":       histo('Index6',     'Index 6 1.1e34',                   index_bins),
+        "Index7":       histo('Index7',     'Index 7 9.0e33',                   index_bins)#,
+        #"Index8":       histo('Index8',     'Index 8 6.0e33',                   index_bins),
+        #"Index9":       histo('Index9',     'Index 9 1.7 to 0.6 e34 No Parking',index_bins),
+        #"Index10":      histo('Index10',    'Index 10 2.0e34',                  index_bins),
+        #"Index11":      histo('Index11',    'Index 11 900b',                    index_bins),
+        #"Index12":      histo('Index12',    'Index 12 600b',                    index_bins),
+        #"Index13":      histo('Index13',    'Index 13 3b',                      index_bins),
+        #"Index14":      histo('Index14',    'Index 14 3b_2coll',                index_bins)
     }
     
 
@@ -253,7 +269,8 @@ def main(batch=0):
                 plots["h_cutflow_mc"].cfill(1) 
                 trigplots["HLT_cutflow"].cfill(0)
                 trigplots["L1T_cutflow"].cfill(0)
-
+                for plot in indexplots:
+                    indexplots[plot].cfill(0)
 
             stillMu = True
             cutplace = 1
@@ -278,6 +295,33 @@ def main(batch=0):
                     trigplots["HLT_cutflow"].cfill(cutplace)
                 cutplace = cutplace + 1
 
+            ##Replicate individual prescale indeces
+
+            if L1TETA.check(12) > 1.5:
+                indexplots["Index3"].cfill(1)
+                if HLTSIP.check(12) > 6:
+                    indexplots["Index3"].cfill(2)
+
+            if L1TETA.check(10) > 1.5:
+                indexplots["Index4"].cfill(1)
+                if HLTSIP.check(9) > 5:
+                    indexplots["Index4"].cfill(2)
+
+            if L1TETA.check(9) > 1.5:
+                indexplots["Index5"].cfill(1)
+                if HLTSIP.check(8) > 5:
+                    indexplots["Index5"].cfill(2)
+
+            if L1TETA.check(8) > 1.5:
+                indexplots["Index6"].cfill(1)
+                if HLTSIP.check(7) > 4:
+                    indexplots["Index6"].cfill(2)
+
+            if L1TETA.check(7) > 1.5:
+                indexplots["Index7"].cfill(1)
+                if HLTSIP.check(7) > 4:
+                    indexplots["Index7"].cfill(2)
+
             ## End loop over RECO muons pairs (iMu)
             
         ## End loop over events in chain (jEvt)
@@ -293,6 +337,8 @@ def main(batch=0):
 
     for i in trigplots:
         trigplots[i].markbins()
+    for i in indexplots:
+        indexplots[i].markbins()
 
 ######################
 ## Save the histograms
@@ -310,6 +356,8 @@ def main(batch=0):
     canv.cd()
     for i in trigplots:
         trigplots[i].saveplot(canv, png_dir, drawop="htext")
+    for i in indexplots:
+        indexplots[i].saveplot(canv, png_dir, drawop="htext")
 
     ## Generic plotting loop, for your histos that don't have anything special    
     canv.cd()
