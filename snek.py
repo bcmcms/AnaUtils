@@ -41,19 +41,21 @@ class histo:                    ## Define our histo object, to keep all these pr
 
 
 class trigger:
-    def __init__(s, size):
+    def __init__(s, size, polarity=1, failval=None):
         s.size = size
-        s.list = [0]*size
+        s.list = [None]*size
+        s.p = polarity/abs(polarity)
+        s.failv = failval
 
-    def store(s, index, val):
-        if s.list[index] < val:
-            s.list[index] = val
+    def store(s, index, val, maxval=True):
+        if s.list[index] < (val*s.p):
+            s.list[index] = (val*s.p)
 
-    def check(s, cutlevel, keepHigher=True):
-        if keepHigher:
-            return max(s.list[cutlevel:])
-        else:
-            return max(s.list[:cutlevel])
+    def check(s, cutlevel, maxval=True):
+        val = max(s.list[cutlevel:])
+        if val == None:
+            return s.failv
+        else: return val*s.p
 
 def main(batch=0):
 
@@ -221,7 +223,7 @@ def main(batch=0):
             goodMu = []
             promptCut=False
             HLTSIP = trigger(25)
-            L1TETA = trigger(25)
+            L1TETA = trigger(25, -1, 999)
             for iMu in range(nMuons):
 
                 ## Get variable quantities out of the tree
@@ -250,7 +252,7 @@ def main(batch=0):
                     L1TETA.store(24,abs(mu_eta))
                 else:
                     HLTSIP.store(int(mu_pt),mu_sip) ## Round each pT down and fill the SIP in that bin
-                    L1TETA.store(int(mu_pt),mu_eta)
+                    L1TETA.store(int(mu_pt),abs(mu_eta))
 
 
                 goodMu.append(iMu)          ## This muon passes all of our cuts, so we save it
@@ -271,13 +273,14 @@ def main(batch=0):
                 trigplots["L1T_cutflow"].cfill(0)
                 for plot in indexplots:
                     indexplots[plot].cfill(0)
+            else: continue                          ## Further trigger work past here only operates on valid events
 
             stillMu = True
             cutplace = 1
             L1Tpt = [7, 8, 9, 10, 12, 14, 16, 18]           ## These are all the pt cuts for the L1 Trigger
             for i in L1Tpt:                             
                 trigplots["Mu"+str(i)+"_ER1p5"].cfill(0)    ## Every event goes in the 0 bins
-                if (L1TETA.check(i) > 1.5) and stillMu:     ## If there's still a fitting muon at or above this pt,
+                if (L1TETA.check(i) < 1.5) and stillMu:
                     trigplots["Mu"+str(i)+"_ER1p5"].cfill(1)## Fill the appropriate plot with an event
                     trigplots["L1T_cutflow"].cfill(cutplace)## And fill the appropriate cutflow bin
                     cutplace = cutplace + 1
@@ -290,34 +293,34 @@ def main(batch=0):
 
             for i in range(len(HLTpt)):                     ## Loop over every HLT
                 trigplots["Mu"+str(HLTpt[i])+"_IP"+str(HLTip[i])].cfill(0)
-                if HLTSIP.check(HLTpt[i]) >= HLTip[i]:      ## If there's a fitting muon at or above this pt, fill
+                if (HLTSIP.check(HLTpt[i]) >= HLTip[i]) and (L1TETA.check(HLTpt[i]) < 1.5):
                     trigplots["Mu"+str(HLTpt[i])+"_IP"+str(HLTip[i])].cfill(1)
                     trigplots["HLT_cutflow"].cfill(cutplace)
                 cutplace = cutplace + 1
 
             ##Replicate individual prescale indeces
 
-            if L1TETA.check(12) > 1.5:
+            if L1TETA.check(12) < 1.5:
                 indexplots["Index3"].cfill(1)
                 if HLTSIP.check(12) > 6:
                     indexplots["Index3"].cfill(2)
 
-            if L1TETA.check(10) > 1.5:
+            if L1TETA.check(10) < 1.5:
                 indexplots["Index4"].cfill(1)
                 if HLTSIP.check(9) > 5:
                     indexplots["Index4"].cfill(2)
 
-            if L1TETA.check(9) > 1.5:
+            if L1TETA.check(9) < 1.5:
                 indexplots["Index5"].cfill(1)
                 if HLTSIP.check(8) > 5:
                     indexplots["Index5"].cfill(2)
 
-            if L1TETA.check(8) > 1.5:
+            if L1TETA.check(8) < 1.5:
                 indexplots["Index6"].cfill(1)
                 if HLTSIP.check(7) > 4:
                     indexplots["Index6"].cfill(2)
 
-            if L1TETA.check(7) > 1.5:
+            if L1TETA.check(7) < 1.5:
                 indexplots["Index7"].cfill(1)
                 if HLTSIP.check(7) > 4:
                     indexplots["Index7"].cfill(2)
