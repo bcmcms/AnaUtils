@@ -12,8 +12,7 @@ MAX_EVT = 0
 #MAX_EVT = 10000  ## Maximum number of events to process
 PRT_EVT = 1000   ## Print to screen every Nth event
 VERBOSE = False  ## Print extra info about each event
-F_PREFIX = False ## Attach a prefix that denotes which file the plots came from. Only uses the 1st file.
-
+F_PREFIX = False ## Attach a prefix that denotes which file the plots came from. Only uses the 1st file
 
 ## User-defined selection
 SEL_ZEE = False ## Select only events containing Z --> ee decays
@@ -66,11 +65,14 @@ def main(batch=0):
     ## Location of input files: current working directory + data/
     file_names = []
     in_dir = os.getcwd()+'/data/'
+    DATA = False
     if batch > 0:                   ## Handles batch processing
         file_names.append(sys.argv[batch])
     elif (len(sys.argv) > 1):       ## Allows for files to be given as arguments
         for i in range(len(sys.argv)-1):
-            file_names.append(sys.argv[i+1])
+            if sys.argv[i+1] == "-d":
+                DATA = True
+            else: file_names.append(sys.argv[i+1])
     else:                           ## Expand for a system of hard-coded files
         file_names.append(in_dir+'ZH_to_4Tau_1_file.root')
 
@@ -172,8 +174,10 @@ def main(batch=0):
 
             ch.GetEntry(jEvt)
 
-            nGen   = len(ch.GenPart_pdgId)  ## Number of GEN particles in the event
-            nMuons = len(ch.Muon_pt)        ## Number of RECO muons in the event
+            if not DATA: 
+                nGen   = len(ch.GenPart_pdgId)  ## Number of GEN particles in the event
+            else: nGen = 0
+            nMuons = len(ch.Muon_pt)            ## Number of RECO muons in the event
             muPt = []
             muEta = []
             muPhi = []
@@ -194,23 +198,18 @@ def main(batch=0):
             #        partList.append(partId)                     ## Add it to the pile
             #        print(partList)
 
-            ## Select only events containing Z-->ee decays
-            #isZToEE = False
-            #for iGen in range(nGen):
-            #    if abs(ch.GenPart_pdgId[iGen]) != 11: continue  ## Only interested in electrons
-            #    iGenMomIdx = ch.GenPart_genPartIdxMother[iGen]
-            #    if iGenMomIdx == -1: continue  ## For particles with unknown parents
-            #    iGenMomID  = ch.GenPart_pdgId[iGenMomIdx]
-            #    if VERBOSE: print '  * iGen = %d, iGenMomIdx = %d, iGenMomID = %d' % (iGen, iGenMomIdx, iGenMomID)
-            #    if iGenMomID == 23: ## Make sure the decaying particle is a Z
-            #        isZToEE = True
-            #        break           ## Found it - no need to keep looking
-            #if SEL_ZEE and not isZToEE: continue
-            #nPass +=1   ## increment the count of succesfull Z-->ee events 
-
             ## Tag muons from A, W, and Z decays for later plotting
             for iGen in range(nGen):
-                if abs(ch.GenPart_pdgId[iGen]) == 13:               ## Particle is a muon
+                ## Debug section for analyzing generated muons
+                if VERBOSE and ((abs(ch.GenPart_pdgId[iGen]) == 13) or (abs(ch.GenPart_pdgId[iGen]) == 11)):
+                    print '>GenPart_pdgId[{}] = {}'.format(iGen,ch.GenPart_pdgId[iGen])
+                    print '>GenPart_pt[{}] = {}'.format(iGen,ch.GenPart_pt[iGen])
+                    print '>GenPart_eta[{}] = {}'.format(iGen,ch.GenPart_eta[iGen])
+                    print '>GenPart_phi[{}] = {}'.format(iGen,ch.GenPart_phi[iGen])
+                    parentIdx = ch.GenPart_genPartIdxMother[iGen]
+                    if parentIdx != -1: print '>Parent ID = {}'.format(ch.GenPart_pdgId[parentIdx]
+)
+                if (abs(ch.GenPart_pdgId[iGen]) == 13):             ## Particle is a muon
                     parentIdx = ch.GenPart_genPartIdxMother[iGen]   ## Figure out where the parent is stored
                     if parentIdx == -1: continue                    ## Skip particles with unknown parents
                     parentId = ch.GenPart_pdgId[parentIdx]          ## Get the parent PDG ID
@@ -247,17 +246,24 @@ def main(batch=0):
                 else:
                     promptCut = True    ## Otherwise, mark that the cut passed
 
-                if mu_pt >= 24:                     ## If our pt is too large for our trigger object,
-                    HLTSIP.store(24,mu_sip)         ## Just fill the top bin
-                    L1TETA.store(24,abs(mu_eta))
-                else:
-                    HLTSIP.store(int(mu_pt),mu_sip) ## Round each pT down and fill the SIP in that bin
-                    L1TETA.store(int(mu_pt),abs(mu_eta))
+                if ch.Muon_mediumId[iMu]:                  ## Add in a Medium ID cut to our HLT and L1T requirements
+                    if mu_pt >= 24:                     ## If our pt is too large for our trigger object,
+                        HLTSIP.store(24,mu_sip)         ## Just fill the top bin
+                        L1TETA.store(24,abs(mu_eta))
+                    else:
+                        HLTSIP.store(int(mu_pt),mu_sip) ## Round each pT down and fill the SIP in that bin
+                        L1TETA.store(int(mu_pt),abs(mu_eta))
 
 
                 goodMu.append(iMu)          ## This muon passes all of our cuts, so we save it
 
-                if VERBOSE: print '  * Muon_pt[%d] = %.2f GeV' % (iMu, mu_pt)
+
+                if VERBOSE and ch.Muon_mediumId[iMu]: 
+                    print '  * Muon_charge[{}] = {}'.format(iMu, ch.Muon_charge[iMu])
+                    print '  * Muon_pt[{}] = {} GeV'.format(iMu, mu_pt)
+                    print '  * Muon_eta[{}] = {}'.format(iMu, mu_eta)
+                    print '  * Muon_phi[{}] = {}'.format(iMu, mu_phi)
+                    print '  * Muon_sip[{}] = {}'.format(iMu, mu_sip)
 
                 ## Fill the histograms
                 plots["h_mu_pt"].cfill(mu_pt)
@@ -296,6 +302,8 @@ def main(batch=0):
                 if (HLTSIP.check(HLTpt[i]) >= HLTip[i]) and (L1TETA.check(HLTpt[i]) < 1.5):
                     trigplots["Mu"+str(HLTpt[i])+"_IP"+str(HLTip[i])].cfill(1)
                     trigplots["HLT_cutflow"].cfill(cutplace)
+                    if VERBOSE: print('-------Mu{}_IP{} Status: {}-------'.format(HLTpt[i],HLTip[i], True))
+                elif VERBOSE: print('-------Mu{}_IP{} Status: {}-------'.format(HLTpt[i],HLTip[i], False))
                 cutplace = cutplace + 1
 
             ##Replicate individual prescale indeces
