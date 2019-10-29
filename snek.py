@@ -11,7 +11,7 @@ import sys
 MAX_EVT = 0
 #MAX_EVT = 10000  ## Maximum number of events to process
 PRT_EVT = 1000   ## Print to screen every Nth event
-VERBOSE = True  ## Print extra info about each event
+VERBOSE = False  ## Print extra info about each event
 F_PREFIX = False ## Attach a prefix that denotes which file the plots came from. Only uses the 1st file
 
 ## User-defined selection
@@ -106,7 +106,7 @@ def main(batch=0):
     ## Histogram bins: [# of bins, minimum x, maximum x]
     mu_pt_bins = [200, 0, 201]
     indiv_trigger_bins = [3,-0.5,2.5]
-    index_bins = [4,-0.5,3.5]
+    index_bins = [5,-0.5,4.5]
 
     ## Book 1D histograms
     ## Important to use '1D' instead of '1F' when dealing with large numbers of entries, and weighted events (higher precision)
@@ -135,8 +135,8 @@ def main(batch=0):
         "Mu9_ER1p5":    histo('L1_SingleMu9_er1p56',    'L1_SingleMu9_er1p56',      indiv_trigger_bins),
         "Mu8_ER1p5":    histo('L1_SingleMu8_er1p56',    'L1_SingleMu8_er1p56',      indiv_trigger_bins),
         "Mu7_ER1p5":    histo('L1_SingleMu7_er1p56',    'L1_SingleMu7_er1p56',      indiv_trigger_bins),
-        "HLT_cutflow":  histo('HLT_cutflow',    'Passed//Mu7_IP4//Mu8_IP3/5/6//Mu9_IP4/5/6//Mu12_IP6', [10,-0.5,9.5]),
-        "L1T_cutflow":  histo('L1T_cutflow',    'Passed//MU7/8/9/10/12/14/16/18_er1p5', [10,-0.5,9.5])
+        "HLT_cutflow":  histo('HLT_cutflow',    'All Events//Passed//Mu7_IP4//Mu8_IP3/5/6//Mu9_IP4/5/6//Mu12_IP6', [11,-0.5,10.5]),
+        "L1T_cutflow":  histo('L1T_cutflow',    'All Events//Passed//MU7/8/9/10/12/14/16/18_er1p5', [11,-0.5,10.5])
     }
     indexplots = {
         #"Index2":       histo('Index2',     'Index 2 2.0e34+ZB+HLTPhysics',     index_bins),	
@@ -187,6 +187,10 @@ def main(batch=0):
             ## Fill pre-cut histos
             plots["h_met"].cfill(ch.MET_pt)
             plots["h_cutflow_mc"].cfill(0)
+            for plot in trigplots:
+                trigplots[plot].cfill(0)
+            for plot in indexplots:
+                indexplots[plot].cfill(0)
 
             ## Looking for 'A' (Spoilers: It's PDG ID = 36)
             #for iGen in range(nGen):
@@ -275,32 +279,30 @@ def main(batch=0):
             ## Fill cut flow plots based on what was passed (order matters)
             if promptCut:                           ## This signifies that a muon of interest was even in this event
                 plots["h_cutflow_mc"].cfill(1) 
-                trigplots["HLT_cutflow"].cfill(0)
-                trigplots["L1T_cutflow"].cfill(0)
+                for plot in trigplots:
+                    trigplots[plot].cfill(1)
                 for plot in indexplots:
-                    indexplots[plot].cfill(0)
+                    indexplots[plot].cfill(1)
             else: continue                          ## Further trigger work past here only operates on valid events
 
             stillMu = True
-            cutplace = 1
+            cutplace = 2
             L1Tpt = [7, 8, 9, 10, 12, 14, 16, 18]           ## These are all the pt cuts for the L1 Trigger
             for i in L1Tpt:                             
-                trigplots["Mu"+str(i)+"_ER1p5"].cfill(0)    ## Every event goes in the 0 bins
                 if (L1TETA.check(i) < 1.5) and stillMu:
-                    trigplots["Mu"+str(i)+"_ER1p5"].cfill(1)## Fill the appropriate plot with an event
+                    trigplots["Mu"+str(i)+"_ER1p5"].cfill(2)## Fill the appropriate plot with an event
                     trigplots["L1T_cutflow"].cfill(cutplace)## And fill the appropriate cutflow bin
                     cutplace = cutplace + 1
                 else:
                     stillMu = False                     ## Once we run out of muons, stop looking
 
-            cutplace = 1
+            cutplace = 2
             HLTpt = [7,8,8,8,9,9,9,12]                      ## Combined, these arrays cover our HLT values
             HLTip = [4,3,5,6,4,5,6,6]
 
             for i in range(len(HLTpt)):                     ## Loop over every HLT
-                trigplots["Mu"+str(HLTpt[i])+"_IP"+str(HLTip[i])].cfill(0)
                 if (HLTSIP.check(HLTpt[i]) >= HLTip[i]) and (L1TETA.check(HLTpt[i]) < 1.5):
-                    trigplots["Mu"+str(HLTpt[i])+"_IP"+str(HLTip[i])].cfill(1)
+                    trigplots["Mu"+str(HLTpt[i])+"_IP"+str(HLTip[i])].cfill(2)
                     trigplots["HLT_cutflow"].cfill(cutplace)
                     if VERBOSE: print('-------Mu{}_IP{} Status: {}-------'.format(HLTpt[i],HLTip[i], True))
                 elif VERBOSE: print('-------Mu{}_IP{} Status: {}-------'.format(HLTpt[i],HLTip[i], False))
@@ -309,29 +311,29 @@ def main(batch=0):
             ##Replicate individual prescale indeces
 
             if L1TETA.check(12) < 1.5:
-                indexplots["Index3"].cfill(1)
+                indexplots["Index3"].cfill(2)
                 if HLTSIP.check(12) > 6:
-                    indexplots["Index3"].cfill(2)
+                    indexplots["Index3"].cfill(3)
 
             if L1TETA.check(10) < 1.5:
-                indexplots["Index4"].cfill(1)
+                indexplots["Index4"].cfill(2)
                 if HLTSIP.check(9) > 5:
-                    indexplots["Index4"].cfill(2)
+                    indexplots["Index4"].cfill(3)
 
             if L1TETA.check(9) < 1.5:
-                indexplots["Index5"].cfill(1)
+                indexplots["Index5"].cfill(2)
                 if HLTSIP.check(8) > 5:
-                    indexplots["Index5"].cfill(2)
+                    indexplots["Index5"].cfill(3)
 
             if L1TETA.check(8) < 1.5:
-                indexplots["Index6"].cfill(1)
+                indexplots["Index6"].cfill(2)
                 if HLTSIP.check(7) > 4:
-                    indexplots["Index6"].cfill(2)
+                    indexplots["Index6"].cfill(3)
 
             if L1TETA.check(7) < 1.5:
-                indexplots["Index7"].cfill(1)
+                indexplots["Index7"].cfill(2)
                 if HLTSIP.check(7) > 4:
-                    indexplots["Index7"].cfill(2)
+                    indexplots["Index7"].cfill(3)
 
             ## End loop over RECO muons pairs (iMu)
             
