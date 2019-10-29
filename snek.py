@@ -11,7 +11,7 @@ import sys
 MAX_EVT = 0
 #MAX_EVT = 10000  ## Maximum number of events to process
 PRT_EVT = 1000   ## Print to screen every Nth event
-VERBOSE = False  ## Print extra info about each event
+VERBOSE = True  ## Print extra info about each event
 F_PREFIX = False ## Attach a prefix that denotes which file the plots came from. Only uses the 1st file
 
 ## User-defined selection
