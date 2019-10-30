@@ -1,5 +1,11 @@
 #! /usr/bin/env python
 
+########################################################################
+### NanoAOD analyzer utility snek.py                                 ###
+###                                                                  ###
+### Run without arguments for a list of options and examples         ###
+########################################################################
+
 import ROOT as R
 R.gROOT.SetBatch(True)  ## Don't display histograms or canvases when drawn
 
@@ -66,6 +72,7 @@ def main(batch=0):
     file_names = []
     in_dir = os.getcwd()+'/data/'
     DATA = False
+    f_prefix = False
     if batch > 0:                   ## Handles batch processing
         file_names.append(sys.argv[batch])
     elif (len(sys.argv) > 1):       ## Allows for files to be given as arguments
@@ -74,6 +81,8 @@ def main(batch=0):
             with open(sys.argv[2],'r') as rfile:
                 for line in rfile:
                     file_names.append(line.strip('\n'))
+            if len(sys.argv) > 2: f_prefix = sys.argv[3]    ## Tries to get the new file prefix from the user
+            else: f_prefix = 'xrootd'                       ## Or just sets it to a default
         else:
             for i in range(len(sys.argv)-1):
                 if sys.argv[i+1] == "-d":
@@ -87,6 +96,7 @@ def main(batch=0):
         print '-b - enables batch processing (each file is treated separately)'
         print '-d - enables data mode (no gen analysis is run for any events)'
         print '-f - switches to text file input (attempts to open the file and use each line as an xrootd location)'
+        print '     if used, a third argument may be provided to set the output folder and plot prefix name'
         sys.exit(0)
 
     for in_file_name in file_names:
@@ -100,7 +110,7 @@ def main(batch=0):
         in_chains[i].Add( file_names[i] )
 
     ## Set output directories (create if they do not exist)
-    f_prefix = file_names[0].split(".")[0]
+    if not f_prefix: f_prefix = file_names[0].split(".")[0]
     print(f_prefix)
     if not os.path.exists('plots/png/'+f_prefix+'/'):
         os.makedirs('plots/png/'+f_prefix+'/')
