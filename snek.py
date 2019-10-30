@@ -69,12 +69,25 @@ def main(batch=0):
     if batch > 0:                   ## Handles batch processing
         file_names.append(sys.argv[batch])
     elif (len(sys.argv) > 1):       ## Allows for files to be given as arguments
-        for i in range(len(sys.argv)-1):
-            if sys.argv[i+1] == "-d":
-                DATA = True
-            else: file_names.append(sys.argv[i+1])
+        ## Experimental text file mode still in development
+        if sys.argv[1] == '-f':
+            with open(sys.argv[2],'r') as rfile:
+                for line in rfile:
+                    file_names.append(line.strip('\n'))
+        else:
+            for i in range(len(sys.argv)-1):
+                if sys.argv[i+1] == "-d":
+                    DATA = True
+                else: file_names.append(sys.argv[i+1])
     else:                           ## Expand for a system of hard-coded files
-        file_names.append(in_dir+'ZH_to_4Tau_1_file.root')
+        #file_names.append(in_dir+'ZH_to_4Tau_1_file.root')
+        ##for now, just make it a debug option that explains proper formatting.
+        print 'Expected: snek.py <switch> <files>'
+        print '--- switches ---'
+        print '-b - enables batch processing (each file is treated separately)'
+        print '-d - enables data mode (no gen analysis is run for any events)'
+        print '-f - switches to text file input (attempts to open the file and use each line as an xrootd location)'
+        sys.exit(0)
 
     for in_file_name in file_names:
         if not '.root' in in_file_name: continue
