@@ -75,16 +75,17 @@ def main(batch=0):
     f_prefix = False
     if batch > 0:                   ## Handles batch processing
         file_names.append(sys.argv[batch])
-    elif (len(sys.argv) > 1):       ## Allows for files to be given as arguments
-        ## Experimental text file mode still in development
+    elif (len(sys.argv) > 1):                               ## Allows for files to be given as arguments
+        ## Takes a file that is in turn a list of files
         if sys.argv[1] == '-f':
             with open(sys.argv[2],'r') as rfile:
                 for line in rfile:
                     file_names.append(line.strip('\n'))
             if len(sys.argv) > 2: f_prefix = sys.argv[3]    ## Tries to get the new file prefix from the user
             else: f_prefix = 'xrootd'                       ## Or just sets it to a default
+        ## Uses the supplied arguments as filenames
         else:
-            for i in range(len(sys.argv)-1):
+            for i in range(len(sys.argv)-1):                
                 if sys.argv[i+1] == "-d":
                     DATA = True
                 else: file_names.append(sys.argv[i+1])
