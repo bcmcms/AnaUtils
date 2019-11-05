@@ -140,6 +140,8 @@ def main(batch=0):
         "h_mu_pt_eta": histo('h_mu_pt_eta', 'Muon pT (|eta| < 1.5);pT (GeV);Events', mu_pt_bins),
         "h_met": histo('h_met', 'MET;Missing Transverse Energy (Gev);Events; ', [200,0,200]),
         "h_cutflow_mc": histo('h_cutflow_mc', 'Total Events // Events with H->4b muons', [3,-0.5,2.5]),
+        "Jet_pt":       histo('Jet_pt',         'Jet pT // |eta| < 2.5 // max 4/event', [150,-1,299]),
+        "Jet_eta":      histo('Jet_eta',        'Jet |eta| // all pT // max 4/event',   [25,-0.05,2.45])
     }
     ## Specifically contains plots related to triggers
     trigplots = {
@@ -160,7 +162,7 @@ def main(batch=0):
         "Mu8_ER1p5":    histo('L1_SingleMu8_er1p56',    'L1_SingleMu8_er1p56',      indiv_trigger_bins),
         "Mu7_ER1p5":    histo('L1_SingleMu7_er1p56',    'L1_SingleMu7_er1p56',      indiv_trigger_bins),
         "HLT_cutflow":  histo('HLT_cutflow',    'All Events//Passed//Mu7_IP4//Mu8_IP3/5/6//Mu9_IP4/5/6//Mu12_IP6', [11,-0.5,10.5]),
-        "L1T_cutflow":  histo('L1T_cutflow',    'All Events//Passed//MU7/8/9/10/12/14/16/18_er1p5', [11,-0.5,10.5])
+        "L1T_cutflow":  histo('L1T_cutflow',    'All Events//Passed//MU7/8/9/10/12/14/16/18_er1p5', [11,-0.5,10.5]),
     }
     indexplots = {
         #"Index2":       histo('Index2',     'Index 2 2.0e34+ZB+HLTPhysics',     index_bins),	
@@ -299,8 +301,26 @@ def main(batch=0):
                 ## Fill only muons with |eta| < 1.5
                 if abs(ch.Muon_eta[iMu]) < 1.5:
                     plots["h_mu_pt_eta"].cfill(mu_pt)                
+            ## End loop over RECO muons pairs (iMu)
+
+            ## Define jet event trackers
+            goodjets = {}   ## To get the highest key, use max(d); to get the highest value, use max(d, key=d.get)
+            ## Loop over jets
+            for iJet in range(len(ch.Jet_pt)):
+                jet_eta = abs(ch.Jet_eta[iJet])
+                jet_pt = ch.Jet_pt[iJet]
+                jet_puid = ch.Jet_puId[iJet]
+                if (jet_puid is not 0) and (jet_eta < 2.4):
+                    if jet_pt in goodjets:
+                        jet_pt = jet_pt + .0000001
+                        if jet_pt in goodjets:
+                            print("The seriously statistically improbable has occured - Jet pT collision detected")
+                            print jet_pt
+                    goodjets[jet_pt] = jet_eta
 
             ## Fill cut flow plots based on what was passed (order matters)
+
+            ## Begin trigger and cut analysis
             if promptCut:                           ## This signifies that a muon of interest was even in this event
                 plots["h_cutflow_mc"].cfill(1) 
                 for plot in trigplots:
@@ -359,8 +379,15 @@ def main(batch=0):
                 if HLTSIP.check(7) > 4:
                     indexplots["Index7"].cfill(3)
 
-            ## End loop over RECO muons pairs (iMu)
-            
+            ## Begin Jet analysis
+            i = 0
+            while (i in range(4)) and (goodjets):
+                jpt = max(goodjets)
+                jeta = goodjets.pop(jpt)
+                if jeta < 2.4:
+                    plots['Jet_pt'].cfill(jpt)
+                    plots['Jet_eta'].cfill(jeta)
+                    i = i + 1
         ## End loop over events in chain (jEvt)
     ## End loop over chains (ch)
 
