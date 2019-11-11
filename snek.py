@@ -130,6 +130,8 @@ def main(batch=0):
     ## Histogram bins: [# of bins, minimum x, maximum x]
     mu_pt_bins = [200, 0, 201]
     indiv_trigger_bins = [3,-0.5,2.5]
+    jet_trigger_bins = [8,-0.,7.5]
+    jet_pt_bins = [200, -0.5,199.5]
     index_bins = [5,-0.5,4.5]
 
     ## Book 1D histograms
@@ -141,7 +143,13 @@ def main(batch=0):
         "h_met": histo('h_met', 'MET;Missing Transverse Energy (Gev);Events; ', [200,0,200]),
         "h_cutflow_mc": histo('h_cutflow_mc', 'Total Events // Events with H->4b muons', [3,-0.5,2.5]),
         "Jet_pt":       histo('Jet_pt',         'Jet pT // |eta| < 2.5 // max 4/event', [150,-1,299]),
-        "Jet_eta":      histo('Jet_eta',        'Jet |eta| // all pT // max 4/event',   [25,-0.05,2.45])
+        "Jet_eta":      histo('Jet_eta',        'Jet |eta| // all pT // max 4/event',   [25,-0.05,2.45]),
+        "Jet1_pt":      histo('Jet1_pt',        'Highest jet pT',       jet_pt_bins),
+        "Jet2_pt":      histo('Jet2_pt',        '2nd Highest jet pT',   jet_pt_bins),
+        "Jet3_pt":      histo('Jet3_pt',        '3rd Highest jet pT',   jet_pt_bins),
+        "Jet4_pt":      histo('Jet4_pt',        '4th Highest jet pT',   jet_pt_bins),
+        "Jet5_pt":      histo('Jet5_pt',        '5th Highest jet pT',   jet_pt_bins),
+        "Jet6_pt":      histo('Jet6_pt',        '6th Highest jet pT',   jet_pt_bins)
     }
     ## Specifically contains plots related to triggers
     trigplots = {
@@ -163,6 +171,10 @@ def main(batch=0):
         "Mu7_ER1p5":    histo('L1_SingleMu7_er1p56',    'L1_SingleMu7_er1p56',      indiv_trigger_bins),
         "HLT_cutflow":  histo('HLT_cutflow',    'All Events//Passed//Mu7_IP4//Mu8_IP3/5/6//Mu9_IP4/5/6//Mu12_IP6', [11,-0.5,10.5]),
         "L1T_cutflow":  histo('L1T_cutflow',    'All Events//Passed//MU7/8/9/10/12/14/16/18_er1p5', [11,-0.5,10.5]),
+        "Njet_pt30":    histo('Njet_pt30',      'All Events//Passed//1/2/3/4/5/6+ jets over 30GeV', jet_trigger_bins),
+        "Njet_pt25":    histo('Njet_pt25',      'All Events//Passed//1/2/3/4/5/6+ jets over 25GeV', jet_trigger_bins),
+        "Njet_pt20":    histo('Njet_pt20',      'All Events//Passed//1/2/3/4/5/6+ jets over 20GeV', jet_trigger_bins),
+        "Njet_pt15":    histo('Njet_pt15',      'All Events//Passed//1/2/3/4/5/6+ jets over 15GeV', jet_trigger_bins)
     }
     indexplots = {
         #"Index2":       histo('Index2',     'Index 2 2.0e34+ZB+HLTPhysics',     index_bins),	
@@ -303,19 +315,32 @@ def main(batch=0):
                     plots["h_mu_pt_eta"].cfill(mu_pt)                
             ## End loop over RECO muons pairs (iMu)
 
-            ## Define jet event trackers
+            ## Begin loop over jets
             goodjets = {}   ## To get the highest key, use max(d); to get the highest value, use max(d, key=d.get)
-            ## Loop over jets
             for iJet in range(len(ch.Jet_pt)):
                 jet_eta = abs(ch.Jet_eta[iJet])
+                jet_phi = ch.Jet_phi[iJet]
                 jet_pt = ch.Jet_pt[iJet]
                 jet_puid = ch.Jet_puId[iJet]
+                badJet = False
+                ## Only accept jets with |eta| < 2.4
                 if (jet_puid is not 0) and (jet_eta < 2.4):
+                    ## Check all our W, Z and A candidates to see if our jet is within dR < 0.2 of them
+                    for i in range(len(muEta)):
+                        if (abs(jet_eta - muEta[i]) < 0.2
+                            ) and ((abs(jet_phi - muPhi[i]) < 0.2) or (abs(jet_phi - muPhi[i]) > 6.22)):
+                            badJet = True        ## This muon comes from something we're not interested in
+                            break
+                    ## If so, skip this jet and move on
+                    if badJet:
+                        continue
+                    ## Check that we're not assigning two jets to the same dictionary entry
                     if jet_pt in goodjets:
                         jet_pt = jet_pt + .0000001
                         if jet_pt in goodjets:
                             print("The seriously statistically improbable has occured - Jet pT collision detected")
                             print jet_pt
+                    ## Fill the dictionary with the jet
                     goodjets[jet_pt] = jet_eta
 
             ## Fill cut flow plots based on what was passed (order matters)
@@ -381,13 +406,19 @@ def main(batch=0):
 
             ## Begin Jet analysis
             i = 0
-            while (i in range(4)) and (goodjets):
+            while (goodjets):## and (i in range(4)):
                 jpt = max(goodjets)
                 jeta = goodjets.pop(jpt)
-                if jeta < 2.4:
+                if i < 4:
                     plots['Jet_pt'].cfill(jpt)
                     plots['Jet_eta'].cfill(jeta)
-                    i = i + 1
+                if i < 6:
+                    plots["Jet"+str(i+1)+'_pt'].cfill(jpt)
+                if not goodjets:
+                    for j in [15,20,25,30]:
+                        if jpt > j:
+                            trigplots['Njet_pt'+str(j)].cfill(i+2)
+                i = i + 1
         ## End loop over events in chain (jEvt)
     ## End loop over chains (ch)
 
