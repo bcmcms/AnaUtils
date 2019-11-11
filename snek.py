@@ -142,8 +142,8 @@ def main(batch=0):
         "h_mu_pt_eta": histo('h_mu_pt_eta', 'Muon pT (|eta| < 1.5);pT (GeV);Events', mu_pt_bins),
         "h_met": histo('h_met', 'MET;Missing Transverse Energy (Gev);Events; ', [200,0,200]),
         "h_cutflow_mc": histo('h_cutflow_mc', 'Total Events // Events with H->4b muons', [3,-0.5,2.5]),
-        "Jet_pt":       histo('Jet_pt',         'Jet pT // |eta| < 2.5 // max 4/event', [150,-1,299]),
-        "Jet_eta":      histo('Jet_eta',        'Jet |eta| // all pT // max 4/event',   [25,-0.05,2.45]),
+        "Jet_pt":       histo('Jet_pt',         'Jet pT - |eta| < 2.5 - max 4/event', [150,-1,299]),
+        "Jet_eta":      histo('Jet_eta',        'Jet |eta| - all pT - max 4/event',   [25,-0.05,2.45]),
         "Jet1_pt":      histo('Jet1_pt',        'Highest jet pT',       jet_pt_bins),
         "Jet2_pt":      histo('Jet2_pt',        '2nd Highest jet pT',   jet_pt_bins),
         "Jet3_pt":      histo('Jet3_pt',        '3rd Highest jet pT',   jet_pt_bins),
@@ -412,6 +412,9 @@ def main(batch=0):
             i = 0
             njets = [0,0,0,0]
             jetcuts = [15,20,25,30]
+            if not goodjets:
+                for j in range(4):
+                    plots['Njet_pt'+str(jetcuts[j])].cfill(0)
             while (goodjets):## and (i in range(4)):
                 jpt = max(goodjets)
                 jeta = goodjets.pop(jpt)
