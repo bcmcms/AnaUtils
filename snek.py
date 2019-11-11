@@ -40,8 +40,8 @@ class histo:                    ## Define our histo object, to keep all these pr
         s.h.Draw(drawop)
         canvas.SaveAs(savedir+s.name+suffix)
 
-    def markbins(s, markersize=1.8):
-        s.h.Scale(1.0/s.h.GetBinContent(1))
+    def markbins(s, markersize=1.8, refbin=1):
+        s.h.Scale(1.0/s.h.GetBinContent(refbin))
         s.h.SetMarkerSize(markersize)
 
 
@@ -130,7 +130,7 @@ def main(batch=0):
     ## Histogram bins: [# of bins, minimum x, maximum x]
     mu_pt_bins = [200, 0, 201]
     indiv_trigger_bins = [3,-0.5,2.5]
-    jet_trigger_bins = [8,-0.,7.5]
+    jet_trigger_bins = [9,-2.5,6.5]
     jet_pt_bins = [200, -0.5,199.5]
     index_bins = [5,-0.5,4.5]
 
@@ -149,7 +149,11 @@ def main(batch=0):
         "Jet3_pt":      histo('Jet3_pt',        '3rd Highest jet pT',   jet_pt_bins),
         "Jet4_pt":      histo('Jet4_pt',        '4th Highest jet pT',   jet_pt_bins),
         "Jet5_pt":      histo('Jet5_pt',        '5th Highest jet pT',   jet_pt_bins),
-        "Jet6_pt":      histo('Jet6_pt',        '6th Highest jet pT',   jet_pt_bins)
+        "Jet6_pt":      histo('Jet6_pt',        '6th Highest jet pT',   jet_pt_bins),
+        "Njet_pt30":    histo('Njet_pt30',      'All Events//Passed//0/1/2/3/4/5/6+ jets over 30GeV', jet_trigger_bins),
+        "Njet_pt25":    histo('Njet_pt25',      'All Events//Passed//0/1/2/3/4/5/6+ jets over 25GeV', jet_trigger_bins),
+        "Njet_pt20":    histo('Njet_pt20',      'All Events//Passed//0/1/2/3/4/5/6+ jets over 20GeV', jet_trigger_bins),
+        "Njet_pt15":    histo('Njet_pt15',      'All Events//Passed//0/1/2/3/4/5/6+ jets over 15GeV', jet_trigger_bins)
     }
     ## Specifically contains plots related to triggers
     trigplots = {
@@ -170,11 +174,7 @@ def main(batch=0):
         "Mu8_ER1p5":    histo('L1_SingleMu8_er1p56',    'L1_SingleMu8_er1p56',      indiv_trigger_bins),
         "Mu7_ER1p5":    histo('L1_SingleMu7_er1p56',    'L1_SingleMu7_er1p56',      indiv_trigger_bins),
         "HLT_cutflow":  histo('HLT_cutflow',    'All Events//Passed//Mu7_IP4//Mu8_IP3/5/6//Mu9_IP4/5/6//Mu12_IP6', [11,-0.5,10.5]),
-        "L1T_cutflow":  histo('L1T_cutflow',    'All Events//Passed//MU7/8/9/10/12/14/16/18_er1p5', [11,-0.5,10.5]),
-        "Njet_pt30":    histo('Njet_pt30',      'All Events//Passed//1/2/3/4/5/6+ jets over 30GeV', jet_trigger_bins),
-        "Njet_pt25":    histo('Njet_pt25',      'All Events//Passed//1/2/3/4/5/6+ jets over 25GeV', jet_trigger_bins),
-        "Njet_pt20":    histo('Njet_pt20',      'All Events//Passed//1/2/3/4/5/6+ jets over 20GeV', jet_trigger_bins),
-        "Njet_pt15":    histo('Njet_pt15',      'All Events//Passed//1/2/3/4/5/6+ jets over 15GeV', jet_trigger_bins)
+        "L1T_cutflow":  histo('L1T_cutflow',    'All Events//Passed//MU7/8/9/10/12/14/16/18_er1p5', [11,-0.5,10.5])
     }
     indexplots = {
         #"Index2":       histo('Index2',     'Index 2 2.0e34+ZB+HLTPhysics',     index_bins),	
@@ -229,6 +229,8 @@ def main(batch=0):
                 trigplots[plot].cfill(0)
             for plot in indexplots:
                 indexplots[plot].cfill(0)
+            for i in ['Njet_pt15','Njet_pt20','Njet_pt25','Njet_pt30']:
+                plots[i].cfill(-2)
 
             ## Looking for 'A' (Spoilers: It's PDG ID = 36)
             #for iGen in range(nGen):
@@ -352,6 +354,8 @@ def main(batch=0):
                     trigplots[plot].cfill(1)
                 for plot in indexplots:
                     indexplots[plot].cfill(1)
+                for i in ['Njet_pt15','Njet_pt20','Njet_pt25','Njet_pt30']:
+                    plots[i].cfill(-1)
             else: continue                          ## Further trigger work past here only operates on valid events
 
             stillMu = True
@@ -406,6 +410,8 @@ def main(batch=0):
 
             ## Begin Jet analysis
             i = 0
+            njets = [0,0,0,0]
+            jetcuts = [15,20,25,30]
             while (goodjets):## and (i in range(4)):
                 jpt = max(goodjets)
                 jeta = goodjets.pop(jpt)
@@ -414,10 +420,12 @@ def main(batch=0):
                     plots['Jet_eta'].cfill(jeta)
                 if i < 6:
                     plots["Jet"+str(i+1)+'_pt'].cfill(jpt)
+                for j in range(4):
+                    if jpt > jetcuts[j]:
+                        njets[j] = njets[j] + 1
                 if not goodjets:
-                    for j in [15,20,25,30]:
-                        if jpt > j:
-                            trigplots['Njet_pt'+str(j)].cfill(i+2)
+                    for j in range(4):
+                        plots['Njet_pt'+str(jetcuts[j])].cfill(njets[j])
                 i = i + 1
         ## End loop over events in chain (jEvt)
     ## End loop over chains (ch)
@@ -434,6 +442,8 @@ def main(batch=0):
         trigplots[i].markbins()
     for i in indexplots:
         indexplots[i].markbins()
+    for i in ['Njet_pt15','Njet_pt20','Njet_pt25','Njet_pt30']:
+        plots[i].markbins()
 
 ######################
 ## Save the histograms
@@ -453,7 +463,9 @@ def main(batch=0):
         trigplots[i].saveplot(canv, png_dir, drawop="htext")
     for i in indexplots:
         indexplots[i].saveplot(canv, png_dir, drawop="htext")
-
+    for i in ['Njet_pt15','Njet_pt20','Njet_pt25','Njet_pt30']:
+        hist = plots.pop(i)
+        hist.saveplot(canv, png_dir, drawop="htext")
     ## Generic plotting loop, for your histos that don't have anything special    
     canv.cd()
     hist = plots.pop("h_cutflow_mc")
