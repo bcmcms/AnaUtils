@@ -34,7 +34,7 @@ class hist:
     def fill(s,vals):
         s.hs[0] = s.hs[0] + plt.hist(vals,s.size,s.bounds)[0]
 
-
+    ## Creates and returns a pyplot-compatible histogram object
     def make(s,logv=False):
         return plt.hist(s.hs[1][:s.size],s.size,s.bounds,weights=s.hs[0],log=logv)
 
@@ -42,16 +42,21 @@ def inc(var):
     return var+1
 
 def mc(files):
+    ## This histogram object is used to accumulate and render our data, defined above
     pdgplt = hist(40,(-0.5,39.5))
+    ## Create an internal figure for pyplot to write to
     plt.figure(1)
+    ## Loop over input files
     for fnum in range(len(files)):
         print('Opening '+files[fnum])
+        ## Open our file for processing
         f = uproot.open(files[fnum])
         events = f.get('Events')
         pdgid = events.array('GenPart_pdgId')
         parid = events.array('GenPart_genPartIdxMother')
         print('Processing ' + str(len(pdgid)) + ' events')
         outlist = []
+        ## Loop over pdgid, using extremely slow ROOT-like logic instead of uproot logic.
         for event in range(pdgid.size):
             for iGen in range(pdgid[event].size):
                 if (abs(pdgid[event][iGen]) == 5) or (abs(pdgid[event][iGen] == 7)):
@@ -62,7 +67,7 @@ def mc(files):
                         outlist.append(36)
                     else:
                         outlist.append(parentId)
-        
+        ## Fill out histogram with the list of values we obtained
         pdgplt.fill(outlist)
     
     plt.clf()  
@@ -74,11 +79,14 @@ def mc(files):
     sys.exit()
 
 def jets(files):
+    ## Make a dictionary of histogram objects
     plots = {
         "jetpT": hist(100,(-0.5,99.5)),
         "jetdR": hist(size=100,bounds=(-0.0005,0.0995))
     }
+    ## Create an internal figure for pyplot to write to
     plt.figure(1)
+    ## Loop over input files
     for fnum in range(len(files)):
         print('Opening '+files[fnum])
         ## Open our file and grab the events tree
@@ -125,23 +133,19 @@ def jets(files):
                 jmudr2=jmudr2.drop(columns=[col]) 
             ## As we shape our dataframe to match the dimensions of jetpt, make the column names match
             jmudr2=jmudr2.rename(columns={head:j})
-        ## Plot a jet pt array populated only by the jet in each event with the lowest dR to any muon
+        ## Fill a jet pt array populated only by the jet in each event with the lowest dR to any muon
         pts = jetpt[jmudr2>0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)
         plots['jetpT'].fill(pts[0])
-        #plt.xlabel('Jet pT (for lowest dR to Muon)')
-        #plt.ylabel('Events')
-        #plt.savefig('upplots/JetdRpT.png')
-        #plt.clf()
         pts = jmudr2[jmudr2!=0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)
         plots['jetdR'].fill(pts[0])
-    #
+    ## Draw the jet pT plot
     plt.clf()
     ptplot = plots['jetpT'].make()
     plt.xlabel('Jet pT (for lowest dR to Muon)')
     plt.ylabel('Events')
     plt.savefig('upplots/JetdRpT.png')
     plt.show()
-    #
+    ## Draw the jet dR plot
     plt.figure(2)
     plt.clf()
     drplot = plots['jetdR'].make(logv=True)
@@ -149,7 +153,6 @@ def jets(files):
     plt.ylabel('Events')
     plt.savefig('upplots/JetMudR.png')
     plt.show()
-    #plt.clf()
     sys.exit()
     ## Isolate the lowest DR for each event, clean it by dumping it to a list, then cycle it back into a dataframe.
     # This is equivalent to writing
@@ -166,19 +169,23 @@ def jets(files):
     #jets = jmudr2[1].str.split(n = 3, expand=True)[1]
 
 def trig(files):
+    ## Create a dictionary of histogram objects
     plots = {
         'hltplot':  hist(100,(-0.5,99.5)),
         'ptplot':   hist(100,(-0.5,99.5))
     }
+    ## Create an internal figure for pyplot to write to
     plt.figure(1)
+    ## Loop over all input files
     for fnum in range(len(files)):
         print('Opening '+files[fnum])
+        ## Open the file and retrieve our key branches
         f = uproot.open(files[fnum])
         events = f.get('Events')
         muon_pt = pd.DataFrame(events.array('Muon_pt'))
         muon_sip = pd.DataFrame(events.array('Muon_sip3d'))
         print('Processing ' + str(len(muon_pt)) + ' events')
-        ## It's important to pick a trigger that was actually used for the data
+        ## It's important to pick a trigger that was actually used for the data and file in question
         trig = pd.DataFrame(events.array('HLT_Mu9_IP5_part0'))
         ## Cut pT to only muons with SIP > 8
         muon_pt = muon_pt[muon_sip>8]
@@ -217,7 +224,7 @@ def main():
                 for line in rfile:
                     files.append(line.strip('\n')) 
         else:
-            files.append('Parked.root')
+            files.append('NMSSM-20.root')
         ## Check specified run mode
         if sys.argv[1] == '-mc':
             mc(files)
