@@ -187,6 +187,7 @@ def trig(files):
         print('Processing ' + str(len(muon_pt)) + ' events')
         ## It's important to pick a trigger that was actually used for the data and file in question
         trig = pd.DataFrame(events.array('HLT_Mu9_IP5_part0'))
+        #trig2 = pd.DataFrame(events.array('HLT_Mu9_IP6_part0'))
         ## Cut pT to only muons with SIP > 8
         muon_pt = muon_pt[muon_sip>8]
         ## Melt down the muon_pt array into a 1D list to plot
@@ -213,14 +214,14 @@ def trig(files):
 
 def main():
     if (len(sys.argv) > 1): 
+        files=[]
         ## Check for file sources
         if '-f' in sys.argv:
             idx = sys.argv.index('-f')+1
-            files = []
             for i in sys.argv[idx:]:
                 files.append(i)
         elif '-l' in sys.argv:
-            with open(sys.argv[2],'r') as rfile:
+            with open(sys.argv[3],'r') as rfile:
                 for line in rfile:
                     files.append(line.strip('\n')) 
         else:
