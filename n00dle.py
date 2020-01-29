@@ -119,6 +119,8 @@ def mc(files):
     return plot
 
 def ana(files):
+    ## Define what pdgId we expect the A to have
+    Aid = 36
     ## Make a dictionary of histogram objects
     plots = {
         "beta":     hist(629,(-3.14,3.14),'GEN b Eta','Events','upplots/beta'),
@@ -147,9 +149,9 @@ def ana(files):
         ##
         pdgida = events.array('GenPart_pdgId')
         parida = events.array('GenPart_genPartIdxMother')
-        beta= pd.DataFrame(events.array('GenPart_eta')[abs(pdgida[parida])==9000006]).rename(columns=inc)
-        bphi= pd.DataFrame(events.array('GenPart_phi')[abs(pdgida[parida])==9000006]).rename(columns=inc)
-        bpt = pd.DataFrame(events.array('GenPart_pt')[abs(pdgida[parida])==9000006]).rename(columns=inc)
+        beta= pd.DataFrame(events.array('GenPart_eta')[abs(pdgida[parida])==Aid]).rename(columns=inc)
+        bphi= pd.DataFrame(events.array('GenPart_phi')[abs(pdgida[parida])==Aid]).rename(columns=inc)
+        bpt = pd.DataFrame(events.array('GenPart_pt')[abs(pdgida[parida])==Aid]).rename(columns=inc)
         jeteta= pd.DataFrame(events.array('Jet_eta')).rename(columns=inc)
         jetphi= pd.DataFrame(events.array('Jet_phi')).rename(columns=inc)
         jetpt = pd.DataFrame(events.array('Jet_pt')).rename(columns=inc)
