@@ -210,9 +210,12 @@ def ana(files):
 def trig(files):
     ## Create a dictionary of histogram objects
     plots = {
-        'hltplot':  Hist(80,(-0.5,79.5),'Highest Muon pT','Events','upplots/TrigHLTplot'),
-        'ptplot':   Hist(80,(-0.5,79.5),'Highest Muon pT','Events','upplots/TrigpTplot'),
-        'ratioplot':Hist(80,(-0.5,79.5),'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatioPlot')
+        'hptplot':      Hist(80,(-0.5,79.5),'Highest Muon pT','Events','upplots/TrigHpTplot'),
+        'ptplot':       Hist(80,(-0.5,79.5),'Highest Muon pT','Events','upplots/TrigpTplot'),
+        'ratioptplot':  Hist(80,(-0.5,79.5),'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatiopTPlot'),
+        'sipplot':      Hist(20,(-0.25,9.75),'Highest Muon SIP', 'Events', 'upplots/TrigSIPplot'),
+        'hsipplot':     Hist(20,(-0.25,9.75),'Highest Muon SIP', 'Events', 'upplots/TrigHSIPplot'),
+        'ratiosipplot': Hist(20,(-0.25,9.75),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of sip > 5', 'upplots/TrigRatioSIPplot')
     }
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
@@ -225,18 +228,28 @@ def trig(files):
         Muon = PhysObj('Muon',files[fnum],'pt','eta','phi','sip3d')
         Trig = PhysObj('trig')
         Trig.vals = pd.DataFrame(events.array('HLT_Mu7_IP4_part0')).rename(columns=inc)
-        ev = Event(Muon.pt,Muon,Trig)
+        #ev = Event(Muon.pt,Muon,Trig)
         print('Processing ' + str(len(Muon.pt)) + ' events')
 
-        ## Cut pT to only muons with SIP > 8
-        Muon.cut(Muon.sip3d>5)
-        #Trig.cut(Trig.vals)
-        Trig.trim(Muon.pt)
+        ## Cut muons and trim triggers to the new size
+        MuonP = Muon.cut(Muon.sip3d>5,split=True)
+        MuonS = Muon.cut(Muon.pt>10,split=True)
+        TrigP = Trig.trim(MuonP.pt,split=True)
+        TrigS = Trig.trim(MuonS.sip3d,split=True)
+        ## Reshape triggers to fit our muons
+        for i in MuonP.pt.columns:
+            TrigP.vals[i] = TrigP.vals[1]
+        for i in MuonS.sip3d.columns:
+            TrigS.vals[i] = TrigS.vals[1]
+
         ## Create the two histograms we want to divide
         plt.figure(1)
-        plots['ptplot'].fill(Muon.pt.max(axis=1))
-        plots['hltplot'].fill(Muon.pt[Trig.vals].max(axis=1).dropna(how='all'))
-    plots['ratioplot'].add(plots['hltplot'].divideby(plots['ptplot'],split=True))
+        plots['ptplot'].fill(MuonP.pt.max(axis=1))
+        plots['hptplot'].fill(MuonP.pt[TrigP.vals].max(axis=1).dropna(how='all'))
+        plots['sipplot'].fill(MuonS.sip3d.max(axis=1))
+        plots['hsipplot'].fill(MuonS.sip3d[TrigS.vals].max(axis=1).dropna(how='all'))
+    plots['ratioptplot'].add(plots['hptplot'].divideby(plots['ptplot'],split=True))
+    plots['ratiosipplot'].add(plots['hsipplot'].divideby(plots['sipplot'],split=True))
     for pl in plots:
         plt.clf()
         plots[pl].plot()

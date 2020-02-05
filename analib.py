@@ -138,13 +138,17 @@ class PhysObj(DefaultMunch):
         return s
 
     ## Removes events that are missing in the passed frame
-    def trim(s,frame):
+    def trim(s,frame,split=False):
+        if split:
+            s = s.copy()
         for elem in s:
             s[elem] = s[elem].loc[frame.index.intersection(s[elem].index)]
         return s
 
     ## Removes particles that fail the passed test, and events if they become empty
-    def cut(s,mask):
+    def cut(s,mask,split=False):
+        if split:
+            s = s.copy()
         for elem in s:
             s[elem] = s[elem][mask].dropna(how='all')
         return s
@@ -185,12 +189,16 @@ class Event():
         return s
 
     ## Applies disqualified events to all associated objects
-    def applycuts(s):
+    def applycuts(s,split=False):
+        if split:
+            s = cp.deepcopy(s)
         for obj in s.objs:
             s[obj].trim(s.frame)
         return s
 
-    def sync(s):
+    def sync(s,split=False):
+        if split:
+            s = cp.deepcopy(s)
         s.scan()
         s.applycuts()
         return s
