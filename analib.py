@@ -154,19 +154,13 @@ class PhysObj(DefaultMunch):
         return s
 
 class Event():
-    def __init__(s,tar,*args):
-        if isinstance(tar,str):
-            s.frame = pd.DataFrame(uproot.open(tar).get('Events').array('Muon_pt'))
-        elif isinstance(tar,pd.DataFrame):
-            s.frame = tar
-        elif isinstance(tar,awkward.array.jagged.JaggedArray):
-            s.frame = pd.DataFrame(tar)
-        else:
-            raise Exception("Event was initialized without an appropriate frame of events")
+    def __init__(s,*args):
+        if len(args) == 0:
+            raise Exception("Event was initialized without an appropriate object")
         s.objs = {}
-        if len(args) != 0:
-            for arg in args:
-                s.register(arg)
+        for arg in args:
+            s.register(arg)
+        s.frame = args[0][list(args[0].keys())[0]]
 
     def __getitem__(s,obj):
         return s.objs[obj]

@@ -132,7 +132,7 @@ def ana(files):
         bs.phi = temp_phi
         del [temp_pt,temp_eta,temp_phi]
 
-        ev = Event(bs.pt,bs,jets)
+        ev = Event(bs,jets)
         jets.cut(jets.pt>0)
         bs.cut(bs.pt>0)
         ev.sync()
@@ -225,11 +225,16 @@ def trig(files):
         ## Open the file and retrieve our key branches
         f = uproot.open(files[fnum])
         events = f.get('Events')
-        Muon = PhysObj('Muon',files[fnum],'pt','eta','phi','sip3d')
+        Muon = PhysObj('Muon',files[fnum],'pt','eta','phi','sip3d','mediumId')
         Trig = PhysObj('trig')
         Trig.vals = pd.DataFrame(events.array('HLT_Mu7_IP4_part0')).rename(columns=inc)
-        #ev = Event(Muon.pt,Muon,Trig)
+        ev = Event(Muon,Trig)
         print('Processing ' + str(len(Muon.pt)) + ' events')
+    
+        ##Perform global cuts
+        Muon.cut(abs(Muon.eta)<1.5)
+        Muon.cut(Muon.mediumId==True)
+        ev.sync()
 
         ## Cut muons and trim triggers to the new size
         MuonP = Muon.cut(Muon.sip3d>5,split=True)
