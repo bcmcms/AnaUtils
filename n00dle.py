@@ -210,8 +210,9 @@ def ana(files):
 def trig(files):
     ## Create a dictionary of histogram objects
     plots = {
-        'hltplot':  hist(100,(-0.5,99.5)),
-        'ptplot':   hist(100,(-0.5,99.5))
+        'hltplot':  Hist(40,(-0.5,39.5),'Highest Muon pT','Events','upplots/TrigHLTplot'),
+        'ptplot':   Hist(40,(-0.5,39.5),'Highest Muon pT','Events','upplots/TrigpTplot'),
+        'ratioplot':Hist(40,(-0.5,39.5),'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatioPlot')
     }
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
@@ -221,34 +222,24 @@ def trig(files):
         ## Open the file and retrieve our key branches
         f = uproot.open(files[fnum])
         events = f.get('Events')
-        muon_pt = pd.DataFrame(events.array('Muon_pt'))
-        muon_sip = pd.DataFrame(events.array('Muon_sip3d'))
-        print('Processing ' + str(len(muon_pt)) + ' events')
-        ## It's important to pick a trigger that was actually used for the data and file in question
-        trig = pd.DataFrame(events.array('HLT_Mu9_IP5_part0'))
-        #trig2 = pd.DataFrame(events.array('HLT_Mu9_IP6_part0'))
+        Muon = PhysObj('Muon',files[fnum],'pt','eta','phi','sip3d')
+        Trig = PhysObj('trig')
+        Trig.vals = pd.DataFrame(events.array('HLT_Mu7_IP4_part0')).rename(columns=inc)
+        ev = Event(Muon.pt,Muon,Trig)
+        print('Processing ' + str(len(Muon.pt)) + ' events')
+
         ## Cut pT to only muons with SIP > 8
-        muon_pt = muon_pt[muon_sip>8]
-        ## Melt down the muon_pt array into a 1D list to plot
-        pts = muon_pt.melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)
+        Muon.cut(Muon.sip3d>5)
+        #Trig.cut(Trig.vals)
+        Trig.trim(Muon.pt)
         ## Create the two histograms we want to divide
         plt.figure(1)
-        plots['ptplot'].fill(pts[0])
-        plots['hltplot'].fill(pts[trig][0])
-    ## Pick out the bin values from the plotted histos and divide them
-    ptplotf = plots['ptplot'].make()
-    hltplotf = plots['hltplot'].make()
-    ws=np.divide(hltplotf[0],ptplotf[0], where=ptplotf[0]!=0)
-    ## Empty bins should have a weight of 0
-    ws[np.isnan(ws)] = 0
-    ## Plot the histogram bins weighted with the result of the ratio
-    plt.clf()
-    ratioplot = plt.hist(ptplotf[1][:100],100,(0,100),weights=ws)
-    
-    plt.xlabel('Muon pT')
-    plt.ylabel('HLT_Mu9_IP5_part0 trigger frequency at SIP>8')
-    plt.savefig('upplots/TrigRatio.png')
-    plt.show()
+        plots['ptplot'].fill(Muon.pt.max(axis=1))
+        plots['hltplot'].fill(Muon.pt[Trig.vals].max(axis=1).dropna(how='all'))
+    plots['ratioplot'].add(plots['hltplot'].divideby(plots['ptplot'],split=True))
+    for pl in plots:
+        plt.clf()
+        plots[pl].plot()
     sys.exit()
 
 def main():
@@ -278,7 +269,6 @@ def main():
     print("Expected n00dle.py <switch> (flag) (target)")
     print("-----switches-----")
     print("-mc    Runs a b-parent analysis on MC")
-    print("-jets  Analyzes jet/muon dR and pT")
     print("-trig  Analyzes trigger efficiency for data")
     print("---optional flags--")
     print("-f     Targets a specific file to run over")
