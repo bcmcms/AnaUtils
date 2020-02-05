@@ -100,17 +100,18 @@ def ana(files):
         pdgida = events.array('GenPart_pdgId')
         parida = events.array('GenPart_genPartIdxMother')
 
-        bs = PhysObj()
+        bs = PhysObj('bs')
 
         bs.eta = pd.DataFrame(events.array('GenPart_eta')[abs(pdgida[parida])==Aid]).rename(columns=inc)
         bs.phi = pd.DataFrame(events.array('GenPart_phi')[abs(pdgida[parida])==Aid]).rename(columns=inc)
         bs.pt  = pd.DataFrame(events.array('GenPart_pt')[abs(pdgida[parida])==Aid]).rename(columns=inc)
         
-        jets = PhysObj()
+        jets = PhysObj('jets')
 
         jets.eta= pd.DataFrame(events.array('Jet_eta')).rename(columns=inc)
         jets.phi= pd.DataFrame(events.array('Jet_phi')).rename(columns=inc)
         jets.pt = pd.DataFrame(events.array('Jet_pt')).rename(columns=inc)
+
 
         print('Processing ' + str(len(bs.eta)) + ' events')
 
@@ -123,24 +124,27 @@ def ana(files):
         temp_eta = pd.DataFrame()
         temp_phi = pd.DataFrame()
         for i in range(1,nb+1):
-            temp_pt[i] = bs.pt[bs.pt.rank(axis=1,ascending=False)==i].max(axis=1)
-            temp_eta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False)==i].max(axis=1)
-            temp_phi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False)==i].max(axis=1)
+            temp_pt[i] = bs.pt[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+            temp_eta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+            temp_phi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
         bs.pt = temp_pt
         bs.eta = temp_eta
         bs.phi = temp_phi
         del [temp_pt,temp_eta,temp_phi]
 
+        ev = Event(bs.pt,bs,jets)
+        jets.cut(jets.pt>0)
+        bs.cut(bs.pt>0)
+        ev.sync()
+
         ## Create our dR dataframe by populating its first column and naming it accordingly
         jbdr2 = pd.DataFrame(np.power(jets.eta[1]-bs.eta[1],2) + np.power(jets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
-
         ## Loop over jet x b combinations
         jbstr = [] 
         for j in range(1,njet+1):
             for b in range(1,nb+1):
                 ## Make our column name
                 jbstr.append("Jet "+str(j)+" b "+str(b))
-                ## Skip the 1st column since that was used to initialize the dataframe
                 if (j+b==2):
                     continue
                 ## Compute and store the dr of the given b and jet for every event at once
@@ -150,7 +154,7 @@ def ana(files):
         blist = []
         for b in range(nb):
             blist.append(jbdr2.filter(like='b '+str(b+1)))
-            blist[b] = blist[b][blist[b].rank(axis=1,method='min') == 1]
+            blist[b] = blist[b][blist[b].rank(axis=1,method='first') == 1]
             blist[b] = blist[b].rename(columns=lambda x:int(x[4:6]))
         bjdr2 = pd.concat(blist,axis=1,sort=False)
         ## Replace all values but the lowest dRs with 0s
