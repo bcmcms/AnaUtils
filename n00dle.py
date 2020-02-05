@@ -18,68 +18,11 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import itertools as it
 import copy as cp
-
-class hist(object):
-    def __init__(s,size,bounds,xlabel='',ylabel='',fname=''):
-        s.size = size
-        s.bounds = bounds
-        s.hs = [plt.hist([],size,bounds)[0],plt.hist([],size,bounds)[1]]
-        s.xlabel = xlabel
-        s.ylabel = ylabel
-        s.fname = fname
-
-    def __getitem__(s,i):
-        if (i > 1) or (i < -2):
-            raise Exception('histo object was accessed with an invalid index')
-        return s.hs[i]
-
-    ## Adds the values of a passed histogram to the class's plot
-    def add(s,inplot):
-        if (len(inplot[0]) != len(s.hs[0])) or (len(inplot[1]) != len(s.hs[1])):
-            raise Exception('Mismatch between passed and stored histogram dimensions')
-        s.hs[0] = s.hs[0] + inplot[0]
-        return s
-
-    ## Fills the stored histogram with the supplied values
-    def fill(s,vals):
-        s.hs[0] = s.hs[0] + plt.hist(vals,s.size,s.bounds)[0]
-        return s
-
-    ## Fills the stored histogram with values from the supplied dataframe
-    def dfill(s,frame):
-        s.fill(frame.melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0])
-        return s
-
-    ## Divides the stored histogram by another, and either changes itself or returns a changed object
-    def divideby(s,inplot,split=False):
-        if (len(inplot[0]) != len(s.hs[0])) or (len(inplot[1]) != len(s.hs[1])):
-            raise Exception('Mismatch between passed and stored histogram dimensions')
-        if split:
-            s = cp.deepcopy(s)
-        s.hs[0] = np.divide(s.hs[0],inplot[0], where=inplot[0]!=0)
-        ## Empty bins should have a weight of 0
-        s.hs[0][np.isnan(s.hs[0])] = 0
-        return s
-
-    ## Creates and returns a pyplot-compatible histogram object
-    def make(s,logv=False):
-        return plt.hist(s.hs[1][:s.size],s.size,s.bounds,weights=s.hs[0],log=logv)
-
-    def plot(s,logv=False):
-        s.make(logv)
-        if s.xlabel != '':
-            plt.xlabel(s.xlabel)
-        if s.ylabel != '':
-            plt.ylabel(s.ylabel)
-        if s.fname != '':
-            plt.savefig(s.fname)
-
-def inc(var):
-    return var+1
+from analib import * 
 
 def mc(files):
     ## This histogram object is used to accumulate and render our data, defined above
-    pdgplt = hist(40,(-0.5,39.5))
+    pdgplt = Hist(40,(-0.5,39.5))
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
     ## Loop over input files
@@ -120,18 +63,30 @@ def mc(files):
 
 def ana(files):
     ## Define what pdgId we expect the A to have
+    #Aid = 9000006
     Aid = 36
     ## Make a dictionary of histogram objects
+    bjplots = {}
+    for i in range(1,5):
+        bjplots.update({
+        "beta"+str(i):      Hist(66,(-3.3,3.3),'GEN b '+str(i)+' Eta','Events','upplots/beta'+str(i)),
+        "bpT"+str(i):       Hist(100,(-0.5,99.5),'GEN pT of b '+str(i),'Events','upplots/bdRpT'+str(i)),
+        "bjetpT"+str(i):    Hist(100,(-0.5,99.5),'Matched RECO jet '+str(i)+' pT','Events','upplots/RjetpT'+str(i)),
+        "bjeteta"+str(i):   Hist(66,(-3.3,3.3),'Matched RECO jet '+str(i)+' Eta','Events','upplots/Rjeteta'+str(i))
+        })
     plots = {
-        "beta":     hist(629,(-3.14,3.14),'GEN b Eta','Events','upplots/beta'),
-        "bphi":     hist(629,(-3.14,3.14),'GEN b Phi','Events','upplots/bphi'),
-        "bdR":      hist(100,(-0.0005,0.0995),'Lowest GEN b-jet dR','Events','upplots/bdR'),
-        "bpT":    hist(100,(-0.5,99.5),'GEN pT of b','Events','upplots/bdRpT'),
-        "bdRjetpT": hist(100,(-0.5,99.5),'RECO pT of jet with lowest b dR','Events','upplots/bdRjetpT'),
-        "bdRgjetpT":hist(100,(-0.5,99.5),'GEN pT of jet with lowest b dR','Events','upplots/bdRgjetpT'),
-        "GjetpT":   hist(100,(-0.5,99.5),'GEN jet pT','Events','upplots/GjetpT'),
-        "RjetpT":   hist(100,(-0.5,99.5),'RECO jet pT','Events','upplots/RjetpT'),
-        "GRjetpT":  hist(100,(-0.5,99.5),'jet pT','Ratio of GEN/RECO jet pT for jets with lowest dR to b','upplots/GRjetpT')
+        "bphi":     Hist(66,(-3.3,3.3),'GEN b Phi','Events','upplots/bphi'),
+        "bdR":      Hist(100,(-0.005,1.995),'GEN b to matched jet dR','Events','upplots/bdR'),
+        "RjetpT":   Hist(100,(-0.5,99.5),'All RECO jet pT','Events','upplots/RjetpT'),
+        "GoverRjetpT":  Hist(100,(-0.5,99.5),'jet pT','Ratio of GEN b pT / RECO jet pT for matched jets','upplots/GRjetpT'),
+        "bdRvlogbpT1":   Hist2d([80,100],[[-0.05,7.95],[-0.00005,.00995]],'log2(GEN b pT)','dR from 1st pT GEN b to matched RECO jet','upplots/bdRvlogbpT1'),
+        "bdRvlogbpT2":   Hist2d([80,100],[[-0.05,7.95],[-0.00005,.00995]],'log2(GEN b pT)','dR from 2nd pT GEN b to matched RECO jet','upplots/bdRvlogbpT2'),
+        "bdRvlogbpT3":   Hist2d([80,100],[[-0.05,7.95],[-0.00005,.00995]],'log2(GEN b pT)','dR from 3rd pT GEN b to matched RECO jet','upplots/bdRvlogbpT3'),
+        "bdRvlogbpT4":   Hist2d([80,100],[[-0.05,7.95],[-0.00005,.00995]],'log2(GEN b pT)','dR from 4th pT GEN b to matched RECO jet','upplots/bdRvlogbpT4'),
+        "jetoverbpTvlogbpT1":    Hist2d([80,50],[[-0.05,7.95],[-0.05,4.95]],'log2(GEN b pT)','RECO jet pT / 1st GEN b pT for matched jets','jetoverbpTvlogbpT1'),
+        "jetoverbpTvlogbpT2":    Hist2d([80,50],[[-0.05,7.95],[-0.05,4.95]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','jetoverbpTvlogbpT2'),
+        "jetoverbpTvlogbpT3":    Hist2d([80,50],[[-0.05,7.95],[-0.05,4.95]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','jetoverbpTvlogbpT3'),
+        "jetoverbpTvlogbpT4":    Hist2d([80,50],[[-0.05,7.95],[-0.05,4.95]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','jetoverbpTvlogbpT4'),
     }
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
@@ -141,32 +96,43 @@ def ana(files):
         ## Open our file and grab the events tree
         f = uproot.open(files[fnum])#'nobias.root')
         events = f.get('Events')
-        ## Pick relevant branches into dataframes so we can work with them. We shift our indexes to avoid having a 0th jet.
-        # This is a more compact form of
-        # a = events.array('Branch')
-        # b = pd.DataFrame(a)
-        # c = b.rename(colums=inc)
-        ##
+
         pdgida = events.array('GenPart_pdgId')
         parida = events.array('GenPart_genPartIdxMother')
-        beta= pd.DataFrame(events.array('GenPart_eta')[abs(pdgida[parida])==Aid]).rename(columns=inc)
-        bphi= pd.DataFrame(events.array('GenPart_phi')[abs(pdgida[parida])==Aid]).rename(columns=inc)
-        bpt = pd.DataFrame(events.array('GenPart_pt')[abs(pdgida[parida])==Aid]).rename(columns=inc)
-        jeteta= pd.DataFrame(events.array('Jet_eta')).rename(columns=inc)
-        jetphi= pd.DataFrame(events.array('Jet_phi')).rename(columns=inc)
-        jetpt = pd.DataFrame(events.array('Jet_pt')).rename(columns=inc)
-        genjeteta= pd.DataFrame(events.array('GenJet_eta')).rename(columns=inc)
-        genjetphi= pd.DataFrame(events.array('GenJet_phi')).rename(columns=inc)
-        genjetpt = pd.DataFrame(events.array('GenJet_pt')).rename(columns=inc)
-        print('Processing ' + str(len(beta)) + ' events')
+
+        bs = PhysObj()
+
+        bs.eta = pd.DataFrame(events.array('GenPart_eta')[abs(pdgida[parida])==Aid]).rename(columns=inc)
+        bs.phi = pd.DataFrame(events.array('GenPart_phi')[abs(pdgida[parida])==Aid]).rename(columns=inc)
+        bs.pt  = pd.DataFrame(events.array('GenPart_pt')[abs(pdgida[parida])==Aid]).rename(columns=inc)
+        
+        jets = PhysObj()
+
+        jets.eta= pd.DataFrame(events.array('Jet_eta')).rename(columns=inc)
+        jets.phi= pd.DataFrame(events.array('Jet_phi')).rename(columns=inc)
+        jets.pt = pd.DataFrame(events.array('Jet_pt')).rename(columns=inc)
+
+        print('Processing ' + str(len(bs.eta)) + ' events')
+
         ## Figure out how many bs and jets there are
-        nb = beta.shape[1]
-        njet= jeteta.shape[1]
-        ngjet = genjeteta.shape[1]
+        nb = bs.eta.shape[1]
+        njet= jets.eta.shape[1]
+
+        ## Sort our b dataframes in descending order of pt
+        temp_pt = pd.DataFrame()
+        temp_eta = pd.DataFrame()
+        temp_phi = pd.DataFrame()
+        for i in range(1,nb+1):
+            temp_pt[i] = bs.pt[bs.pt.rank(axis=1,ascending=False)==i].max(axis=1)
+            temp_eta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False)==i].max(axis=1)
+            temp_phi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False)==i].max(axis=1)
+        bs.pt = temp_pt
+        bs.eta = temp_eta
+        bs.phi = temp_phi
+        del [temp_pt,temp_eta,temp_phi]
 
         ## Create our dR dataframe by populating its first column and naming it accordingly
-        jbdr2 = pd.DataFrame(np.power(jeteta[1]-beta[1],2) + np.power(jetphi[1]-bphi[1],2)).rename(columns={1:'Jet 1 b 1'})
-        genjbdr2 = pd.DataFrame(np.power(genjeteta[1]-beta[1],2) + np.power(genjetphi[1]-bphi[1],2)).rename(columns={1:'Jet 1 b 1'})
+        jbdr2 = pd.DataFrame(np.power(jets.eta[1]-bs.eta[1],2) + np.power(jets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
 
         ## Loop over jet x b combinations
         jbstr = [] 
@@ -178,83 +144,47 @@ def ana(files):
                 if (j+b==2):
                     continue
                 ## Compute and store the dr of the given b and jet for every event at once
-                jbdr2[jbstr[-1]] = pd.DataFrame(np.power(jeteta[j]-beta[b],2) + np.power(jetphi[j]-bphi[b],2))
-        ##Do the same for GEN jets
-        genjbstr = []
-        for j in range(1,ngjet+1):
-            for b in range(1,nb+1):
-                ## Make our column name
-                genjbstr.append("Jet "+str(j)+" b "+str(b))
-                ## Skip the 1st column since that was used to initialize the dataframe
-                if (j+b==2):
-                    continue
-                ## Compute and store the dr of the given b and jet for every event at once
-                genjbdr2[genjbstr[-1]] = pd.DataFrame(np.power(genjeteta[j]-beta[b],2) + np.power(genjetphi[j]-bphi[b],2))
+                jbdr2[jbstr[-1]] = pd.DataFrame(np.power(jets.eta[j]-bs.eta[b],2) + np.power(jets.phi[j]-bs.phi[b],2))
 
         ## Create a copy array to collapse in jets instead of bs
         blist = []
         for b in range(nb):
             blist.append(jbdr2.filter(like='b '+str(b+1)))
             blist[b] = blist[b][blist[b].rank(axis=1,method='min') == 1]
+            blist[b] = blist[b].rename(columns=lambda x:int(x[4:6]))
         bjdr2 = pd.concat(blist,axis=1,sort=False)
         ## Replace all values but the lowest dRs with 0s
-        jbdr2 = jbdr2[jbdr2.rank(axis=1,method='first') == 1].fillna(0)
-        genjbdr2 = genjbdr2[genjbdr2.rank(axis=1,method='first') == 1].fillna(0)
+        #jbdr2 = jbdr2[jbdr2.rank(axis=1,method='first') == 1].fillna(0)
         bjdr2 = bjdr2.fillna(0)
+        
 
-        ## For every entry in the table
-        for j in range(1,njet+1):
-            head= "Jet "+str(j)+" b 1"
-            for b in range(2,nb+1):
-                col = "Jet "+str(j)+" b "+str(b)
-                ## Add bs 2 through N to b 1
-                jbdr2[head]=jbdr2[head]+jbdr2[col]
-                ## Then remove bs 2 through N
-                jbdr2=jbdr2.drop(columns=[col])
-            ## As we shape our dataframe to match the dimensions of jetpt, make the column names match
-            jbdr2=jbdr2.rename(columns={head:j})
-        ## For every entry in the table, but for GEN jets
-        for j in range(1,ngjet+1):
-            head= "Jet "+str(j)+" b 1"
-            for b in range(2,nb+1):
-                col = "Jet "+str(j)+" b "+str(b)
-                ## Add bs 2 through N to b 1
-                genjbdr2[head]=genjbdr2[head]+genjbdr2[col]
-                ## Then remove bs 2 through N
-                genjbdr2=genjbdr2.drop(columns=[col])
-            ## As we shape our dataframe to match the dimensions of jetpt, make the column names match
-            genjbdr2=genjbdr2.rename(columns={head:j})
-        ## For every entry in the table, but the other direction
-        for b in range(1,nb+1):
-            head= "Jet 1 b "+str(b)
-            for j in range(2,njet+1):
-                col = "Jet "+str(j)+" b "+str(b)
-                ## Add jets 2 through N to jet 1
-                bjdr2[head]=bjdr2[head]+bjdr2[col]
-                ## Then remove jets 2 through N
-                bjdr2=bjdr2.drop(columns=[col])
-            ## As we shape our dataframe to match the dimensions of bpt, make the column names match
-            bjdr2=bjdr2.rename(columns={head:b})
+        for i in range(4):
+            plots['bdRvlogbpT'+str(i+1)].dfill(np.log2(bs.pt[[i+1]]),blist[i])
+
+            yval = np.divide(jets.pt[blist[i]>0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0],bs.pt[[i+1]].dropna().reset_index(drop=True)[i+1])
+            xval = np.log2(bs.pt[[i+1]]).melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0]
+            plots['jetoverbpTvlogbpT'+str(i+1)].fill(xval,yval)
+
+            
+            plots['GoverRjetpT'].dfill(np.divide(blist[i],jets.pt))
+
+            bjplots['bpT'+str(i+1)].dfill(bs.pt[[i+1]])
+            bjplots['beta'+str(i+1)].dfill(bs.eta[[i+1]])
+            bjplots['bjetpT'+str(i+1)].dfill(jets.pt[blist[i]>0])
+            bjplots['bjeteta'+str(i+1)].dfill(jets.eta[blist[i]>0])
 
         ## Fill a jet pt array populated only by the jet in each event with the lowest dR to any b
-        #pts = jetpt[jbdr2>0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)
-        plots['bdRjetpT'].dfill(jetpt[jbdr2!=0])
-        ## Fill an array with the dR between each b and its lowest dR jet in each event
-        #pts = bjdr2[bjdr2!=0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)
         plots['bdR'].dfill(np.sqrt(bjdr2[bjdr2!=0]))
-        ## Fill an array with the pt of bs in each event
-        #pts = bpt[bjdr2>0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)
-        plots['bpT'].dfill(bpt)
-        plots['beta'].dfill(beta)#.melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0])
-        plots['bphi'].dfill(bphi)#.melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0])
-        plots['bdR'].dfill(bjdr2[bjdr2!=0])#.melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0])
-        plots['bdRgjetpT'].dfill(genjetpt[genjbdr2!=0])#.melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0])
-        plots['GjetpT'].dfill(genjetpt)
-        plots['RjetpT'].dfill(jetpt)
-    plots['GRjetpT'].add(plots['bdRjetpT'].divideby(plots['bdRgjetpT'],split=True))
+        plots['bphi'].dfill(bs.phi)#.melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0])
+        plots['RjetpT'].dfill(jets.pt)
+    plt.clf()
+    plots.pop('bdR').plot(logv=True)
     for p in plots:
         plt.clf()
         plots[p].plot()
+    for p in bjplots:
+        plt.clf()
+        bjplots[p].plot()
     ## Draw the jet pT plot
     #plt.clf()
     #ptplot = plots['jetpT'].make()
@@ -272,96 +202,6 @@ def ana(files):
     #plt.show()
     sys.exit()
 
-
-def jets(files):
-    ## Make a dictionary of histogram objects
-    plots = {
-        "jetpT": hist(100,(-0.5,99.5)),
-        "jetdR": hist(size=100,bounds=(-0.0005,0.0995))
-    }
-    ## Create an internal figure for pyplot to write to
-    plt.figure(1)
-    ## Loop over input files
-    for fnum in range(len(files)):
-        print('Opening '+files[fnum])
-        ## Open our file and grab the events tree
-        f = uproot.open(files[fnum])#'nobias.root')
-        events = f.get('Events')
-        ## Pick relevant branches into dataframes so we can work with them. We shift our indexes to avoid having a 0th jet.
-        # This is a more compact form of
-        # a = events.array('Branch')
-        # b = pd.DataFrame(a)
-        # c = b.rename(colums=inc)
-        ## 
-        mueta = pd.DataFrame(events.array('Muon_eta')).rename(columns=inc)
-        muphi = pd.DataFrame(events.array('Muon_phi')).rename(columns=inc)
-        jeteta= pd.DataFrame(events.array('Jet_eta')).rename(columns=inc)
-        jetphi= pd.DataFrame(events.array('Jet_phi')).rename(columns=inc)
-        jetpt = pd.DataFrame(events.array('Jet_pt')).rename(columns=inc)
-        print('Processing ' + str(len(mueta)) + ' events')
-        ## Figure out how many muons and jets there are
-        nmu = mueta.shape[1]
-        njet= jeteta.shape[1]
-        ## Create our result dataframe by populating its first column and naming it accordingly
-        jmudr2 = pd.DataFrame(np.power(jeteta[1]-mueta[1],2) + np.power(jetphi[1]-muphi[1],2)).rename(columns={1:'Jet 1 Mu 1'})
-        ## Loop over jet x muon combinations
-        jmustr= []
-        for j in range(1,njet+1):
-            for m in range(1,nmu+1):
-                ## Make our column name
-                jmustr.append("Jet "+str(j)+" Mu "+str(m))
-                ## Skip the 1st column since that was used to initialize the dataframe
-                if (j+m==2):
-                    continue
-                ## Compute and store the dr of the given muon and jet for every event at once
-                jmudr2[jmustr[-1]] = pd.DataFrame(np.power(jeteta[j]-mueta[m],2) + np.power(jetphi[j]-muphi[m],2))
-        ## Replace all values but the lowest dRs with 0s
-        jmudr2 = jmudr2[jmudr2.rank(axis=1,method='min') == 1].fillna(0)
-        ## For every entry in the table
-        for j in range(1,njet+1):
-            head= "Jet "+str(j)+" Mu 1"
-            for m in range(2,nmu+1):
-                col = "Jet "+str(j)+" Mu "+str(m)
-                ## Add Muons 2 through N to Muon 1
-                jmudr2[head]=jmudr2[head]+jmudr2[col]
-                ## Then remove Muons 2 through N
-                jmudr2=jmudr2.drop(columns=[col]) 
-            ## As we shape our dataframe to match the dimensions of jetpt, make the column names match
-            jmudr2=jmudr2.rename(columns={head:j})
-        ## Fill a jet pt array populated only by the jet in each event with the lowest dR to any muon
-        pts = jetpt[jmudr2>0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)
-        plots['jetpT'].fill(pts[0])
-        pts = jmudr2[jmudr2!=0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)
-        plots['jetdR'].fill(pts[0])
-    ## Draw the jet pT plot
-    plt.clf()
-    ptplot = plots['jetpT'].make()
-    plt.xlabel('Jet pT (for lowest dR to Muon)')
-    plt.ylabel('Events')
-    plt.savefig('upplots/JetdRpT.png')
-    plt.show()
-    ## Draw the jet dR plot
-    plt.figure(2)
-    plt.clf()
-    drplot = plots['jetdR'].make(logv=True)
-    plt.xlabel('Lowest dR between any Jet and Muon')
-    plt.ylabel('Events')
-    plt.savefig('upplots/JetMudR.png')
-    plt.show()
-    sys.exit()
-    ## Isolate the lowest DR for each event, clean it by dumping it to a list, then cycle it back into a dataframe.
-    # This is equivalent to writing
-    # mask = [a.rank(axis=1, method='min) == 1]
-    # b = a[mask]
-    # c = b.stack() 
-    # d = c.index
-    # e = d.tolist()
-    # f = pd.DataFrame(e)
-    ##
-    #jmudr2 = pd.DataFrame(jmudr2[jmudr2.rank(axis=1,method='min') == 1].stack().index.tolist())
-    ## Clean up the dataframe into one event-compatible index and a string of where the lowest muon is.
-    #jmudr2 = jmudr2.set_index(jmudr2[0]).drop(columns=[0])       
-    #jets = jmudr2[1].str.split(n = 3, expand=True)[1]
 
 def trig(files):
     ## Create a dictionary of histogram objects
