@@ -210,9 +210,9 @@ def ana(files):
 def trig(files):
     ## Create a dictionary of histogram objects
     plots = {
-        'hltplot':  Hist(40,(-0.5,39.5),'Highest Muon pT','Events','upplots/TrigHLTplot'),
-        'ptplot':   Hist(40,(-0.5,39.5),'Highest Muon pT','Events','upplots/TrigpTplot'),
-        'ratioplot':Hist(40,(-0.5,39.5),'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatioPlot')
+        'hltplot':  Hist(400,(-0.5,39.5),'Highest Muon pT','Events','upplots/TrigHLTplot'),
+        'ptplot':   Hist(400,(-0.5,39.5),'Highest Muon pT','Events','upplots/TrigpTplot'),
+        'ratioplot':Hist(400,(-0.5,39.5),'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatioPlot')
     }
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
