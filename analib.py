@@ -104,7 +104,7 @@ class Hist2d(object):
         return s
 
     def make(s):
-        out = plt.imshow(s.hs[0],extent=(s.bounds[0][0],s.bounds[0][1],s.bounds[1][0],s.bounds[1][1]),aspect='auto')
+        out = plt.imshow(s.hs[0].T[::-1],extent=(s.bounds[0][0],s.bounds[0][1],s.bounds[1][0],s.bounds[1][1]),aspect='auto',origin='upper')
         plt.colorbar()
         return out    
 
