@@ -213,9 +213,9 @@ def trig(files):
         'hptplot':      Hist(80,(-0.5,79.5),'Highest Muon pT','Events','upplots/TrigHpTplot'),
         'ptplot':       Hist(80,(-0.5,79.5),'Highest Muon pT','Events','upplots/TrigpTplot'),
         'ratioptplot':  Hist(80,(-0.5,79.5),'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatiopTPlot'),
-        'sipplot':      Hist(20,(-0.25,9.75),'Highest Muon SIP', 'Events', 'upplots/TrigSIPplot'),
-        'hsipplot':     Hist(20,(-0.25,9.75),'Highest Muon SIP', 'Events', 'upplots/TrigHSIPplot'),
-        'ratiosipplot': Hist(20,(-0.25,9.75),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of sip > 5', 'upplots/TrigRatioSIPplot')
+        'sipplot':      Hist(20,(-0.5,19.5),'Highest Muon SIP', 'Events', 'upplots/TrigSIPplot'),
+        'hsipplot':     Hist(20,(-0.5,19.5),'Highest Muon SIP', 'Events', 'upplots/TrigHSIPplot'),
+        'ratiosipplot': Hist(20,(-0.5,19.5),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of sip > 5', 'upplots/TrigRatioSIPplot')
     }
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
