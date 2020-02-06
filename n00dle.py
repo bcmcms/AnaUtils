@@ -77,17 +77,19 @@ def ana(files):
     plots = {
         "bphi":     Hist(66,(-3.3,3.3),'GEN b Phi','Events','upplots/bphi'),
         "bdR":      Hist(100,(-0.005,1.995),'GEN b to matched jet dR','Events','upplots/bdR'),
-        "RjetpT":   Hist(100,(-0.5,99.5),'All RECO jet pT','Events','upplots/RjetpT'),
-        "GoverRjetpT":  Hist(100,(-0.005,.995),'jet pT','Ratio of GEN b pT / RECO jet pT for matched jets','upplots/GRjetpT'),
-        "bdRvlogbpT1":   Hist2d([80,100],[[-0.05,7.95],[-0.00005,.00995]],'log2(GEN b pT)','dR from 1st pT GEN b to matched RECO jet','upplots/bdRvlogbpT1'),
-        "bdRvlogbpT2":   Hist2d([80,100],[[-0.05,7.95],[-0.00005,.00995]],'log2(GEN b pT)','dR from 2nd pT GEN b to matched RECO jet','upplots/bdRvlogbpT2'),
-        "bdRvlogbpT3":   Hist2d([80,100],[[-0.05,7.95],[-0.00005,.00995]],'log2(GEN b pT)','dR from 3rd pT GEN b to matched RECO jet','upplots/bdRvlogbpT3'),
-        "bdRvlogbpT4":   Hist2d([80,100],[[-0.05,7.95],[-0.00005,.00995]],'log2(GEN b pT)','dR from 4th pT GEN b to matched RECO jet','upplots/bdRvlogbpT4'),
-        "jetoverbpTvlogbpT1":    Hist2d([80,50],[[-0.05,7.95],[-0.05,4.95]],'log2(GEN b pT)','RECO jet pT / 1st GEN b pT for matched jets','upplots/jetoverbpTvlogbpT1'),
-        "jetoverbpTvlogbpT2":    Hist2d([80,50],[[-0.05,7.95],[-0.05,4.95]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT2'),
-        "jetoverbpTvlogbpT3":    Hist2d([80,50],[[-0.05,7.95],[-0.05,4.95]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT3'),
-        "jetoverbpTvlogbpT4":    Hist2d([80,50],[[-0.05,7.95],[-0.05,4.95]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','upplots/jetoverbpTvlogbpT4'),
+        "RjetpT":   Hist(100,(0,100),'All RECO jet pT','Events','upplots/RjetpT'),
+        "GoverRjetpT":  Hist(100,(0,100),'jet pT','Ratio of GEN b pT / RECO jet pT for matched jets','upplots/GRjetpT'),
+        "bdRvlogbpT1":   Hist2d([80,100],[[0,8],[0,.01]],'log2(GEN b pT)','dR from 1st pT GEN b to matched RECO jet','upplots/bdRvlogbpT1'),
+        "bdRvlogbpT2":   Hist2d([80,100],[[0.,8],[0,.01]],'log2(GEN b pT)','dR from 2nd pT GEN b to matched RECO jet','upplots/bdRvlogbpT2'),
+        "bdRvlogbpT3":   Hist2d([80,100],[[0.,8],[0,.01]],'log2(GEN b pT)','dR from 3rd pT GEN b to matched RECO jet','upplots/bdRvlogbpT3'),
+        "bdRvlogbpT4":   Hist2d([80,100],[[0.,8],[0,.01]],'log2(GEN b pT)','dR from 4th pT GEN b to matched RECO jet','upplots/bdRvlogbpT4'),
+        "jetoverbpTvlogbpT1":    Hist2d([80,50],[[0,8],[0,5]],'log2(GEN b pT)','RECO jet pT / 1st GEN b pT for matched jets','upplots/jetoverbpTvlogbpT1'),
+        "jetoverbpTvlogbpT2":    Hist2d([80,50],[[0,8],[0,5]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT2'),
+        "jetoverbpTvlogbpT3":    Hist2d([80,50],[[0,8],[0,5]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT3'),
+        "jetoverbpTvlogbpT4":    Hist2d([80,50],[[0,8],[0,5]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','upplots/jetoverbpTvlogbpT4'),
     }
+    GjetpT = Hist(100,(0,100))
+    RjetpT = Hist(100,(0,100))
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
     ## Loop over input files
@@ -169,8 +171,8 @@ def ana(files):
             xval = np.log2(bs.pt[[i+1]]).melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0]
             plots['jetoverbpTvlogbpT'+str(i+1)].fill(xval,yval)
 
-            
-            plots['GoverRjetpT'].dfill(np.divide(blist[i],jets.pt))
+            GjetpT.dfill(bs.pt[[i+1]])
+            RjetpT.dfill(jets.pt[blist[i]>0])
 
             bjplots['bpT'+str(i+1)].dfill(bs.pt[[i+1]])
             bjplots['beta'+str(i+1)].dfill(bs.eta[[i+1]])
@@ -181,6 +183,7 @@ def ana(files):
         plots['bdR'].dfill(np.sqrt(bjdr2[bjdr2!=0]))
         plots['bphi'].dfill(bs.phi)#.melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0])
         plots['RjetpT'].dfill(jets.pt)
+        plots['GoverRjetpT'].add(GjetpT.divideby(RjetpT,split=True))
     plt.clf()
     plots.pop('bdR').plot(logv=True)
     for p in plots:
@@ -210,12 +213,12 @@ def ana(files):
 def trig(files):
     ## Create a dictionary of histogram objects
     plots = {
-        'hptplot':      Hist(80,(-0.5,79.5),'Highest Muon pT','Events','upplots/TrigHpTplot'),
-        'ptplot':       Hist(80,(-0.5,79.5),'Highest Muon pT','Events','upplots/TrigpTplot'),
-        'ratioptplot':  Hist(80,(-0.5,79.5),'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatiopTPlot'),
-        'sipplot':      Hist(20,(-0.5,19.5),'Highest Muon SIP', 'Events', 'upplots/TrigSIPplot'),
-        'hsipplot':     Hist(20,(-0.5,19.5),'Highest Muon SIP', 'Events', 'upplots/TrigHSIPplot'),
-        'ratiosipplot': Hist(20,(-0.5,19.5),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of sip > 5', 'upplots/TrigRatioSIPplot')
+        'hptplot':      Hist(80,(0,80),'Highest Muon pT','Events','upplots/TrigHpTplot'),
+        'ptplot':       Hist(80,(0,80),'Highest Muon pT','Events','upplots/TrigpTplot'),
+        'ratioptplot':  Hist(80,(0,80),'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatiopTPlot'),
+        'sipplot':      Hist(20,(0,20),'Highest Muon SIP', 'Events', 'upplots/TrigSIPplot'),
+        'hsipplot':     Hist(20,(0,20),'Highest Muon SIP', 'Events', 'upplots/TrigHSIPplot'),
+        'ratiosipplot': Hist(20,(0,20),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of sip > 5', 'upplots/TrigRatioSIPplot')
     }
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
