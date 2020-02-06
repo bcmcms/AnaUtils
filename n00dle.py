@@ -72,21 +72,22 @@ def ana(files):
         "beta"+str(i):      Hist(66,(-3.3,3.3),'GEN b '+str(i)+' Eta','Events','upplots/beta'+str(i)),
         "bpT"+str(i):       Hist(100,(-0.5,99.5),'GEN pT of b '+str(i),'Events','upplots/bdRpT'+str(i)),
         "bjetpT"+str(i):    Hist(100,(-0.5,99.5),'Matched RECO jet '+str(i)+' pT','Events','upplots/RjetpT'+str(i)),
-        "bjeteta"+str(i):   Hist(66,(-3.3,3.3),'Matched RECO jet '+str(i)+' Eta','Events','upplots/Rjeteta'+str(i))
+        "bjeteta"+str(i):   Hist(66,(-3.3,3.3),'Matched RECO jet '+str(i)+' Eta','Events','upplots/Rjeteta'+str(i)),
+        "bdR"+str(i):       Hist(100,(0,2),'GEN b '+str(i)+' to matched jet dR','Events','upplots/bdR'+str(i))
         })
     plots = {
         "bphi":     Hist(66,(-3.3,3.3),'GEN b Phi','Events','upplots/bphi'),
-        "bdR":      Hist(100,(-0.005,1.995),'GEN b to matched jet dR','Events','upplots/bdR'),
+        "bdR":      Hist(100,(0,2),'All GEN bs to matched jet dR','Events','upplots/bdR'),
         "RjetpT":   Hist(100,(0,100),'All RECO jet pT','Events','upplots/RjetpT'),
         "GoverRjetpT":  Hist(100,(0,100),'jet pT','Ratio of GEN b pT / RECO jet pT for matched jets','upplots/GRjetpT'),
-        "bdRvlogbpT1":   Hist2d([80,100],[[0,8],[0,.01]],'log2(GEN b pT)','dR from 1st pT GEN b to matched RECO jet','upplots/bdRvlogbpT1'),
-        "bdRvlogbpT2":   Hist2d([80,100],[[0.,8],[0,.01]],'log2(GEN b pT)','dR from 2nd pT GEN b to matched RECO jet','upplots/bdRvlogbpT2'),
-        "bdRvlogbpT3":   Hist2d([80,100],[[0.,8],[0,.01]],'log2(GEN b pT)','dR from 3rd pT GEN b to matched RECO jet','upplots/bdRvlogbpT3'),
-        "bdRvlogbpT4":   Hist2d([80,100],[[0.,8],[0,.01]],'log2(GEN b pT)','dR from 4th pT GEN b to matched RECO jet','upplots/bdRvlogbpT4'),
-        "jetoverbpTvlogbpT1":    Hist2d([80,50],[[0,8],[0,5]],'log2(GEN b pT)','RECO jet pT / 1st GEN b pT for matched jets','upplots/jetoverbpTvlogbpT1'),
-        "jetoverbpTvlogbpT2":    Hist2d([80,50],[[0,8],[0,5]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT2'),
-        "jetoverbpTvlogbpT3":    Hist2d([80,50],[[0,8],[0,5]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT3'),
-        "jetoverbpTvlogbpT4":    Hist2d([80,50],[[0,8],[0,5]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','upplots/jetoverbpTvlogbpT4'),
+        "bdRvlogbpT1":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 1st pT GEN b to matched RECO jet','upplots/bdRvlogbpT1'),
+        "bdRvlogbpT2":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 2nd pT GEN b to matched RECO jet','upplots/bdRvlogbpT2'),
+        "bdRvlogbpT3":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 3rd pT GEN b to matched RECO jet','upplots/bdRvlogbpT3'),
+        "bdRvlogbpT4":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 4th pT GEN b to matched RECO jet','upplots/bdRvlogbpT4'),
+        "jetoverbpTvlogbpT1":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 1st GEN b pT for matched jets','upplots/jetoverbpTvlogbpT1'),
+        "jetoverbpTvlogbpT2":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT2'),
+        "jetoverbpTvlogbpT3":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT3'),
+        "jetoverbpTvlogbpT4":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','upplots/jetoverbpTvlogbpT4'),
     }
     GjetpT = Hist(100,(0,100))
     RjetpT = Hist(100,(0,100))
@@ -178,6 +179,7 @@ def ana(files):
             bjplots['beta'+str(i+1)].dfill(bs.eta[[i+1]])
             bjplots['bjetpT'+str(i+1)].dfill(jets.pt[blist[i]>0])
             bjplots['bjeteta'+str(i+1)].dfill(jets.eta[blist[i]>0])
+            bjplots['bdR'+str(i+1)].dfill(np.sqrt(blist[i][blist[i]!=0]))
 
         ## Fill a jet pt array populated only by the jet in each event with the lowest dR to any b
         plots['bdR'].dfill(np.sqrt(bjdr2[bjdr2!=0]))
@@ -186,6 +188,8 @@ def ana(files):
         plots['GoverRjetpT'].add(GjetpT.divideby(RjetpT,split=True))
     plt.clf()
     plots.pop('bdR').plot(logv=True)
+    for i in range(1,5):
+        bjplots.pop('bdR'+str(i)).plot(logv=True)
     for p in plots:
         plt.clf()
         plots[p].plot()
@@ -219,8 +223,8 @@ def trig(files):
         'sipplot':      Hist(20,(0,20),'Highest Muon SIP', 'Events', 'upplots/TrigSIPplot'),
         'hsipplot':     Hist(20,(0,20),'Highest Muon SIP', 'Events', 'upplots/TrigHSIPplot'),
         'ratiosipplot': Hist(20,(0,20),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of sip > 5', 'upplots/TrigRatioSIPplot'),
-        'HLTcutflow':      Hist(20,(-0.5,19.5),'','Events','upplots/cutflowHLT'),
-        'L1Tcutflow':      Hist(20,(-0.5,19.5),'','Events','upplots/cutflowL1T')
+        'HLTcutflow':      Hist(12,(-0.5,11.5),'All // Global Cuts // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6','Events','upplots/cutflowHLT'),
+        'L1Tcutflow':      Hist(12,(-0.5,11.5),'All // Global Cuts // L1_SingleMu6/7/8/9/10/12/14/16/18','Events','upplots/cutflowL1T')
     }
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
@@ -264,13 +268,11 @@ def trig(files):
         ## Fill the rest of the bins
         ct = 2
         for i in HLT:
-            print(i)
-            plots['HLTcutflow'].fill(((HLT[i]==True)*ct).dropna())
+            plots['HLTcutflow'].dfill(((HLT[i]==True).dropna())*ct)
             ct = ct + 1
         ct = 2
         for i in L1T:
-            print(i)
-            plots['L1Tcutflow'].fill(((L1T[i]==True)*ct).dropna())
+            plots['L1Tcutflow'].dfill(((L1T[i]==True)*ct).dropna())
             ct = ct + 1
 
         ## Cut muons and trim triggers to the new size
@@ -292,6 +294,10 @@ def trig(files):
         plots['hsipplot'].fill(MuonS.sip3d[TrigS.vals].max(axis=1).dropna(how='all'))
     plots['ratioptplot'].add(plots['hptplot'].divideby(plots['ptplot'],split=True))
     plots['ratiosipplot'].add(plots['hsipplot'].divideby(plots['sipplot'],split=True))
+    plt.clf
+    plots.pop('HLTcutflow').norm().plot(logv=True)
+    plt.clf
+    plots.pop('L1Tcutflow').norm().plot()
     for pl in plots:
         plt.clf()
         plots[pl].plot()

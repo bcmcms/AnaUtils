@@ -60,11 +60,19 @@ class Hist(object):
         s.hs[0][np.isnan(s.hs[0])] = 0
         return s
 
+    def norm(s,tar=0,split=False):
+        if split:
+            s = cp.deepcopy(s)
+        nval = s.hs[0][tar]
+        s.hs[0] = s.hs[0]/nval
+        return s
+
     ## Creates and returns a pyplot-compatible histogram object
     def make(s,logv=False):
         return plt.hist(s.hs[1][:s.size],s.size,s.bounds,weights=s.hs[0],log=logv)
 
     def plot(s,logv=False):
+        plt.clf()
         s.make(logv)
         if s.xlabel != '':
             plt.xlabel(s.xlabel)
