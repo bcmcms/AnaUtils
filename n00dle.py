@@ -223,8 +223,8 @@ def trig(files):
         'sipplot':      Hist(20,(0,20),'Highest Muon SIP', 'Events', 'upplots/TrigSIPplot'),
         'hsipplot':     Hist(20,(0,20),'Highest Muon SIP', 'Events', 'upplots/TrigHSIPplot'),
         'ratiosipplot': Hist(20,(0,20),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of sip > 5', 'upplots/TrigRatioSIPplot'),
-        'HLTcutflow':      Hist(12,(-0.5,11.5),'All // Global Cuts // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6','Events','upplots/cutflowHLT'),
-        'L1Tcutflow':      Hist(12,(-0.5,11.5),'All // Global Cuts // L1_SingleMu6/7/8/9/10/12/14/16/18','Events','upplots/cutflowL1T')
+        'HLTcutflow':      Hist(12,(-0.5,11.5),'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6','Events','upplots/cutflowHLT'),
+        'L1Tcutflow':      Hist(12,(-0.5,11.5),'All // L1_SingleMu6/7/8/9/10/12/14/16/18','Events','upplots/cutflowL1T')
     }
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
@@ -255,6 +255,16 @@ def trig(files):
         plots['HLTcutflow'].fill((Muon.pt*0).max(axis=1).dropna())
         plots['L1Tcutflow'].fill((Muon.pt*0).max(axis=1).dropna())
  
+        ## Fill the rest of the bins
+        ct = 1
+        for i in HLT:
+            plots['HLTcutflow'].dfill(((HLT[i]==True).dropna())*ct)
+            ct = ct + 1
+        ct = 1
+        for i in L1T:
+            plots['L1Tcutflow'].dfill(((L1T[i]==True)*ct).dropna())
+            ct = ct + 1
+
         ##Perform global cuts
         Muon.cut(abs(Muon.eta)<1.5)
         Muon.cut(Muon.mediumId==True)
@@ -262,18 +272,9 @@ def trig(files):
 
         ##Fill bin 1 of cut flow lots
 
-        plots['HLTcutflow'].fill((Muon.pt/Muon.pt).max(axis=1).dropna())
-        plots['L1Tcutflow'].fill((Muon.pt/Muon.pt).max(axis=1).dropna())
+        #plots['HLTcutflow'].fill((Muon.pt/Muon.pt).max(axis=1).dropna())
+        #plots['L1Tcutflow'].fill((Muon.pt/Muon.pt).max(axis=1).dropna())
 
-        ## Fill the rest of the bins
-        ct = 2
-        for i in HLT:
-            plots['HLTcutflow'].dfill(((HLT[i]==True).dropna())*ct)
-            ct = ct + 1
-        ct = 2
-        for i in L1T:
-            plots['L1Tcutflow'].dfill(((L1T[i]==True)*ct).dropna())
-            ct = ct + 1
 
         ## Cut muons and trim triggers to the new size
         MuonP = Muon.cut(Muon.sip3d>5,split=True)
