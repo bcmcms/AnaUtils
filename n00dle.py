@@ -31,25 +31,31 @@ def mc(files):
         ## Open our file for processing
         f = uproot.open(files[fnum])
         events = f.get('Events')
-        pdgid = events.array('GenPart_pdgId')
-        parid = events.array('GenPart_genPartIdxMother')
+        pdgida = events.array('GenPart_pdgId')
+        parida = events.array('GenPart_genPartIdxMother')
+        pdgid  = pd.DataFrame(pdgida)
+        parid  = pd.DataFrame(parida)
+        ppida  = pdgida[parida]
+        ppid   = pd.DataFrame(ppida)
         pt = events.array('GenPart_pt')
         print('Processing ' + str(len(pdgid)) + ' events')
         outlist = []
-        ## Loop over pdgid, using extremely slow ROOT-like logic instead of uproot logic.
-        for event in range(pdgid.size):
-            for iGen in range(pdgid[event].size):
-                if abs(pdgid[event][iGen]) == 5:
-                    parentIdx = parid[event][iGen]
+        #pdgid.replace([9000006,-9000006],36,inplace=True)
+        #pdgplt.dfill(ppid[abs(pdgid)==5])
+        # Loop over pdgid, using extremely slow ROOT-like logic instead of uproot logic.
+        for event in range(pdgida.size):
+            for iGen in range(pdgida[event].size):
+                if abs(pdgida[event][iGen]) == 5:
+                    parentIdx = parida[event][iGen]
                     if parentIdx == -1: continue
-                    parentId = pdgid[event][parentIdx]
+                    parentId = pdgida[event][parentIdx]
                     if abs(parentId) == 9000006:
                         outlist.append(36)
-                        print(str(event) + " - " + str(iGen) + " = " + str(pt[event][iGen]))
-
+                        #print(str(event) + " - " + str(iGen) + " = " + str(pt[event][iGen]))
+#
                     else:
                         outlist.append(parentId)
-        ## Fill out histogram with the list of values we obtained
+        # Fill out histogram with the list of values we obtained
         pdgplt.fill(outlist)
         
     
@@ -59,7 +65,9 @@ def mc(files):
     plt.ylabel('Number of b Children')
     plt.savefig('upplots/parents.png')
     plt.show()
-    return plot
+    print(plot)
+    #return plot
+    sys.exit()
 
 def ana(files):
     ## Define what pdgId we expect the A to have
@@ -100,14 +108,18 @@ def ana(files):
         f = uproot.open(files[fnum])#'nobias.root')
         events = f.get('Events')
 
-        pdgida = events.array('GenPart_pdgId')
-        parida = events.array('GenPart_genPartIdxMother')
+        pdgida  = events.array('GenPart_pdgId')
+        paridxa = events.array('GenPart_genPartIdxMother')
+        parida  = pdgida[paridxa] 
 
         bs = PhysObj('bs')
 
-        bs.eta = pd.DataFrame(events.array('GenPart_eta')[abs(pdgida[parida])==Aid]).rename(columns=inc)
-        bs.phi = pd.DataFrame(events.array('GenPart_phi')[abs(pdgida[parida])==Aid]).rename(columns=inc)
-        bs.pt  = pd.DataFrame(events.array('GenPart_pt')[abs(pdgida[parida])==Aid]).rename(columns=inc)
+        ## Removes all particles that do not have A parents 
+        ## from the GenPart arrays, then removes all particles 
+        ## that are not bs after resizing the pdgid array to be a valid mask
+        bs.eta = pd.DataFrame(events.array('GenPart_eta')[abs(parida)==Aid][abs(pdgida)[parida==Aid]==5]).rename(columns=inc)
+        bs.phi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)==Aid][abs(pdgida)[parida==Aid]==5]).rename(columns=inc)
+        bs.pt  = pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[parida==Aid]==5]).rename(columns=inc)
         
         jets = PhysObj('jets')
 
