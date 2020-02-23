@@ -124,7 +124,7 @@ class Hist2d(object):
     def make(s,edgecolor='',linewidth=1):
         plt.clf()
         #out = plt.imshow(s.hs[0].T[::-1],extent=(s.bounds[0][0],s.bounds[0][1],s.bounds[1][0],s.bounds[1][1]),aspect='auto',origin='upper')
-        out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0],edgecolor=edgecolor,linewidth=linewidth)
+        out = plt.pcolor(s.hs[2],s.hs[1],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth)
         return out    
 
     def plot(s,logv=False,text=False,edgecolor='',linewidth=1):
