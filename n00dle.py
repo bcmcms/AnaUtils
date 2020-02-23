@@ -236,8 +236,13 @@ def trig(files):
         'hsipplot':     Hist(20,(0,20),'Highest Muon SIP', 'Events', 'upplots/TrigHSIPplot'),
         'ratiosipplot': Hist(20,(0,20),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of sip > 5', 'upplots/TrigRatioSIPplot'),
         'HLTcutflow':      Hist(12,(-0.5,11.5),'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6','Events','upplots/cutflowHLT'),
-        'L1Tcutflow':      Hist(12,(-0.5,11.5),'All // L1_SingleMu6/7/8/9/10/12/14/16/18','Events','upplots/cutflowL1T')
+        'L1Tcutflow':      Hist(12,(-0.5,11.5),'All // L1_SingleMu6/7/8/9/10/12/14/16/18','Events','upplots/cutflowL1T'),
+        'HLTcutflowL':      Hist(12,(-0.5,11.5),'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6','Events','upplots/cutflowHLT-L'),
+        'L1TcutflowL':      Hist(12,(-0.5,11.5),'All // L1_SingleMu6/7/8/9/10/12/14/16/18','Events','upplots/cutflowL1T-L')
+
     }
+    cutflow2d = Hist2d([12,12],[[-0.5,11.5],[-0.5,11.5]],'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6',
+        'All // L1_SingleMu6/7/8/9/10/12/14/16/18','upplots/cutflowHLTvsL1T')
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
     ## Loop over all input files
@@ -266,6 +271,8 @@ def trig(files):
 
         plots['HLTcutflow'].fill((Muon.pt*0).max(axis=1).dropna())
         plots['L1Tcutflow'].fill((Muon.pt*0).max(axis=1).dropna())
+        cutflow2d.dfill(HLT[HLTcuts[0]]*0,HLT[HLTcuts[0]]*0)
+
  
         ## Fill the rest of the bins
         ct = 1
@@ -276,6 +283,14 @@ def trig(files):
         for i in L1T:
             plots['L1Tcutflow'].dfill(((L1T[i]==True)*ct).dropna())
             ct = ct + 1
+
+        ht = 1
+        for i in HLT:
+            lt = 1
+            for j in L1T:
+                cutflow2d.dfill(HLT[i][HLT[i] & L1T[j]].dropna()*ht,L1T[j][L1T[j] & HLT[i]].dropna()*lt)
+                lt = lt + 1
+            ht = ht + 1
 
         ##Perform global cuts
         Muon.cut(abs(Muon.eta)<1.5)
@@ -307,12 +322,16 @@ def trig(files):
         plots['hsipplot'].fill(MuonS.sip3d[TrigS.vals].max(axis=1).dropna(how='all'))
     plots['ratioptplot'].add(plots['hptplot'].divideby(plots['ptplot'],split=True))
     plots['ratiosipplot'].add(plots['hsipplot'].divideby(plots['sipplot'],split=True))
-    plt.clf
+    plots['HLTcutflowL'].add(plots['HLTcutflow'])
+    plots['L1TcutflowL'].add(plots['L1Tcutflow'])
+    cutflow2d.norm()[0][0][0] = 0
+    cutflow2d.plot(text=True,edgecolor='black')
+    plots.pop('HLTcutflowL').norm().plot(ylim=(None,.1))
+    plots.pop('L1TcutflowL').norm().plot(ylim=(None,.1))
     plots.pop('HLTcutflow').norm().plot(logv=True)
-    plt.clf
     plots.pop('L1Tcutflow').norm().plot()
+
     for pl in plots:
-        plt.clf()
         plots[pl].plot()
     sys.exit()
 

@@ -13,6 +13,7 @@ import uproot
 import numpy as np
 import awkward
 import matplotlib.pyplot as plt
+import matplotlib.patheffects as PathEffects
 import pandas as pd
 import itertools as it
 import copy as cp
@@ -71,9 +72,11 @@ class Hist(object):
     def make(s,logv=False):
         return plt.hist(s.hs[1][:s.size],s.size,s.bounds,weights=s.hs[0],log=logv)
 
-    def plot(s,logv=False):
+    def plot(s,logv=False,ylim=False):
         plt.clf()
         s.make(logv)
+        if ylim:
+            plt.ylim(ylim)
         if s.xlabel != '':
             plt.xlabel(s.xlabel)
         if s.ylabel != '':
@@ -86,7 +89,7 @@ class Hist2d(object):
     def __init__(s,sizes,bounds,xlabel='',ylabel='',fname=''):
         s.sizes = sizes
         s.bounds = bounds
-        s.hs = [plt.hist2d([],[],sizes,bounds)[0],plt.hist2d([],[],sizes,bounds)[1],plt.hist2d([],[],sizes,bounds)]
+        s.hs = [plt.hist2d([],[],sizes,bounds)[0],plt.hist2d([],[],sizes,bounds)[1],plt.hist2d([],[],sizes,bounds)[2],plt.hist2d([],[],sizes,bounds)]
         s.xlabel = xlabel
         s.ylabel = ylabel
         s.fname = fname
@@ -111,13 +114,31 @@ class Hist2d(object):
         framey.melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0])
         return s
 
-    def make(s):
-        out = plt.imshow(s.hs[0].T[::-1],extent=(s.bounds[0][0],s.bounds[0][1],s.bounds[1][0],s.bounds[1][1]),aspect='auto',origin='upper')
-        plt.colorbar()
+    def norm(s,tar=[0,0],split=False):
+        if split:
+            s = cp.deepcopy(s)
+        nval = s.hs[0][tar[0]][tar[1]]
+        s.hs[0] = s.hs[0]/nval
+        return s
+
+    def make(s,edgecolor='',linewidth=1):
+        plt.clf()
+        #out = plt.imshow(s.hs[0].T[::-1],extent=(s.bounds[0][0],s.bounds[0][1],s.bounds[1][0],s.bounds[1][1]),aspect='auto',origin='upper')
+        out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0],edgecolor=edgecolor,linewidth=linewidth)
         return out    
 
-    def plot(s,logv=False):
-        s.make()
+    def plot(s,logv=False,text=False,edgecolor='',linewidth=1):
+        s.make(edgecolor)
+        print(s.hs[0])
+        print(s.hs[1])
+        print(s.hs[2])
+        if text:
+            strarray = s.hs[0].round(3).astype(str)
+            for i in range(len(s.hs[1])-1):
+                for j in range(len(s.hs[2])-1):
+                    plt.text(s.hs[1][i]+0.5,s.hs[2][j]+0.5, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=9).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
+        else:
+            plt.colorbar()
         if s.xlabel != '':
             plt.xlabel(s.xlabel)
         if s.ylabel != '':
