@@ -9,16 +9,17 @@
 #import ROOT as R
 #R.gROOT.SetBatch(True)  ## Don't display histograms or canvases when drawn
 
-import os
-import subprocess
+#import os
+#import subprocess
 import sys
 import uproot
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import itertools as it
-import copy as cp
-from analib import * 
+#import itertools as it
+#import copy as cp
+from analib import Hist, PhysObj, Event, Hist2d, inc
+#%%
 
 def mc(files):
     ## This histogram object is used to accumulate and render our data, defined above
@@ -34,9 +35,9 @@ def mc(files):
         pdgida = events.array('GenPart_pdgId')
         parida = events.array('GenPart_genPartIdxMother')
         pdgid  = pd.DataFrame(pdgida)
-        parid  = pd.DataFrame(parida)
-        ppida  = pdgida[parida]
-        ppid   = pd.DataFrame(ppida)
+        #parid  = pd.DataFrame(parida)
+        #ppida  = pdgida[parida]
+        #ppid   = pd.DataFrame(ppida)
         pt = events.array('GenPart_pt')
         print('Processing ' + str(len(pdgid)) + ' events')
         outlist = []
@@ -70,6 +71,7 @@ def mc(files):
     sys.exit()
 
 def ana(files):
+    #%%
     ## Define what pdgId we expect the A to have
     Aid = 9000006
     #Aid = 36
@@ -118,9 +120,10 @@ def ana(files):
         ## Removes all particles that do not have A parents 
         ## from the GenPart arrays, then removes all particles 
         ## that are not bs after resizing the pdgid array to be a valid mask
-        bs.eta = pd.DataFrame(events.array('GenPart_eta')[abs(parida)==Aid][abs(pdgida)[parida==Aid]==5]).rename(columns=inc)
-        bs.phi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)==Aid][abs(pdgida)[parida==Aid]==5]).rename(columns=inc)
-        bs.pt  = pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[parida==Aid]==5]).rename(columns=inc)
+        
+        bs.eta = pd.DataFrame(events.array('GenPart_eta')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+        bs.phi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+        bs.pt  = pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
         
         jets = PhysObj('jets')
         matchedjets = PhysObj('matchedjets')
@@ -227,6 +230,7 @@ def ana(files):
     #plt.savefig('upplots/JetMudR.png')
     #plt.show()
     sys.exit()
+    #%%
 
 
 def trig(files):
