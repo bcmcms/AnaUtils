@@ -51,10 +51,10 @@ def mc(files):
                     parentId = pdgida[event][parentIdx]
                     if abs(parentId) == 9000006:
                         outlist.append(36)
-                        #print(str(event) + " - " + str(iGen) + " = " + str(pt[event][iGen]))
+                        print(str(event) + " - " + str(iGen) + " = " + str(pt[event][iGen]))
 #
                     else:
-                        outlist.append(parentId)
+                        outlist.append(abs(parentId))
         # Fill out histogram with the list of values we obtained
         pdgplt.fill(outlist)
         
@@ -71,8 +71,8 @@ def mc(files):
 
 def ana(files):
     ## Define what pdgId we expect the A to have
-    #Aid = 9000006
-    Aid = 36
+    Aid = 9000006
+    #Aid = 36
     ## Make a dictionary of histogram objects
     bjplots = {}
     for i in range(1,5):
@@ -113,6 +113,7 @@ def ana(files):
         parida  = pdgida[paridxa] 
 
         bs = PhysObj('bs')
+        matchedbs = PhysObj('matchedbs')
 
         ## Removes all particles that do not have A parents 
         ## from the GenPart arrays, then removes all particles 
@@ -122,6 +123,7 @@ def ana(files):
         bs.pt  = pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[parida==Aid]==5]).rename(columns=inc)
         
         jets = PhysObj('jets')
+        matchedjets = PhysObj('matchedjets')
 
         jets.eta= pd.DataFrame(events.array('Jet_eta')).rename(columns=inc)
         jets.phi= pd.DataFrame(events.array('Jet_phi')).rename(columns=inc)
@@ -164,6 +166,7 @@ def ana(files):
                     continue
                 ## Compute and store the dr of the given b and jet for every event at once
                 jbdr2[jbstr[-1]] = pd.DataFrame(np.power(jets.eta[j]-bs.eta[b],2) + np.power(jets.phi[j]-bs.phi[b],2))
+
 
         ## Create a copy array to collapse in jets instead of bs
         blist = []
@@ -228,20 +231,21 @@ def ana(files):
 
 def trig(files):
     ## Create a dictionary of histogram objects
+    rptbins = [0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,11,12,13,14,15,30,100]
     plots = {
-        'hptplot':      Hist(80,(0,80),'Highest Muon pT','Events','upplots/TrigHpTplot'),
-        'ptplot':       Hist(80,(0,80),'Highest Muon pT','Events','upplots/TrigpTplot'),
-        'ratioptplot':  Hist(80,(0,80),'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatiopTPlot'),
+        'hptplot':      Hist(rptbins,None,'Highest Muon pT','Events','upplots/TrigHpTplot'),
+        'ptplot':       Hist(rptbins,None,'Highest Muon pT','Events','upplots/TrigpTplot'),
+        'ratioptplot':  Hist(rptbins,None,'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatiopTPlot'),
         'sipplot':      Hist(20,(0,20),'Highest Muon SIP', 'Events', 'upplots/TrigSIPplot'),
         'hsipplot':     Hist(20,(0,20),'Highest Muon SIP', 'Events', 'upplots/TrigHSIPplot'),
-        'ratiosipplot': Hist(20,(0,20),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of sip > 5', 'upplots/TrigRatioSIPplot'),
+        'ratiosipplot': Hist(20,(0,20),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of pT > 10', 'upplots/TrigRatioSIPplot'),
         'HLTcutflow':      Hist(12,(-0.5,11.5),'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6','Events','upplots/cutflowHLT'),
         'L1Tcutflow':      Hist(12,(-0.5,11.5),'All // L1_SingleMu6/7/8/9/10/12/14/16/18','Events','upplots/cutflowL1T'),
         'HLTcutflowL':      Hist(12,(-0.5,11.5),'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6','Events','upplots/cutflowHLT-L'),
         'L1TcutflowL':      Hist(12,(-0.5,11.5),'All // L1_SingleMu6/7/8/9/10/12/14/16/18','Events','upplots/cutflowL1T-L')
 
     }
-    cutflow2d = Hist2d([12,12],[[-0.5,11.5],[-0.5,11.5]],'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6',
+    cutflow2d = Hist2d([9,10],[[-0.5,8.5],[-0.5,9.5]],'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6',
         'All // L1_SingleMu6/7/8/9/10/12/14/16/18','upplots/cutflowHLTvsL1T')
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
@@ -269,19 +273,21 @@ def trig(files):
    
         ## Fill 0 bin of cut flow plots
 
-        plots['HLTcutflow'].fill((Muon.pt*0).max(axis=1).dropna())
-        plots['L1Tcutflow'].fill((Muon.pt*0).max(axis=1).dropna())
+        plots['HLTcutflow'].dfill(HLT[HLTcuts[0]]*0)
+        plots['L1Tcutflow'].dfill(L1T[L1Tcuts[0]]*0)
         cutflow2d.dfill(HLT[HLTcuts[0]]*0,HLT[HLTcuts[0]]*0)
 
  
         ## Fill the rest of the bins
         ct = 1
         for i in HLT:
-            plots['HLTcutflow'].dfill(((HLT[i]==True).dropna())*ct)
+            plots['HLTcutflow'].dfill(HLT[i][HLT[i]].dropna()*ct)
+            cutflow2d.dfill(HLT[i][HLT[i]].dropna()*ct,HLT[i][HLT[i]].dropna()*0)
             ct = ct + 1
         ct = 1
         for i in L1T:
-            plots['L1Tcutflow'].dfill(((L1T[i]==True)*ct).dropna())
+            plots['L1Tcutflow'].dfill(L1T[i][L1T[i]].dropna()*ct)
+            cutflow2d.dfill(L1T[i][L1T[i]].dropna()*0,L1T[i][L1T[i]].dropna()*ct)
             ct = ct + 1
 
         ht = 1
@@ -326,9 +332,9 @@ def trig(files):
     plots['L1TcutflowL'].add(plots['L1Tcutflow'])
     cutflow2d.norm()[0][0][0] = 0
     cutflow2d.plot(text=True,edgecolor='black')
-    plots.pop('HLTcutflowL').norm().plot(ylim=(None,.1))
-    plots.pop('L1TcutflowL').norm().plot(ylim=(None,.1))
-    plots.pop('HLTcutflow').norm().plot(logv=True)
+    plots.pop('HLTcutflowL').norm().plot(ylim=(None,.2))
+    plots.pop('L1TcutflowL').norm().plot(ylim=(None,.2))
+    plots.pop('HLTcutflow').norm().plot()
     plots.pop('L1Tcutflow').norm().plot()
 
     for pl in plots:

@@ -70,7 +70,8 @@ class Hist(object):
 
     ## Creates and returns a pyplot-compatible histogram object
     def make(s,logv=False):
-        return plt.hist(s.hs[1][:s.size],s.size,s.bounds,weights=s.hs[0],log=logv)
+        print(s.hs)
+        return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],log=logv)
 
     def plot(s,logv=False,ylim=False):
         plt.clf()
@@ -124,14 +125,14 @@ class Hist2d(object):
     def make(s,edgecolor='',linewidth=1):
         plt.clf()
         #out = plt.imshow(s.hs[0].T[::-1],extent=(s.bounds[0][0],s.bounds[0][1],s.bounds[1][0],s.bounds[1][1]),aspect='auto',origin='upper')
-        out = plt.pcolor(s.hs[2],s.hs[1],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth)
+        out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth)
         return out    
 
     def plot(s,logv=False,text=False,edgecolor='',linewidth=1):
         s.make(edgecolor)
-        print(s.hs[0])
-        print(s.hs[1])
-        print(s.hs[2])
+        #print(s.hs[0])
+        #print(s.hs[1])
+        #print(s.hs[2])
         if text:
             strarray = s.hs[0].round(3).astype(str)
             for i in range(len(s.hs[1])-1):
