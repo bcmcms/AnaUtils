@@ -6,21 +6,21 @@
 ### Currently doesn't support options... but we're improving!        ###
 ########################################################################
 
-import os
-import subprocess
-import sys
+#import os
+#import subprocess
+#import sys
 import uproot
 import numpy as np
-import awkward
+#import awkward
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as PathEffects
 import pandas as pd
-import itertools as it
+#import itertools as it
 import copy as cp
-from munch import *
+from munch import DefaultMunch
 
 class Hist(object):
-    def __init__(s,size,bounds,xlabel='',ylabel='',fname=''):
+    def __init__(s,size,bounds,xlabel='',ylabel='',fname='',title=''):
         s.size = size
         s.bounds = bounds
         s.hs = [plt.hist([],size,bounds)[0],plt.hist([],size,bounds)[1]]
@@ -70,7 +70,7 @@ class Hist(object):
 
     ## Creates and returns a pyplot-compatible histogram object
     def make(s,logv=False):
-        print(s.hs)
+        #print(s.hs)
         return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],log=logv)
 
     def plot(s,logv=False,ylim=False):
@@ -82,6 +82,8 @@ class Hist(object):
             plt.xlabel(s.xlabel)
         if s.ylabel != '':
             plt.ylabel(s.ylabel)
+        if s.title != '':
+            plt.title(s.title)
         if s.fname != '':
             plt.savefig(s.fname)
 
@@ -168,12 +170,18 @@ class PhysObj(DefaultMunch):
         return s
 
     ## Removes events that are missing in the passed frame
-    def trim(s,frame,split=False):
+    def trimTo(s,frame,split=False):
         if split:
             s = s.copy()
         for elem in s:
             s[elem] = s[elem].loc[frame.index.intersection(s[elem].index)]
         return s
+    
+    ## Removes events that are missing from the passed frame (probably not ideal to have to do this)
+    def trim(s,frame):
+        for elem in s:
+            frame = frame.loc[s[elem].index.intersection(frame.index)]
+        return frame
 
     ## Removes particles that fail the passed test, and events if they become empty
     def cut(s,mask,split=False):
@@ -217,7 +225,7 @@ class Event():
         if split:
             s = cp.deepcopy(s)
         for obj in s.objs:
-            s[obj].trim(s.frame)
+            s[obj].trimTo(s.frame)
         return s
 
     def sync(s,split=False):

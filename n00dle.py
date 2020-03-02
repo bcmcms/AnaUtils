@@ -99,6 +99,11 @@ def ana(files):
         "jetoverbpTvlogbpT3":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT3'),
         "jetoverbpTvlogbpT4":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','upplots/jetoverbpTvlogbpT4'),
     }
+    for plot in bjplots:
+        bjplots[plot].title = files[0]
+    for plot in plots:
+        plots[plot].title = files[0]
+        
     GjetpT = Hist(100,(0,100))
     RjetpT = Hist(100,(0,100))
     ## Create an internal figure for pyplot to write to
@@ -125,12 +130,28 @@ def ana(files):
         bs.phi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
         bs.pt  = pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
         
+        ## Test b order corresponds to As
+        testbs = pd.DataFrame(events.array('GenPart_genPartIdxMother')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+        ## The first term checks b4 has greater idx than b1, the last two check that the bs are paired
+        if ((testbs[4]-testbs[1]).min() <= 0) or ((abs(testbs[2]-testbs[1]) + abs(testbs[4])-testbs[3]).min() != 0):
+            print('b to A ordering violated - time to do it the hard way')
+            sys.exit()
+        #matchedbs.eta, matchedbs.phi, matchedbs.pt = bs.eta, bs.phi, bs.pt
+        
+        As = PhysObj('As')
+        
+        As.eta = pd.DataFrame(events.array('GenPart_eta')[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+        As.phi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+        As.pt =  pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+        
         jets = PhysObj('jets')
         matchedjets = PhysObj('matchedjets')
 
         jets.eta= pd.DataFrame(events.array('Jet_eta')).rename(columns=inc)
         jets.phi= pd.DataFrame(events.array('Jet_phi')).rename(columns=inc)
         jets.pt = pd.DataFrame(events.array('Jet_pt')).rename(columns=inc)
+        
+        #matchedjets.eta, matchedjets.phi, matchedjets.pt = jets.eta, jets.phi, jets.pt
 
 
         print('Processing ' + str(len(bs.eta)) + ' events')
@@ -138,29 +159,27 @@ def ana(files):
         ## Figure out how many bs and jets there are
         nb = bs.eta.shape[1]
         njet= jets.eta.shape[1]
-
+        na = As.eta.shape[1]
+        if na != 2:
+            print("More than two As per event, found "+str(na)+", halting")
+            sys.exit()
         ## Sort our b dataframes in descending order of pt
-        temp_pt = pd.DataFrame()
-        temp_eta = pd.DataFrame()
-        temp_phi = pd.DataFrame()
+        bs.spt, bs.seta, bs.sphi = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
         for i in range(1,nb+1):
-            temp_pt[i] = bs.pt[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
-            temp_eta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
-            temp_phi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
-        bs.pt = temp_pt
-        bs.eta = temp_eta
-        bs.phi = temp_phi
-        del [temp_pt,temp_eta,temp_phi]
+            bs.spt[i] = bs.pt[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+            bs.seta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+            bs.sphi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
 
-        ev = Event(bs,jets)
+        ev = Event(bs,jets,As)
         jets.cut(jets.pt>0)
         bs.cut(bs.pt>0)
         ev.sync()
 
         ## Create our dR dataframe by populating its first column and naming it accordingly
         jbdr2 = pd.DataFrame(np.power(jets.eta[1]-bs.eta[1],2) + np.power(jets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
+        sjbdr2= pd.DataFrame(np.power(jets.eta[1]-bs.seta[1],2)+ np.power(jets.phi[1]-bs.sphi[1],2)).rename(columns={1:'Jet 1 b 1'})
         ## Loop over jet x b combinations
-        jbstr = [] 
+        jbstr = []
         for j in range(1,njet+1):
             for b in range(1,nb+1):
                 ## Make our column name
@@ -169,39 +188,80 @@ def ana(files):
                     continue
                 ## Compute and store the dr of the given b and jet for every event at once
                 jbdr2[jbstr[-1]] = pd.DataFrame(np.power(jets.eta[j]-bs.eta[b],2) + np.power(jets.phi[j]-bs.phi[b],2))
-
-
+                sjbdr2[jbstr[-1]]= pd.DataFrame(np.power(jets.eta[j]-bs.seta[b],2)+ np.power(jets.phi[j]-bs.sphi[b],2))
+        
         ## Create a copy array to collapse in jets instead of bs
         blist = []
+        sblist = []
         for b in range(nb):
             blist.append(jbdr2.filter(like='b '+str(b+1)))
             blist[b] = blist[b][blist[b].rank(axis=1,method='first') == 1]
             blist[b] = blist[b].rename(columns=lambda x:int(x[4:6]))
-        bjdr2 = pd.concat(blist,axis=1,sort=False)
-        ## Replace all values but the lowest dRs with 0s
-        #jbdr2 = jbdr2[jbdr2.rank(axis=1,method='first') == 1].fillna(0)
-        bjdr2 = bjdr2.fillna(0)
+            sblist.append(sjbdr2.filter(like='b '+str(b+1)))
+            sblist[b] = sblist[b][sblist[b].rank(axis=1,method='first') == 1]
+            sblist[b] = sblist[b].rename(columns=lambda x:int(x[4:6]))
         
-
+        ## Cut our events to only resolved 4jet events with dR<0.4
+        rjets = blist[0][blist[0]<0.4].fillna(0)
+        for i in range(1,4):
+            rjets = np.logical_or(rjets,blist[i][blist[i]<0.4].fillna(0))
+        rjets = rjets.sum(axis=1)
+        rjets = rjets[rjets==4].dropna()
+        #jets.trimTo(rjets)
+        #ev.sync()
+        
+#        ##Loop over A x b combinations
+#        abdr2 = pd.DataFrame(np.power(As.eta[1]-bs.eta[1],2) + np.power(As.phi[1]-bs.phi[1],2)).rename(columns={1:'b 1 A 1'})
+#        abstr = []
+#        for b in range(1,nb+1):
+#            for a in range(1,na+1):
+#                abstr.append("b "+str(b)+" A "+str(a))
+#                if (a+b==2):
+#                    continue
+#                abdr2[abstr[-1]] = pd.DataFrame(np.power(As.eta[a]-bs.eta[b],2) + np.power(As.phi[a]-bs.phi[b],2))
+#        
+#        ## Create A b-sized arrays of dRs
+#        alist = []
+#        for a in range(na):
+#            alist.append(abdr2.filter(like='A '+str(a+1)))
+#            alist[a] = alist[a].rename(columns=lambda x:int(x[1:3]))
+#        ## Assign best A1 drs to A1, then remainder to A2
+#        alist[1] = alist[1][alist[0].rank(axis=1,method='first') >= 3]
+#        alist[0] = alist[0][alist[0].rank(axis=1,method='first') <= 2]
+#        ## Cut out events with weirdly high A/b matching
+#        for a in range(na):
+#            alist[a] = alist[a][alist[a]<4]
+#        goodbs = np.logical_or(alist[1].fillna(0),alist[0].fillna(0)).sum(axis=1)
+#        goodbs = goodbs[goodbs==4].dropna()
+#        As.trimTo(goodbs)
+#        ev.sync()
+#        ## Slot in matched bs
+#        for prop in ['pt','eta','phi']:
+#            matchedbs[prop] = pd.DataFrame()
+#            matchedbs[prop][1] = bs[prop][alist[0]>0].min(axis=1)
+#            matchedbs[prop][2] = bs[prop][alist[0]>0].max(axis=1)
+#            matchedbs[prop][3] = bs[prop][alist[1]>0].min(axis=1)
+#            matchedbs[prop][4] = bs[prop][alist[1]>0].max(axis=1)
+        
+        ## Move to plotting data
         for i in range(4):
-            plots['bdRvlogbpT'+str(i+1)].dfill(np.log2(bs.pt[[i+1]]),blist[i])
+            plots['bdRvlogbpT'+str(i+1)].dfill(np.log2(bs.pt[[i+1]]),sblist[i])
+            plots['bdR'].dfill(np.sqrt(blist[i]))
 
-            yval = np.divide(jets.pt[blist[i]>0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0],bs.pt[[i+1]].dropna().reset_index(drop=True)[i+1])
+            yval = np.divide(jets.pt[sblist[i]>0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0],bs.pt[[i+1]].dropna().reset_index(drop=True)[i+1])
             xval = np.log2(bs.pt[[i+1]]).melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0]
             plots['jetoverbpTvlogbpT'+str(i+1)].fill(xval,yval)
 
             GjetpT.dfill(bs.pt[[i+1]])
-            RjetpT.dfill(jets.pt[blist[i]>0])
+            RjetpT.dfill(jets.pt[sblist[i]>0])
 
-            bjplots['bpT'+str(i+1)].dfill(bs.pt[[i+1]])
-            bjplots['beta'+str(i+1)].dfill(bs.eta[[i+1]])
-            bjplots['bjetpT'+str(i+1)].dfill(jets.pt[blist[i]>0])
-            bjplots['bjeteta'+str(i+1)].dfill(jets.eta[blist[i]>0])
-            bjplots['bdR'+str(i+1)].dfill(np.sqrt(blist[i][blist[i]!=0]))
+            bjplots['bpT'+str(i+1)].dfill(bs.spt[[i+1]])
+            bjplots['beta'+str(i+1)].dfill(bs.seta[[i+1]])
+            bjplots['bjetpT'+str(i+1)].dfill(jets.pt[sblist[i]>0])
+            bjplots['bjeteta'+str(i+1)].dfill(jets.eta[sblist[i]>0])
+            bjplots['bdR'+str(i+1)].dfill(np.sqrt(sblist[i][sblist[i]!=0]))
 
-        ## Fill a jet pt array populated only by the jet in each event with the lowest dR to any b
-        plots['bdR'].dfill(np.sqrt(bjdr2[bjdr2!=0]))
-        plots['bphi'].dfill(bs.phi)#.melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0])
+        plots['bphi'].dfill(bs.phi)
         plots['RjetpT'].dfill(jets.pt)
         plots['GoverRjetpT'].add(GjetpT.divideby(RjetpT,split=True))
     plt.clf()
@@ -214,23 +274,8 @@ def ana(files):
     for p in bjplots:
         plt.clf()
         bjplots[p].plot()
-    ## Draw the jet pT plot
-    #plt.clf()
-    #ptplot = plots['jetpT'].make()
-    #plt.xlabel('Jet pT (for lowest dR to Muon)')
-    #plt.ylabel('Events')
-    #plt.savefig('upplots/JetdRpT.png')
-    #plt.show()
-    ### Draw the jet dR plot
-    #plt.figure(2)
-    #plt.clf()
-    #drplot = plots['jetdR'].make(logv=True)
-    #plt.xlabel('Lowest dR between any Jet and Muon')
-    #plt.ylabel('Events')
-    #plt.savefig('upplots/JetMudR.png')
-    #plt.show()
-    sys.exit()
     #%%
+    sys.exit()
 
 
 def trig(files):
@@ -316,8 +361,8 @@ def trig(files):
         ## Cut muons and trim triggers to the new size
         MuonP = Muon.cut(Muon.sip3d>5,split=True)
         MuonS = Muon.cut(Muon.pt>10,split=True)
-        TrigP = Trig.trim(MuonP.pt,split=True)
-        TrigS = Trig.trim(MuonS.sip3d,split=True)
+        TrigP = Trig.trimTo(MuonP.pt,split=True)
+        TrigS = Trig.trimTo(MuonS.sip3d,split=True)
         ## Reshape triggers to fit our muons
         for i in MuonP.pt.columns:
             TrigP.vals[i] = TrigP.vals[1]
@@ -362,17 +407,16 @@ def main():
         ## Check specified run mode
         if sys.argv[1] == '-mc':
             mc(files)
-        elif sys.argv[1] == '-jets':
-            jets(files)
         elif sys.argv[1] == '-trig':
             trig(files)
-        else:#if sys.argv[1] == '-a':
+        elif sys.argv[1] == '-a':
             ana(files)
  
     print("Expected n00dle.py <switch> (flag) (target)")
     print("-----switches-----")
     print("-mc    Runs a b-parent analysis on MC")
     print("-trig  Analyzes trigger efficiency for data")
+    print("-a     Analyzes jet-b correlations")
     print("---optional flags--")
     print("-f     Targets a specific file to run over")
     print("-l     Specifies a list containing all files to run over")
