@@ -71,7 +71,10 @@ def mc(files):
     sys.exit()
 
 def ana(files):
-    #%%
+    #%%################
+    # Plots and Setup #
+    ###################
+    
     ## Define what pdgId we expect the A to have
     Aid = 9000006
     #Aid = 36
@@ -79,21 +82,41 @@ def ana(files):
     bjplots = {}
     for i in range(1,5):
         bjplots.update({
-        "beta"+str(i):      Hist(66,(-3.3,3.3),'GEN b '+str(i)+' Eta','Events','upplots/beta'+str(i)),
-        "bpT"+str(i):       Hist(100,(-0.5,99.5),'GEN pT of b '+str(i),'Events','upplots/bdRpT'+str(i)),
-        "bjetpT"+str(i):    Hist(100,(-0.5,99.5),'Matched RECO jet '+str(i)+' pT','Events','upplots/RjetpT'+str(i)),
-        "bjeteta"+str(i):   Hist(66,(-3.3,3.3),'Matched RECO jet '+str(i)+' Eta','Events','upplots/Rjeteta'+str(i)),
-        "bdR"+str(i):       Hist(100,(0,2),'GEN b '+str(i)+' to matched jet dR','Events','upplots/bdR'+str(i))
+        "s_beta"+str(i):      Hist(33 ,(-3.3,3.3)   ,'GEN b '+str(i)+' Eta (ranked by pT)','Events','upplots/s_beta'+str(i)),
+        "s_bpT"+str(i):       Hist(60 ,(0,120)      ,'GEN pT of b '+str(i)+' (ranked by pT)','Events','upplots/s_bpT'+str(i)),
+        "s_bjetpT"+str(i):    Hist(60 ,(0,120)      ,'Matched RECO jet '+str(i)+' pT (ranked by b pT)','Events','upplots/s_RjetpT'+str(i)),
+        "s_bjeteta"+str(i):   Hist(33 ,(-3.3,3.3)   ,'Matched RECO jet '+str(i)+' Eta (ranked by b pT)','Events','upplots/s_Rjeteta'+str(i)),
+        "s_bjdR"+str(i):      Hist(90 ,(0,3)        ,'GEN b '+str(i)+' (ranked by pT) to matched jet dR','Events','upplots/s_bjdR'+str(i))
         })
     plots = {
-        "bphi":     Hist(66,(-3.3,3.3),'GEN b Phi','Events','upplots/bphi'),
-        "bdR":      Hist(100,(0,2),'All GEN bs to matched jet dR','Events','upplots/bdR'),
-        "RjetpT":   Hist(100,(0,100),'All RECO jet pT','Events','upplots/RjetpT'),
+        "HpT":      Hist(50 ,(0,200)    ,'GEN Higgs pT','Events','upplots/HpT'),
+        #"HAdR":     Hist(100,(0,2)      ,'GEN Higgs to A dR','Events','upplots/HAdR'),
+        #'HAdeta':   Hist(66 ,(-3.3,3.3) ,'GEN Higgs to A deta','Events','upplots/HAdeta'),
+        #'HAdphi':   Hist(66 ,(-3.3,3.3) ,'GEN Higgs to A dphi','Events','upplots/HAdphi'),
+        "A1pT":     Hist(35 ,(0,140)    ,'Highest GEN A pT','Events','upplots/A1pT'),
+        "A2pT":     Hist(35 ,(0,140)    ,'Lowest GEN A pT','Events','upplots/A2pT'),
+        "AdR":      Hist(50 ,(0,5)      ,'GEN A1 to A2 dR','Events','upplots/AdR'),
+        "bdRA1":    Hist(50 ,(0,5)      ,'GEN dR between highest pT A child bs','Events','upplots/bdRA1'),
+        "bdRA2":    Hist(50 ,(0,5)      ,'GEN dR between lowest pT A child bs','Events','upplots/bdRA2'),
+        "bdetaA1":  Hist(34 ,(0,3.4)    ,'GEN |deta| between highest-A child bs','Events','upplots/bdetaA1'),
+        "bdetaA2":  Hist(34 ,(0,3.4)    ,'GEN |deta| between lowest-A child bs','Events','upplots/bdetaA2'),
+        "bdphiA1":  Hist(34 ,(0,3.4)    ,'GEN |dphi| between highest-A child bs','Events','upplots/bdphiA1'),
+        "bdphiA2":  Hist(34 ,(0,3.4)    ,'GEN |dphi| between lowest-A child bs','Events','upplots/bdphiA2'),
+        #"A1pT":     Hist(100,(0,100)    ,'pT for the 1st A particle (chosen by array position)', 'Events', 'upplots/A1pT'),
+        #"A2pT":     Hist(100,(0,100)    ,'pT for the 2nd A particle (chosen by array position)', 'Events', 'upplots/A2pT'),
+        "bphi":     Hist(66 ,(-3.3,3.3) ,'GEN b Phi','Events','upplots/bphi'),
+        "bjdR":     Hist(100,(0,2)      ,'All GEN bs to matched jet dR','Events','upplots/bjdR'),
+        "RjetpT":   Hist(100,(0,100)    ,'RECO matched jet pT','Events','upplots/RjetpT'),
+        "Rjeteta":  Hist(66 ,(-3.3,3.3) ,'RECO matched jet eta','Events','upplots/Rjeteta'),
+        #"Rjettag":  Hist(),
+        #"RAjetspT": Hist(100,(0,100)    ,'pT of RECO A1,A2 objects constructed from matched jets','Events','upplots/RAjetspT'),
+        ##
+        "RalljetpT":    Hist(100,(0,100),'All RECO jet pT','Events','upplots/RalljetpT'),
         "GoverRjetpT":  Hist(100,(0,100),'jet pT','Ratio of GEN b pT / RECO jet pT for matched jets','upplots/GRjetpT'),
-        "bdRvlogbpT1":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 1st pT GEN b to matched RECO jet','upplots/bdRvlogbpT1'),
-        "bdRvlogbpT2":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 2nd pT GEN b to matched RECO jet','upplots/bdRvlogbpT2'),
-        "bdRvlogbpT3":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 3rd pT GEN b to matched RECO jet','upplots/bdRvlogbpT3'),
-        "bdRvlogbpT4":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 4th pT GEN b to matched RECO jet','upplots/bdRvlogbpT4'),
+        "bjdRvlogbpT1":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 1st pT GEN b to matched RECO jet','upplots/bjdRvlogbpT1'),
+        "bjdRvlogbpT2":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 2nd pT GEN b to matched RECO jet','upplots/bjdRvlogbpT2'),
+        "bjdRvlogbpT3":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 3rd pT GEN b to matched RECO jet','upplots/bjdRvlogbpT3'),
+        "bjdRvlogbpT4":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 4th pT GEN b to matched RECO jet','upplots/bjdRvlogbpT4'),
         "jetoverbpTvlogbpT1":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 1st GEN b pT for matched jets','upplots/jetoverbpTvlogbpT1'),
         "jetoverbpTvlogbpT2":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT2'),
         "jetoverbpTvlogbpT3":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT3'),
@@ -104,12 +127,18 @@ def ana(files):
     for plot in plots:
         plots[plot].title = files[0]
         
-    GjetpT = Hist(100,(0,100))
-    RjetpT = Hist(100,(0,100))
+    GjetpT = Hist(plots['GoverRjetpT'].size,plots['GoverRjetpT'].bounds)
+    RjetpT = Hist(plots['GoverRjetpT'].size,plots['GoverRjetpT'].bounds)
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
+    
     ## Loop over input files
     for fnum in range(len(files)):
+        
+        #####################
+        # Loading Variables #
+        #####################
+        
         print('Opening '+files[fnum])
         ## Open our file and grab the events tree
         f = uproot.open(files[fnum])#'nobias.root')
@@ -120,15 +149,14 @@ def ana(files):
         parida  = pdgida[paridxa] 
 
         bs = PhysObj('bs')
-        matchedbs = PhysObj('matchedbs')
 
         ## Removes all particles that do not have A parents 
         ## from the GenPart arrays, then removes all particles 
         ## that are not bs after resizing the pdgid array to be a valid mask
         
-        bs.eta = pd.DataFrame(events.array('GenPart_eta')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
-        bs.phi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
-        bs.pt  = pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+        bs.oeta = pd.DataFrame(events.array('GenPart_eta')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+        bs.ophi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+        bs.opt  = pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
         
         ## Test b order corresponds to As
         testbs = pd.DataFrame(events.array('GenPart_genPartIdxMother')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
@@ -136,48 +164,82 @@ def ana(files):
         if ((testbs[4]-testbs[1]).min() <= 0) or ((abs(testbs[2]-testbs[1]) + abs(testbs[4])-testbs[3]).min() != 0):
             print('b to A ordering violated - time to do it the hard way')
             sys.exit()
-        #matchedbs.eta, matchedbs.phi, matchedbs.pt = bs.eta, bs.phi, bs.pt
         
         As = PhysObj('As')
         
-        As.eta = pd.DataFrame(events.array('GenPart_eta')[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
-        As.phi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
-        As.pt =  pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+        As.oeta = pd.DataFrame(events.array('GenPart_eta')[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+        As.ophi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+        As.opt =  pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+        
+        
+        higgs = PhysObj('higgs')
+        
+        higgs.eta = pd.DataFrame(events.array('GenPart_eta')[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
+        higgs.phi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
+        higgs.pt =  pd.DataFrame(events.array('GenPart_pt' )[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
         
         jets = PhysObj('jets')
-        matchedjets = PhysObj('matchedjets')
 
         jets.eta= pd.DataFrame(events.array('Jet_eta')).rename(columns=inc)
         jets.phi= pd.DataFrame(events.array('Jet_phi')).rename(columns=inc)
         jets.pt = pd.DataFrame(events.array('Jet_pt')).rename(columns=inc)
-        
-        #matchedjets.eta, matchedjets.phi, matchedjets.pt = jets.eta, jets.phi, jets.pt
 
 
-        print('Processing ' + str(len(bs.eta)) + ' events')
+        print('Processing ' + str(len(bs.oeta)) + ' events')
 
         ## Figure out how many bs and jets there are
-        nb = bs.eta.shape[1]
+        nb = bs.oeta.shape[1]
         njet= jets.eta.shape[1]
-        na = As.eta.shape[1]
+        na = As.oeta.shape[1]
         if na != 2:
             print("More than two As per event, found "+str(na)+", halting")
             sys.exit()
+            
+        ## Create sorted versions of A values by pt
+        for prop in ['eta','phi','pt']:
+            As[prop] = pd.DataFrame()
+            for i in range(1,3):
+                As[prop][i] = As['o'+prop][As.opt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+            ## Clean up original ordered dataframes; we don't really need them
+            #del As['o'+prop]
+            
+        ## Reorder out b dataframes to match sorted A parents
+        tframe = pd.DataFrame()
+        tframe[1] = (As.pt.rank(axis=1,ascending=False,method='first')==1)[1]
+        tframe[2] = (As.pt.rank(axis=1,ascending=False,method='first')==1)[1]
+        tframe[3] = (As.pt.rank(axis=1,ascending=False,method='first')==1)[2]
+        tframe[4] = (As.pt.rank(axis=1,ascending=False,method='first')==1)[2]
+        for prop in ['eta','phi','pt']:
+            bs[prop] = pd.DataFrame()
+            bs[prop][1] = bs['o'+prop][tframe][1].dropna().append(bs['o'+prop][tframe][3].dropna()).sort_index()
+            bs[prop][2] = bs['o'+prop][tframe][2].dropna().append(bs['o'+prop][tframe][4].dropna()).sort_index()
+            bs[prop][3] = bs['o'+prop][~tframe][1].dropna().append(bs['o'+prop][~tframe][3].dropna()).sort_index()
+            bs[prop][4] = bs['o'+prop][~tframe][2].dropna().append(bs['o'+prop][~tframe][4].dropna()).sort_index()
+            ## Clean up original ordered dataframes; we don't really need them.
+        #del bs['o'+prop]
+            
         ## Sort our b dataframes in descending order of pt
-        bs.spt, bs.seta, bs.sphi = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-        for i in range(1,nb+1):
-            bs.spt[i] = bs.pt[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
-            bs.seta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
-            bs.sphi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+        for prop in ['spt','seta','sphi']:
+            bs[prop] = pd.DataFrame()
+        #bs.spt, bs.seta, bs.sphi = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+            for i in range(1,nb+1):
+                bs[prop][i] = bs[prop[1:]][bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+            #bs.seta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+            #bs.sphi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+            
 
-        ev = Event(bs,jets,As)
+        ev = Event(bs,jets,As,higgs)
         jets.cut(jets.pt>0)
         bs.cut(bs.pt>0)
         ev.sync()
+        
+        ##############################
+        # Processing and Calculation #
+        ##############################
 
         ## Create our dR dataframe by populating its first column and naming it accordingly
         jbdr2 = pd.DataFrame(np.power(jets.eta[1]-bs.eta[1],2) + np.power(jets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
-        sjbdr2= pd.DataFrame(np.power(jets.eta[1]-bs.seta[1],2)+ np.power(jets.phi[1]-bs.sphi[1],2)).rename(columns={1:'Jet 1 b 1'})
+        sjbdr2= pd.DataFrame(np.power(jets.eta[1]-bs.seta[1],2) + np.power(jets.phi[1]-bs.sphi[1],2)).rename(columns={1:'Jet 1 b 1'})
         ## Loop over jet x b combinations
         jbstr = []
         for j in range(1,njet+1):
@@ -188,7 +250,7 @@ def ana(files):
                     continue
                 ## Compute and store the dr of the given b and jet for every event at once
                 jbdr2[jbstr[-1]] = pd.DataFrame(np.power(jets.eta[j]-bs.eta[b],2) + np.power(jets.phi[j]-bs.phi[b],2))
-                sjbdr2[jbstr[-1]]= pd.DataFrame(np.power(jets.eta[j]-bs.seta[b],2)+ np.power(jets.phi[j]-bs.sphi[b],2))
+                sjbdr2[jbstr[-1]]= pd.DataFrame(np.power(jets.eta[j]-bs.seta[b],2) + np.power(jets.phi[j]-bs.sphi[b],2))
         
         ## Create a copy array to collapse in jets instead of bs
         blist = []
@@ -207,67 +269,55 @@ def ana(files):
             rjets = np.logical_or(rjets,blist[i][blist[i]<0.4].fillna(0))
         rjets = rjets.sum(axis=1)
         rjets = rjets[rjets==4].dropna()
-        #jets.trimTo(rjets)
-        #ev.sync()
+        jets.trimTo(rjets)
+        ev.sync()
         
-#        ##Loop over A x b combinations
-#        abdr2 = pd.DataFrame(np.power(As.eta[1]-bs.eta[1],2) + np.power(As.phi[1]-bs.phi[1],2)).rename(columns={1:'b 1 A 1'})
-#        abstr = []
-#        for b in range(1,nb+1):
-#            for a in range(1,na+1):
-#                abstr.append("b "+str(b)+" A "+str(a))
-#                if (a+b==2):
-#                    continue
-#                abdr2[abstr[-1]] = pd.DataFrame(np.power(As.eta[a]-bs.eta[b],2) + np.power(As.phi[a]-bs.phi[b],2))
-#        
-#        ## Create A b-sized arrays of dRs
-#        alist = []
-#        for a in range(na):
-#            alist.append(abdr2.filter(like='A '+str(a+1)))
-#            alist[a] = alist[a].rename(columns=lambda x:int(x[1:3]))
-#        ## Assign best A1 drs to A1, then remainder to A2
-#        alist[1] = alist[1][alist[0].rank(axis=1,method='first') >= 3]
-#        alist[0] = alist[0][alist[0].rank(axis=1,method='first') <= 2]
-#        ## Cut out events with weirdly high A/b matching
-#        for a in range(na):
-#            alist[a] = alist[a][alist[a]<4]
-#        goodbs = np.logical_or(alist[1].fillna(0),alist[0].fillna(0)).sum(axis=1)
-#        goodbs = goodbs[goodbs==4].dropna()
-#        As.trimTo(goodbs)
-#        ev.sync()
-#        ## Slot in matched bs
-#        for prop in ['pt','eta','phi']:
-#            matchedbs[prop] = pd.DataFrame()
-#            matchedbs[prop][1] = bs[prop][alist[0]>0].min(axis=1)
-#            matchedbs[prop][2] = bs[prop][alist[0]>0].max(axis=1)
-#            matchedbs[prop][3] = bs[prop][alist[1]>0].min(axis=1)
-#            matchedbs[prop][4] = bs[prop][alist[1]>0].max(axis=1)
+        ################
+        # Filling Data #
+        ################
         
-        ## Move to plotting data
         for i in range(4):
-            plots['bdRvlogbpT'+str(i+1)].dfill(np.log2(bs.pt[[i+1]]),sblist[i])
-            plots['bdR'].dfill(np.sqrt(blist[i]))
+            plots['bjdRvlogbpT'+str(i+1)].dfill(np.log2(bs.spt[[i+1]]),bs.trim(sblist[i]))
+            plots['bjdR'].dfill(np.sqrt(blist[i]))
+            plots['RjetpT'].dfill(jets.pt[blist[i]>0])
+            plots['Rjeteta'].dfill(jets.eta[blist[i]>0])
 
-            yval = np.divide(jets.pt[sblist[i]>0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0],bs.pt[[i+1]].dropna().reset_index(drop=True)[i+1])
-            xval = np.log2(bs.pt[[i+1]]).melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0]
+            yval = np.divide(jets.pt[sblist[i]>0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0],bs.spt[[i+1]].dropna().reset_index(drop=True)[i+1])
+            xval = np.log2(bs.spt[[i+1]]).melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0]
             plots['jetoverbpTvlogbpT'+str(i+1)].fill(xval,yval)
 
-            GjetpT.dfill(bs.pt[[i+1]])
+            GjetpT.dfill(bs.spt[[i+1]])
             RjetpT.dfill(jets.pt[sblist[i]>0])
 
-            bjplots['bpT'+str(i+1)].dfill(bs.spt[[i+1]])
-            bjplots['beta'+str(i+1)].dfill(bs.seta[[i+1]])
-            bjplots['bjetpT'+str(i+1)].dfill(jets.pt[sblist[i]>0])
-            bjplots['bjeteta'+str(i+1)].dfill(jets.eta[sblist[i]>0])
-            bjplots['bdR'+str(i+1)].dfill(np.sqrt(sblist[i][sblist[i]!=0]))
+            bjplots['s_bpT'+str(i+1)].dfill(bs.spt[[i+1]])
+            bjplots['s_beta'+str(i+1)].dfill(bs.seta[[i+1]])
+            bjplots['s_bjetpT'+str(i+1)].dfill(jets.pt[sblist[i]>0])
+            bjplots['s_bjeteta'+str(i+1)].dfill(jets.eta[sblist[i]>0])
+            bjplots['s_bjdR'+str(i+1)].dfill(np.sqrt(sblist[i][sblist[i]!=0]))
 
+        plots['HpT'].dfill(higgs.pt)
+        plots['A1pT'].fill(As.pt[1])
+        plots['A2pT'].fill(As.pt[2])
+        plots['AdR'].fill(np.sqrt(np.power(As.eta[2]-As.eta[1],2) + np.power(As.phi[1]-As.phi[2],2)))
+        plots['bdRA1'].fill(np.sqrt(np.power(bs.eta[2]-bs.eta[1],2) + np.power(bs.phi[2]-bs.phi[1],2)))
+        plots['bdRA2'].fill(np.sqrt(np.power(bs.eta[4]-bs.eta[3],2) + np.power(bs.phi[4]-bs.phi[3],2)))
+        plots['bdetaA1'].fill(abs(bs.eta[2]-bs.eta[1]))
+        plots['bdetaA2'].fill(abs(bs.eta[4]-bs.eta[3]))
+        plots['bdphiA1'].fill(abs(bs.phi[2]-bs.phi[1]))
+        plots['bdphiA2'].fill(abs(bs.phi[4]-bs.phi[3]))
+        
         plots['bphi'].dfill(bs.phi)
-        plots['RjetpT'].dfill(jets.pt)
+        plots['RalljetpT'].dfill(jets.pt)
         plots['GoverRjetpT'].add(GjetpT.divideby(RjetpT,split=True))
+        
+    ############
+    # Plotting #
+    ############
+        
     plt.clf()
-    plots.pop('bdR').plot(logv=True)
+    plots.pop('bjdR').plot(logv=True)
     for i in range(1,5):
-        bjplots.pop('bdR'+str(i)).plot(logv=True)
+        bjplots.pop('s_bjdR'+str(i)).plot(logv=True)
     for p in plots:
         plt.clf()
         plots[p].plot()
