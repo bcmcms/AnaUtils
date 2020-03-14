@@ -3,7 +3,7 @@
 ########################################################################
 ### NanoAOD analyzer utility n00dle.py                               ###
 ###                                                                  ###
-### Currently doesn't support options... but we're improving!        ###
+### Run without arguments for a list of flags and options            ###
 ########################################################################
 
 #import ROOT as R
@@ -19,6 +19,7 @@ import pandas as pd
 #import itertools as it
 #import copy as cp
 from analib import Hist, PhysObj, Event, Hist2d, inc
+from uproot_methods import TLorentzVector, TLorentzVectorArray
 #%%
 
 def mc(files):
@@ -89,12 +90,12 @@ def ana(files):
         "s_bjdR"+str(i):      Hist(90 ,(0,3)        ,'GEN b '+str(i)+' (ranked by pT) to matched jet dR','Events','upplots/s_bjdR'+str(i))
         })
     plots = {
-        "HpT":      Hist(50 ,(0,200)    ,'GEN Higgs pT','Events','upplots/HpT'),
+        "HpT":      Hist(60 ,(0,320)    ,'GEN Higgs pT','Events','upplots/HpT'),
         #"HAdR":     Hist(100,(0,2)      ,'GEN Higgs to A dR','Events','upplots/HAdR'),
         #'HAdeta':   Hist(66 ,(-3.3,3.3) ,'GEN Higgs to A deta','Events','upplots/HAdeta'),
         #'HAdphi':   Hist(66 ,(-3.3,3.3) ,'GEN Higgs to A dphi','Events','upplots/HAdphi'),
-        "A1pT":     Hist(35 ,(0,140)    ,'Highest GEN A pT','Events','upplots/A1pT'),
-        "A2pT":     Hist(35 ,(0,140)    ,'Lowest GEN A pT','Events','upplots/A2pT'),
+        "A1pT":     Hist(80 ,(0,160)    ,'Highest GEN A pT','Events','upplots/A1pT'),
+        "A2pT":     Hist(80 ,(0,160)    ,'Lowest GEN A pT','Events','upplots/A2pT'),
         "AdR":      Hist(50 ,(0,5)      ,'GEN A1 to A2 dR','Events','upplots/AdR'),
         "bdRA1":    Hist(50 ,(0,5)      ,'GEN dR between highest pT A child bs','Events','upplots/bdRA1'),
         "bdRA2":    Hist(50 ,(0,5)      ,'GEN dR between lowest pT A child bs','Events','upplots/bdRA2'),
@@ -102,17 +103,30 @@ def ana(files):
         "bdetaA2":  Hist(34 ,(0,3.4)    ,'GEN |deta| between lowest-A child bs','Events','upplots/bdetaA2'),
         "bdphiA1":  Hist(34 ,(0,3.4)    ,'GEN |dphi| between highest-A child bs','Events','upplots/bdphiA1'),
         "bdphiA2":  Hist(34 ,(0,3.4)    ,'GEN |dphi| between lowest-A child bs','Events','upplots/bdphiA2'),
-        #"A1pT":     Hist(100,(0,100)    ,'pT for the 1st A particle (chosen by array position)', 'Events', 'upplots/A1pT'),
-        #"A2pT":     Hist(100,(0,100)    ,'pT for the 2nd A particle (chosen by array position)', 'Events', 'upplots/A2pT'),
         "bphi":     Hist(66 ,(-3.3,3.3) ,'GEN b Phi','Events','upplots/bphi'),
         "bjdR":     Hist(100,(0,2)      ,'All GEN bs to matched jet dR','Events','upplots/bjdR'),
         "RjetpT":   Hist(100,(0,100)    ,'RECO matched jet pT','Events','upplots/RjetpT'),
         "Rjeteta":  Hist(66 ,(-3.3,3.3) ,'RECO matched jet eta','Events','upplots/Rjeteta'),
-        #"Rjettag":  Hist(),
-        #"RAjetspT": Hist(100,(0,100)    ,'pT of RECO A1,A2 objects constructed from matched jets','Events','upplots/RAjetspT'),
+        "RjetCSVV2":Hist(140 ,(-12,2)    ,'RECO matched jet btagCSVV2 score','events','upplots/RjetCSVV2'),
+        "RjetDeepB":Hist(40 ,(-2.5,1.5) ,'RECO matched jet btagDeepB score','events','upplots/RjetDeepB'),
+        "RjetDeepFB"    :Hist(24 ,(0,1.2)    ,'RECO matched jet btagDeepFlavB score','events','upplots/RjetDeepFB'),
+        "RA1pT":    Hist(80 ,(0,160)    ,'pT of RECO A1 objects constructed from matched jets','Events','upplots/RA1pT'),
+        "RA2pT":    Hist(80 ,(0,160)    ,'pT of RECO A2 objects constructed from matched jets','Events','upplots/RA2pT'),
+        "RA1mass":  Hist(40 ,(0,80)     ,'reconstructed mass of A1 objects from matched jets','Events','upplots/RA1mass'),
+        "RA2mass":  Hist(40 ,(0,80)     ,'reconstructed mass of A2 objects from matched jets','Events','upplots/RA2mass'),
+        "RA1dR":    Hist(50 ,(0,5)      ,'dR between jet children of reconstructed A1 object','Events','upplots/RA1dR'),
+        "RA2dR":    Hist(50 ,(0,5)      ,'dR between jet children of reconstructed A2 object','Events','upplots/RA2dR'),
+        "RA1deta":  Hist(33 ,(0,3.3)    ,'|deta| between jet children of reconstructed A1 object','Events','upplots/RA1deta'),
+        "RA2deta":  Hist(33 ,(0,3.3)    ,'|deta| between jet children of reconstructed A2 object','Events','upplots/RA2deta'),
+        "RA1dphi":  Hist(33 ,(0,3.3)    ,'|dphi| between jet children of reconstructed A1 object','Events','upplots/RA1dphi'),
+        "RA2dphi":  Hist(33 ,(0,3.3)    ,'|dphi| between jet children of reconstructed A2 object','Events','upplots/RA2dphi'),
+        "RHmass":   Hist(80 ,(0,160)     ,'reconstructed mass of Higgs object from reconstructed As','Events','upplots/RHmass'),
+        "RHpT":     Hist(100,(0,200)    ,'pT of reconstructed higgs object from reconstructed As','Events','upplots/RHpT'),
+        "RHdR":     Hist(50 ,(0,5)      ,'dR between A children of reconstructed higgs object','Events','upplots/RHdR'),
+        "RHdeta":   Hist(33 ,(0,3.3)    ,'|deta| between A children of reconstructed higgs object','Events','upplots/RHdeta'),
+        "RHdphi":   Hist(33 ,(0,3.3)    ,'|dphi| between A children of reconstructed higgs object','Events','upplots/RHdphi'),
         ##
         "RalljetpT":    Hist(100,(0,100),'All RECO jet pT','Events','upplots/RalljetpT'),
-        "GoverRjetpT":  Hist(100,(0,100),'jet pT','Ratio of GEN b pT / RECO jet pT for matched jets','upplots/GRjetpT'),
         "bjdRvlogbpT1":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 1st pT GEN b to matched RECO jet','upplots/bjdRvlogbpT1'),
         "bjdRvlogbpT2":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 2nd pT GEN b to matched RECO jet','upplots/bjdRvlogbpT2'),
         "bjdRvlogbpT3":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 3rd pT GEN b to matched RECO jet','upplots/bjdRvlogbpT3'),
@@ -126,9 +140,7 @@ def ana(files):
         bjplots[plot].title = files[0]
     for plot in plots:
         plots[plot].title = files[0]
-        
-    GjetpT = Hist(plots['GoverRjetpT'].size,plots['GoverRjetpT'].bounds)
-    RjetpT = Hist(plots['GoverRjetpT'].size,plots['GoverRjetpT'].bounds)
+
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
     
@@ -183,7 +195,10 @@ def ana(files):
         jets.eta= pd.DataFrame(events.array('Jet_eta')).rename(columns=inc)
         jets.phi= pd.DataFrame(events.array('Jet_phi')).rename(columns=inc)
         jets.pt = pd.DataFrame(events.array('Jet_pt')).rename(columns=inc)
-
+        jets.mass=pd.DataFrame(events.array('Jet_mass')).rename(columns=inc)
+        jets.CSVV2 = pd.DataFrame(events.array('Jet_btagCSVV2')).rename(columns=inc)
+        jets.DeepB = pd.DataFrame(events.array('Jet_btagDeepB')).rename(columns=inc)
+        jets.DeepFB= pd.DataFrame(events.array('Jet_btagDeepFlavB')).rename(columns=inc)
 
         print('Processing ' + str(len(bs.oeta)) + ' events')
 
@@ -205,10 +220,10 @@ def ana(files):
             
         ## Reorder out b dataframes to match sorted A parents
         tframe = pd.DataFrame()
-        tframe[1] = (As.pt.rank(axis=1,ascending=False,method='first')==1)[1]
-        tframe[2] = (As.pt.rank(axis=1,ascending=False,method='first')==1)[1]
-        tframe[3] = (As.pt.rank(axis=1,ascending=False,method='first')==1)[2]
-        tframe[4] = (As.pt.rank(axis=1,ascending=False,method='first')==1)[2]
+        tframe[1] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[1]
+        tframe[2] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[1]
+        tframe[3] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[2]
+        tframe[4] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[2]
         for prop in ['eta','phi','pt']:
             bs[prop] = pd.DataFrame()
             bs[prop][1] = bs['o'+prop][tframe][1].dropna().append(bs['o'+prop][tframe][3].dropna()).sort_index()
@@ -216,7 +231,7 @@ def ana(files):
             bs[prop][3] = bs['o'+prop][~tframe][1].dropna().append(bs['o'+prop][~tframe][3].dropna()).sort_index()
             bs[prop][4] = bs['o'+prop][~tframe][2].dropna().append(bs['o'+prop][~tframe][4].dropna()).sort_index()
             ## Clean up original ordered dataframes; we don't really need them.
-        #del bs['o'+prop]
+            #del bs['o'+prop]
             
         ## Sort our b dataframes in descending order of pt
         for prop in ['spt','seta','sphi']:
@@ -272,22 +287,63 @@ def ana(files):
         jets.trimTo(rjets)
         ev.sync()
         
+        #############################
+        # Constructing RECO objects #
+        #############################
+
+        for prop in ['bpt','beta','bphi','bmass']:
+            jets[prop] = pd.DataFrame()
+            for i in range(nb):
+                jets[prop][i+1] = jets[prop[1:]][blist[i]>0].max(axis=1)
+                
+        jets.bdr = pd.DataFrame()
+        for i in range(nb):
+            jets.bdr[i+1] = np.sqrt(blist[i][blist[i]>0].max(axis=1))
+            
+        ev.sync()
+            
+        bvec = []
+        for i in range(1,nb+1):
+            bvec.append(TLorentzVectorArray.from_ptetaphim(jets.bpt[i],jets.beta[i],jets.bphi[i],jets.bmass[i]))
+        
+        avec = []
+        for i in range(0,nb,2):
+            avec.append(bvec[i]+bvec[i+1])
+        
+        for prop in ['apt','aeta','aphi','amass']:
+            jets[prop] = pd.DataFrame()
+        for i in range(na):
+            jets.apt[i+1]  = avec[i].pt
+            jets.aeta[i+1] = avec[i].eta
+            jets.aphi[i+1] = avec[i].phi
+            jets.amass[i+1]= avec[i].mass
+        for prop in ['apt','aeta','aphi','amass']:
+            jets[prop].index = jets.pt.index
+        
+        hvec = [avec[0]+avec[1]]
+        
+        for prop in ['hpt','heta','hphi','hmass']:
+            jets[prop] = pd.DataFrame()
+        jets.hpt[1]  = hvec[0].pt
+        jets.heta[1] = hvec[0].eta
+        jets.hphi[1] = hvec[0].phi
+        jets.hmass[1]= hvec[0].mass
+        for prop in ['hpt','heta','hphi','hmass']:
+            jets[prop].index = jets.eta.index
+        
         ################
         # Filling Data #
         ################
         
         for i in range(4):
             plots['bjdRvlogbpT'+str(i+1)].dfill(np.log2(bs.spt[[i+1]]),bs.trim(sblist[i]))
-            plots['bjdR'].dfill(np.sqrt(blist[i]))
-            plots['RjetpT'].dfill(jets.pt[blist[i]>0])
-            plots['Rjeteta'].dfill(jets.eta[blist[i]>0])
+            plots['RjetCSVV2'].dfill(jets.CSVV2[blist[i]>0])
+            plots['RjetDeepB'].dfill(jets.DeepB[blist[i]>0])
+            plots['RjetDeepFB'].dfill(jets.DeepFB[blist[i]>0])
 
             yval = np.divide(jets.pt[sblist[i]>0].melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0],bs.spt[[i+1]].dropna().reset_index(drop=True)[i+1])
             xval = np.log2(bs.spt[[i+1]]).melt(value_name=0).drop('variable',axis=1).dropna().reset_index(drop=True)[0]
             plots['jetoverbpTvlogbpT'+str(i+1)].fill(xval,yval)
-
-            GjetpT.dfill(bs.spt[[i+1]])
-            RjetpT.dfill(jets.pt[sblist[i]>0])
 
             bjplots['s_bpT'+str(i+1)].dfill(bs.spt[[i+1]])
             bjplots['s_beta'+str(i+1)].dfill(bs.seta[[i+1]])
@@ -298,7 +354,7 @@ def ana(files):
         plots['HpT'].dfill(higgs.pt)
         plots['A1pT'].fill(As.pt[1])
         plots['A2pT'].fill(As.pt[2])
-        plots['AdR'].fill(np.sqrt(np.power(As.eta[2]-As.eta[1],2) + np.power(As.phi[1]-As.phi[2],2)))
+        plots['AdR'].fill(np.sqrt(np.power(As.eta[2]-As.eta[1],2) + np.power(As.phi[2]-As.phi[1],2)))
         plots['bdRA1'].fill(np.sqrt(np.power(bs.eta[2]-bs.eta[1],2) + np.power(bs.phi[2]-bs.phi[1],2)))
         plots['bdRA2'].fill(np.sqrt(np.power(bs.eta[4]-bs.eta[3],2) + np.power(bs.phi[4]-bs.phi[3],2)))
         plots['bdetaA1'].fill(abs(bs.eta[2]-bs.eta[1]))
@@ -306,10 +362,26 @@ def ana(files):
         plots['bdphiA1'].fill(abs(bs.phi[2]-bs.phi[1]))
         plots['bdphiA2'].fill(abs(bs.phi[4]-bs.phi[3]))
         
+
+        
         plots['bphi'].dfill(bs.phi)
         plots['RalljetpT'].dfill(jets.pt)
-        plots['GoverRjetpT'].add(GjetpT.divideby(RjetpT,split=True))
-        
+        plots['bjdR'].dfill(jets.bdr)
+        plots['RjetpT'].dfill(jets.bpt)
+        plots['Rjeteta'].dfill(jets.beta)  
+        for i in range(1,3):
+            plots['RA'+str(i)+'pT'  ].fill(jets.apt[i])
+            plots['RA'+str(i)+'mass'].fill(jets.amass[i])
+            plots['RA'+str(i)+'deta'].fill(abs(jets.beta[2*i]-jets.beta[(2*i)-1]))
+            plots['RA'+str(i)+'dR'  ].fill(np.sqrt(np.power(jets.beta[2*i]-jets.beta[(2*i)-1],2)+np.power(jets.bphi[2*i]-jets.bphi[(2*i)-1],2)))
+            plots['RA'+str(i)+'deta'].fill(abs(jets.beta[2*i]-jets.beta[(2*i)-1]))
+            plots['RA'+str(i)+'dphi'].fill(abs(jets.bphi[2*i]-jets.bphi[(2*i)-1]))
+        plots['RHpT'  ].fill(jets.hpt[1])
+        plots['RHmass'].fill(jets.hmass[1])
+        plots['RHdR'  ].fill(np.sqrt(np.power(jets.aeta[2]-jets.aeta[1],2)+np.power(jets.aphi[2]-jets.aphi[1],2)))
+        plots['RHdeta'].fill(abs(jets.aeta[2]-jets.aeta[1]))
+        plots['RHdphi'].fill(abs(jets.aphi[2]-jets.aphi[1]))
+    
     ############
     # Plotting #
     ############
@@ -332,7 +404,7 @@ def trig(files):
     ## Create a dictionary of histogram objects
     rptbins = [0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,11,12,13,14,15,30,100]
     plots = {
-        'hptplot':      Hist(rptbins,None,'Highest Muon pT','Events','upplots/TrigHpTplot'),
+        'hptplot':      Hist(rptbins,None,'Highest Muon pT','Events passing HLT','upplots/TrigHpTplot'),
         'ptplot':       Hist(rptbins,None,'Highest Muon pT','Events','upplots/TrigpTplot'),
         'ratioptplot':  Hist(rptbins,None,'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','upplots/TrigRatiopTPlot'),
         'sipplot':      Hist(20,(0,20),'Highest Muon SIP', 'Events', 'upplots/TrigSIPplot'),
@@ -345,7 +417,9 @@ def trig(files):
 
     }
     cutflow2d = Hist2d([9,10],[[-0.5,8.5],[-0.5,9.5]],'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6',
-        'All // L1_SingleMu6/7/8/9/10/12/14/16/18','upplots/cutflowHLTvsL1T')
+        'All // L1_SingleMu6/7/8/9/10/12/14/16/18','upplots/cutflowHLTvsL1T',files[0])
+    for plot in plots:
+        plots[plot].title = files[0]
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
     ## Loop over all input files

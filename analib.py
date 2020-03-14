@@ -26,6 +26,7 @@ class Hist(object):
         s.hs = [plt.hist([],size,bounds)[0],plt.hist([],size,bounds)[1]]
         s.xlabel = xlabel
         s.ylabel = ylabel
+        s.title = title
         s.fname = fname
 
     def __getitem__(s,i):
@@ -89,12 +90,13 @@ class Hist(object):
 
 
 class Hist2d(object):
-    def __init__(s,sizes,bounds,xlabel='',ylabel='',fname=''):
+    def __init__(s,sizes,bounds,xlabel='',ylabel='',fname='',title=''):
         s.sizes = sizes
         s.bounds = bounds
         s.hs = [plt.hist2d([],[],sizes,bounds)[0],plt.hist2d([],[],sizes,bounds)[1],plt.hist2d([],[],sizes,bounds)[2],plt.hist2d([],[],sizes,bounds)]
         s.xlabel = xlabel
         s.ylabel = ylabel
+        s.title = title
         s.fname = fname
 
     def __getitem__(s,i):
@@ -146,6 +148,8 @@ class Hist2d(object):
             plt.xlabel(s.xlabel)
         if s.ylabel != '':
             plt.ylabel(s.ylabel)
+        if s.title != '':
+            plt.title(s.title)
         if s.fname != '':
             plt.savefig(s.fname)
 
