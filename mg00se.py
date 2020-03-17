@@ -15,10 +15,11 @@ import sys
 from math import sqrt, pow, log2
 from analib import Hist, Hist2d
 import matplotlib.pyplot as plt
+from n00dle import ana
 
 ## User-defined constants
 MAX_EVT = 0
-#MAX_EVT = 10000  ## Maximum number of events to process
+#MAX_EVT = 1000  ## Maximum number of events to process
 PRT_EVT = 1000   ## Print to screen every Nth event
 VERBOSE = False  ## Print extra info about each event
 F_PREFIX = False ## Attach a prefix that denotes which file the plots came from. Only uses the 1st file
@@ -64,7 +65,7 @@ class trigger:
         if val == None:
             return s.failv
         else: return val*s.p
-
+#%%
 def main(batch=0):
 
 ###################
@@ -129,7 +130,7 @@ def main(batch=0):
 #############
 ## Histograms
 #############
-
+    #%%
     ## Histogram bins: [# of bins, minimum x, maximum x]
     #mu_pt_bins = [200, 0, 201]
 
@@ -167,7 +168,7 @@ def main(batch=0):
         "RA2deta":  Hist(33 ,(0,3.3)    ,'|deta| between jet children of reconstructed A2 object','Events','mg00se/RA2deta'),
         "RA1dphi":  Hist(33 ,(0,3.3)    ,'|dphi| between jet children of reconstructed A1 object','Events','mg00se/RA1dphi'),
         "RA2dphi":  Hist(33 ,(0,3.3)    ,'|dphi| between jet children of reconstructed A2 object','Events','mg00se/RA2dphi'),
-        "RHmass":   Hist(80 ,(0,160)     ,'reconstructed mass of Higgs object from reconstructed As','Events','mg00se/RHmass'),
+        "RHmass":   Hist(80 ,(0,160)    ,'reconstructed mass of Higgs object from reconstructed As','Events','mg00se/RHmass'),
         "RHpT":     Hist(100,(0,200)    ,'pT of reconstructed higgs object from reconstructed As','Events','mg00se/RHpT'),
         "RHdR":     Hist(50 ,(0,5)      ,'dR between A children of reconstructed higgs object','Events','mg00se/RHdR'),
         "RHdeta":   Hist(33 ,(0,3.3)    ,'|deta| between A children of reconstructed higgs object','Events','mg00se/RHdeta'),
@@ -182,6 +183,7 @@ def main(batch=0):
         "jetoverbpTvlogbpT2":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','mg00se/jetoverbpTvlogbpT2'),
         "jetoverbpTvlogbpT3":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','mg00se/jetoverbpTvlogbpT3'),
         "jetoverbpTvlogbpT4":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','mg00se/jetoverbpTvlogbpT4'),
+        "npassed":  Hist(1  ,(0.5,1.5) ,'','Number of events that passed cuts','mg00se/npassed')
     }
 
 #############
@@ -190,6 +192,7 @@ def main(batch=0):
                 
     iEvt = -1
     nPass = 0
+    gEvts = []
     for ch in in_chains:
         
         if iEvt > MAX_EVT and MAX_EVT > 0: break            ## Breaks early when we hit MAX_EVT events. Disabled for MAX<= 0
@@ -199,6 +202,7 @@ def main(batch=0):
             
             if iEvt > MAX_EVT and MAX_EVT > 0: break        ## Duplication of previous check - fires more often
             if iEvt % PRT_EVT is 0: print('Event # '+str(iEvt))   ## Prints progress messages every PRT_EVT events
+
 
             ch.GetEntry(jEvt)
 
@@ -245,12 +249,15 @@ def main(batch=0):
 
             nbs = len(bPt)
             if nbs != 4:
+                print('nbs', nbs)
                 continue
             nAs = len(APt)
             if nAs != 2:
+                print('nAs', nAs)
                 continue
             nhs = len(hPt)
             if nhs != 1:
+                print('nhs', nhs)
                 continue
                        
             ## Re order As and bs by A pt
@@ -273,12 +280,12 @@ def main(batch=0):
                 tbPt[i] = -10
             del tbPt
 
-            bjetEta, bjetPhi, bjetPt, bjetDR, bjetMass, bjetIdx = [0]*nbs, [0]*nbs, [0]*nbs, [9.0]*nbs, [0]*nbs, [0]*nbs
-            sbjetEta, sbjetPhi, sbjetPt, sbjetDR, sbjetMass, sbjetIdx = [0]*nbs, [0]*nbs, [0]*nbs, [9.0]*nbs, [0]*nbs, [0]*nbs
+            bjetEta, bjetPhi, bjetPt, bjetDR, bjetMass, bjetIdx       = [None]*nbs, [None]*nbs, [None]*nbs, [9.0]*nbs, [None]*nbs, [None]*nbs
+            sbjetEta, sbjetPhi, sbjetPt, sbjetDR, sbjetMass, sbjetIdx = [None]*nbs, [None]*nbs, [None]*nbs, [9.0]*nbs, [None]*nbs, [None]*nbs
             jetPt = []
             ## Begin loop over jets
             for iJet in range(len(ch.Jet_pt)):
-                jet_eta = abs(ch.Jet_eta[iJet])
+                jet_eta = ch.Jet_eta[iJet]
                 jet_phi = ch.Jet_phi[iJet]
                 jet_pt = ch.Jet_pt[iJet]
                 jet_mass = ch.Jet_mass[iJet]
@@ -286,25 +293,28 @@ def main(batch=0):
                 ## Get dRs
                 for i in range(nbs):
                     dr = sqrt(pow(bEta[i] - jet_eta, 2) + pow(bPhi[i] - jet_phi, 2))
-                    if dr < bjetDR[i]:
-                        bjetEta[i], bjetPhi[i], bjetPt[i], bjetDR[i], bjetMass[i], bjetIdx[i] = jet_eta, jet_phi, jet_pt, dr, jet_mass, iJet
-                    sdr = sqrt(pow(sbEta[i] - jet_eta, 2) + pow(sbPhi[i] - jet_phi, 2))
-                    if dr < sbjetDR[i]:
-                        sbjetEta[i], sbjetPhi[i], sbjetPt[i], sbjetDR[i], sbjetMass, sbjetIdx[i] = jet_eta, jet_phi, jet_pt, sdr, jet_mass, iJet
+                    ## Only accept dr values less than 0.4
+                    if dr < 0.4:
+                        if dr < bjetDR[i]:
+                            bjetEta[i], bjetPhi[i], bjetPt[i], bjetDR[i], bjetMass[i], bjetIdx[i] = jet_eta, jet_phi, jet_pt, dr, jet_mass, iJet
+                        sdr = sqrt(pow(sbEta[i] - jet_eta, 2) + pow(sbPhi[i] - jet_phi, 2))
+                        if dr < sbjetDR[i]:
+                            sbjetEta[i], sbjetPhi[i], sbjetPt[i], sbjetDR[i], sbjetMass[i], sbjetIdx[i] = jet_eta, jet_phi, jet_pt, sdr, jet_mass, iJet
 
             ## Skip the event if the number of unique resolved jets is less than the number of bs
-            if 0 in bjetEta:
+            if None in bjetEta:
                 continue
             if len(bjetIdx) != len(set(bjetIdx)):
                 continue
             ## Cut events with matched jet dR > 0.4
-            jetdRcut = False
-            for dr in bjetDR:
-                if dr > 0.4:
-                    jetdRcut = True
-            if jetdRcut:
-                continue
+            #jetdRcut = False
+            #for dr in bjetDR:
+            #    if dr > 0.4:
+            #        jetdRcut = True
+            #if jetdRcut:
+            #    continue
             nPass+=1
+            gEvts.append(iEvt)
             
             Tjets = []
             for i in range(nbs):
@@ -333,6 +343,7 @@ def main(batch=0):
                 plots["RA"+str(i+1)+"deta"].fill(abs(Tjets[i*2].Eta() - Tjets[(i*2)+1].Eta()))
                 plots["RA"+str(i+1)+"dphi"].fill(abs(Tjets[i*2].Phi() - Tjets[(i*2)+1].Phi()))
             plots["RHpT"].fill(Th[0].Pt())
+            plots["RHmass"].fill(Th[0].M())
             plots["RHdR"].fill(sqrt(pow(TAs[0].Eta() - TAs[1].Eta(),2) + pow(TAs[0].Phi() - TAs[1].Phi(),2)))
             plots["RHdeta"].fill(abs(TAs[0].Eta() - TAs[1].Eta()))
             plots["RHdphi"].fill(abs(TAs[0].Phi() - TAs[1].Phi()))
@@ -340,13 +351,20 @@ def main(batch=0):
             plots["bjdR"].fill(bjetDR)
             plots["RjetpT" ].fill(bjetPt)
             plots["Rjeteta"].fill(bjetEta)
+            plots["npassed"].fill(1)
+            plt.clf()
 
 
         ## End loop over events in chain (jEvt)
     ## End loop over chains (ch)
 
     print('\nOut of '+str(iEvt+1)+' total events processed, '+str(nPass)+' passed selection cuts')
-
+    cplots = ana(file_names,True)
+    for plot in plots:
+        #print(plot)
+        if type(plots[plot])==Hist:
+            plots[plot].stackplot(cplots[plot])
+    #%%
 #######################
 ## Histogram formatting
 #######################

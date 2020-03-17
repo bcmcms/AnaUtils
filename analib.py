@@ -70,9 +70,9 @@ class Hist(object):
         return s
 
     ## Creates and returns a pyplot-compatible histogram object
-    def make(s,logv=False):
+    def make(s,logv=False,htype='bar',color=None):
         #print(s.hs)
-        return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],log=logv)
+        return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],log=logv,histtype=htype,color=color)
 
     def plot(s,logv=False,ylim=False):
         plt.clf()
@@ -87,6 +87,21 @@ class Hist(object):
             plt.title(s.title)
         if s.fname != '':
             plt.savefig(s.fname)
+            
+    def stackplot(s,phist,ylim=False):
+        plt.clf()
+        s.make(htype='step',color='black')
+        phist.make(htype='step',color='red')
+        if ylim:
+            plt.ylim(ylim)
+        if s.xlabel != '':
+            plt.xlabel(s.xlabel)
+        if s.ylabel != '':
+            plt.ylabel(s.ylabel)
+        if s.title != '':
+            plt.title(s.title)
+        if s.fname != '':
+            plt.savefig(s.fname+'_v')
 
 
 class Hist2d(object):

@@ -71,7 +71,7 @@ def mc(files):
     #return plot
     sys.exit()
 
-def ana(files):
+def ana(files,returnplots=False):
     #%%################
     # Plots and Setup #
     ###################
@@ -135,6 +135,7 @@ def ana(files):
         "jetoverbpTvlogbpT2":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT2'),
         "jetoverbpTvlogbpT3":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT3'),
         "jetoverbpTvlogbpT4":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','upplots/jetoverbpTvlogbpT4'),
+        "npassed":  Hist(1  ,(0.5,1.5) ,'','Number of events that passed cuts', 'upplots/npassed')
     }
     for plot in bjplots:
         bjplots[plot].title = files[0]
@@ -271,10 +272,10 @@ def ana(files):
         blist = []
         sblist = []
         for b in range(nb):
-            blist.append(jbdr2.filter(like='b '+str(b+1)))
+            blist.append(np.sqrt(jbdr2.filter(like='b '+str(b+1))))
             blist[b] = blist[b][blist[b].rank(axis=1,method='first') == 1]
             blist[b] = blist[b].rename(columns=lambda x:int(x[4:6]))
-            sblist.append(sjbdr2.filter(like='b '+str(b+1)))
+            sblist.append(np.sqrt(sjbdr2.filter(like='b '+str(b+1))))
             sblist[b] = sblist[b][sblist[b].rank(axis=1,method='first') == 1]
             sblist[b] = sblist[b].rename(columns=lambda x:int(x[4:6]))
         
@@ -298,7 +299,7 @@ def ana(files):
                 
         jets.bdr = pd.DataFrame()
         for i in range(nb):
-            jets.bdr[i+1] = np.sqrt(blist[i][blist[i]>0].max(axis=1))
+            jets.bdr[i+1] = blist[i][blist[i]>0].max(axis=1)
             
         ev.sync()
             
@@ -349,7 +350,7 @@ def ana(files):
             bjplots['s_beta'+str(i+1)].dfill(bs.seta[[i+1]])
             bjplots['s_bjetpT'+str(i+1)].dfill(jets.pt[sblist[i]>0])
             bjplots['s_bjeteta'+str(i+1)].dfill(jets.eta[sblist[i]>0])
-            bjplots['s_bjdR'+str(i+1)].dfill(np.sqrt(sblist[i][sblist[i]!=0]))
+            bjplots['s_bjdR'+str(i+1)].dfill(sblist[i][sblist[i]!=0])
 
         plots['HpT'].dfill(higgs.pt)
         plots['A1pT'].fill(As.pt[1])
@@ -372,7 +373,7 @@ def ana(files):
         for i in range(1,3):
             plots['RA'+str(i)+'pT'  ].fill(jets.apt[i])
             plots['RA'+str(i)+'mass'].fill(jets.amass[i])
-            plots['RA'+str(i)+'deta'].fill(abs(jets.beta[2*i]-jets.beta[(2*i)-1]))
+            #lots['RA'+str(i)+'deta'].fill(abs(jets.beta[2*i]-jets.beta[(2*i)-1]))
             plots['RA'+str(i)+'dR'  ].fill(np.sqrt(np.power(jets.beta[2*i]-jets.beta[(2*i)-1],2)+np.power(jets.bphi[2*i]-jets.bphi[(2*i)-1],2)))
             plots['RA'+str(i)+'deta'].fill(abs(jets.beta[2*i]-jets.beta[(2*i)-1]))
             plots['RA'+str(i)+'dphi'].fill(abs(jets.bphi[2*i]-jets.bphi[(2*i)-1]))
@@ -381,23 +382,23 @@ def ana(files):
         plots['RHdR'  ].fill(np.sqrt(np.power(jets.aeta[2]-jets.aeta[1],2)+np.power(jets.aphi[2]-jets.aphi[1],2)))
         plots['RHdeta'].fill(abs(jets.aeta[2]-jets.aeta[1]))
         plots['RHdphi'].fill(abs(jets.aphi[2]-jets.aphi[1]))
+        plots['npassed'].fill(jets.hpt[1]/jets.hpt[1])
     
     ############
     # Plotting #
     ############
         
     plt.clf()
-    plots.pop('bjdR').plot(logv=True)
+    #plots.pop('bjdR').plot(logv=True)
     for i in range(1,5):
         bjplots.pop('s_bjdR'+str(i)).plot(logv=True)
     for p in plots:
-        plt.clf()
         plots[p].plot()
     for p in bjplots:
-        plt.clf()
         bjplots[p].plot()
     #%%
-    sys.exit()
+    if returnplots==True:
+        return plots
 
 
 def trig(files):
