@@ -78,6 +78,8 @@ def ana(files,returnplots=False):
     
     ## Define what pdgId we expect the A to have
     Aid = 9000006
+    ## How many resolved jets we want to target with our analysis
+    resjets = 4
     #Aid = 36
     ## Make a dictionary of histogram objects
     bjplots = {}

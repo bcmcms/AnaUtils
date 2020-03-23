@@ -336,7 +336,7 @@ def main(batch=0):
                 plots["A"+str(i+1)+"pT"].fill(APt[i])
                 plots["bdRA"+str(i+1)  ].fill(sqrt(pow(bEta[(2*i)] - bEta[(2*i)+1], 2) + pow(bPhi[(2*i)] - bPhi[(2*i)+1], 2)))
                 plots["bdetaA"+str(i+1)].fill(abs(bEta[(2*i)] - bEta[(2*i)+1]))
-                plots["bdphiA"+str(i+1)].fill(abs(bEta[(2*i)] - bEta[(2*i)+1]))
+                plots["bdphiA"+str(i+1)].fill(abs(bPhi[(2*i)] - bPhi[(2*i)+1]))
                 plots["RA"+str(i+1)+"pT"  ].fill(TAs[i].Pt())
                 plots["RA"+str(i+1)+"mass"].fill(TAs[i].M())
                 plots["RA"+str(i+1)+"dR"  ].fill(sqrt(pow(Tjets[i*2].Eta() - Tjets[(i*2)+1].Eta(),2) + pow(Tjets[i*2].Phi() - Tjets[(i*2)+1].Phi(),2)))
