@@ -183,7 +183,9 @@ def main(batch=0):
         "jetoverbpTvlogbpT2":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','mg00se/jetoverbpTvlogbpT2'),
         "jetoverbpTvlogbpT3":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','mg00se/jetoverbpTvlogbpT3'),
         "jetoverbpTvlogbpT4":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','mg00se/jetoverbpTvlogbpT4'),
-        "npassed":  Hist(1  ,(0.5,1.5) ,'','Number of events that passed cuts','mg00se/npassed')
+        "npassed":  Hist(1  ,(0.5,1.5) ,'','Number of events that passed cuts','mg00se/npassed'),
+        "genAmass": Hist(40 ,(0,80)     ,'GEN mass of A objects','Events','upplots/Amass_g'),
+        "cutAmass": Hist(40 ,(0,80)     ,'GEN mass of A objects that pass cuts','Events','upplots/Amass_c')
     }
 
 #############
@@ -211,7 +213,7 @@ def main(batch=0):
             else: nGen = 0
             nMuons = len(ch.Muon_pt)            ## Number of RECO muons in the event
             #nJets  = len(ch.Jet_pt)
-            bEta, bPhi, bPt, AEta, APhi, APt, hEta, hPhi, hPt = [],[],[],[],[],[],[],[],[]
+            bEta, bPhi, bPt, AEta, APhi, APt, AMass, hEta, hPhi, hPt = [],[],[],[],[],[],[],[],[],[]
 
             if VERBOSE: print('\nIn event '+str(iEvt)+' we find '+str(nGen)+' GEN particles and '+str(nMuons)+' RECO muons')
 
@@ -237,6 +239,7 @@ def main(batch=0):
                         AEta.append(ch.GenPart_eta[iGen])
                         APhi.append(ch.GenPart_phi[iGen])
                         APt.append(ch.GenPart_pt[iGen])            ## Store its eta, phi, and pT
+                        AMass.append(ch.GenPart_mass[iGen])
 
                 if (abs(ch.GenPart_pdgId[iGen]) == 25):             ## If the particle is a higgs
                     parentIdx = ch.GenPart_genPartIdxMother[iGen]   ## Figure out where the parent is stored
@@ -265,6 +268,7 @@ def main(batch=0):
                 APt  = [APt[1],APt[0]]
                 APhi = [APhi[1],APhi[0]]
                 AEta = [AEta[1],AEta[0]]
+                AMass= [AMass[1],AMass[0]]
                 bPt  = [bPt[2],bPt[3],bPt[0],bPt[1]]
                 bEta = [bEta[2],bEta[3],bEta[0],bEta[1]]
                 bPhi = [bPhi[2],bPhi[3],bPhi[0],bPhi[1]]
@@ -279,6 +283,9 @@ def main(batch=0):
                 sbPhi.append(bPhi[i])
                 tbPt[i] = -10
             del tbPt
+
+            for a in AMass:
+                plots['genAmass'].fill(a)
 
             bjetEta, bjetPhi, bjetPt, bjetDR, bjetMass, bjetIdx       = [None]*nbs, [None]*nbs, [None]*nbs, [9.0]*nbs, [None]*nbs, [None]*nbs
             sbjetEta, sbjetPhi, sbjetPt, sbjetDR, sbjetMass, sbjetIdx = [None]*nbs, [None]*nbs, [None]*nbs, [9.0]*nbs, [None]*nbs, [None]*nbs
@@ -342,6 +349,7 @@ def main(batch=0):
                 plots["RA"+str(i+1)+"dR"  ].fill(sqrt(pow(Tjets[i*2].Eta() - Tjets[(i*2)+1].Eta(),2) + pow(Tjets[i*2].Phi() - Tjets[(i*2)+1].Phi(),2)))
                 plots["RA"+str(i+1)+"deta"].fill(abs(Tjets[i*2].Eta() - Tjets[(i*2)+1].Eta()))
                 plots["RA"+str(i+1)+"dphi"].fill(abs(Tjets[i*2].Phi() - Tjets[(i*2)+1].Phi()))
+                plots['cutAmass'].fill(AMass[i])
             plots["RHpT"].fill(Th[0].Pt())
             plots["RHmass"].fill(Th[0].M())
             plots["RHdR"].fill(sqrt(pow(TAs[0].Eta() - TAs[1].Eta(),2) + pow(TAs[0].Phi() - TAs[1].Phi(),2)))

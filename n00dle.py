@@ -137,7 +137,9 @@ def ana(files,returnplots=False):
         "jetoverbpTvlogbpT2":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT2'),
         "jetoverbpTvlogbpT3":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT3'),
         "jetoverbpTvlogbpT4":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','upplots/jetoverbpTvlogbpT4'),
-        "npassed":  Hist(1  ,(0.5,1.5) ,'','Number of events that passed cuts', 'upplots/npassed')
+        "npassed":  Hist(1  ,(0.5,1.5) ,'','Number of events that passed cuts', 'upplots/npassed'),
+        "genAmass": Hist(40 ,(0,80)     ,'GEN mass of A objects','Events','upplots/Amass_g'),
+        "cutAmass": Hist(40 ,(0,80)     ,'GEN mass of A objects that pass cuts','Events','upplots/Amass_c')
     }
     for plot in bjplots:
         bjplots[plot].title = files[0]
@@ -185,7 +187,7 @@ def ana(files,returnplots=False):
         As.oeta = pd.DataFrame(events.array('GenPart_eta')[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
         As.ophi = pd.DataFrame(events.array('GenPart_phi')[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
         As.opt =  pd.DataFrame(events.array('GenPart_pt' )[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
-        
+        As.omass =pd.DataFrame(events.array('GenPart_mass')[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
         
         higgs = PhysObj('higgs')
         
@@ -214,7 +216,7 @@ def ana(files,returnplots=False):
             sys.exit()
             
         ## Create sorted versions of A values by pt
-        for prop in ['eta','phi','pt']:
+        for prop in ['eta','phi','pt','mass']:
             As[prop] = pd.DataFrame()
             for i in range(1,3):
                 As[prop][i] = As['o'+prop][As.opt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
@@ -245,6 +247,7 @@ def ana(files,returnplots=False):
             #bs.seta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
             #bs.sphi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
             
+        plots['genAmass'].dfill(As.mass)
 
         ev = Event(bs,jets,As,higgs)
         jets.cut(jets.pt>0)
@@ -281,18 +284,28 @@ def ana(files,returnplots=False):
             sblist[b] = sblist[b][sblist[b].rank(axis=1,method='first') == 1]
             sblist[b] = sblist[b].rename(columns=lambda x:int(x[4:6]))
         
+        ## Trim resolved jet objects        
+        if resjets==3:
+            for i in range(nb):
+                for j in range(nb):
+                    if i != j:
+                        blist[i] = blist[i][np.logical_not(blist[i] > blist[j])]
+                        blist[i] = blist[i][blist[i]<0.4]
+        
         ## Cut our events to only resolved 4jet events with dR<0.4
         rjets = blist[0][blist[0]<0.4].fillna(0)
         for i in range(1,4):
             rjets = np.logical_or(rjets,blist[i][blist[i]<0.4].fillna(0))
         rjets = rjets.sum(axis=1)
-        rjets = rjets[rjets==4].dropna()
+        rjets = rjets[rjets==resjets].dropna()
         jets.trimTo(rjets)
         ev.sync()
         
         #############################
         # Constructing RECO objects #
         #############################
+
+
 
         for prop in ['bpt','beta','bphi','bmass']:
             jets[prop] = pd.DataFrame()
@@ -305,6 +318,15 @@ def ana(files,returnplots=False):
             
         ev.sync()
             
+        if resjets==3:
+            pidx = [2,1,4,3]
+            for prop in ['bpt','beta','bphi','bmass']:
+                jets[prop]['merged'], jets[prop]['missing'] = (jets[prop][1]==jets[prop][3]),(jets[prop][1]==jets[prop][3])
+                for i in range(1,nb+1):
+                    jets[prop]['merged']=jets[prop]['merged']+jets[prop].fillna(0)[i][(jets.bmass[i]>=15) & (jets.bmass[i]+jets.bmass[pidx[i-1]]==jets.bmass[i])]
+                    jets[prop]['missing']=jets[prop]['missing']+jets[prop].fillna(0)[i][(jets.bmass[i]<15) & (jets.bmass[i]+jets.bmass[pidx[i-1]]==jets.bmass[i])]
+                    #jets[prop][i] = jets[prop][i]+(0*jets[prop][pidx])
+                    
         bvec = []
         for i in range(1,nb+1):
             bvec.append(TLorentzVectorArray.from_ptetaphim(jets.bpt[i],jets.beta[i],jets.bphi[i],jets.bmass[i]))
@@ -385,7 +407,7 @@ def ana(files,returnplots=False):
         plots['RHdeta'].fill(abs(jets.aeta[2]-jets.aeta[1]))
         plots['RHdphi'].fill(abs(jets.aphi[2]-jets.aphi[1]))
         plots['npassed'].fill(jets.hpt[1]/jets.hpt[1])
-    
+        plots['cutAmass'].dfill(As.mass)
     ############
     # Plotting #
     ############
@@ -401,6 +423,8 @@ def ana(files,returnplots=False):
     #%%
     if returnplots==True:
         return plots
+    else:
+        sys.exit()
 
 
 def trig(files):
