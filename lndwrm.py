@@ -85,6 +85,8 @@ def ana(files,returnplots=False):
 
         ## Figure out how many bs and jets there are
         njet= jets.eta.shape[1]
+        if njet > 10:
+            njet = 10
 
         ev = Event(jets)
         jets.cut(jets.pt>15)
@@ -119,10 +121,11 @@ def ana(files,returnplots=False):
                     
         j4mass = pd.DataFrame(jets.mass[1]+jets.mass[2]+jets.mass[3]+jets.mass[4]).rename(columns={0:"J1 x J2 J3 J4"})
         j4str = []
-        for a in range(1,njet+1):
-            for b in range(a+1,njet+1):
-                for c in range(b+1,njet+1):
-                    for d in range(c+1,njet+1):
+
+        for a in range(1,snjet+1):
+            for b in range(a+1,snjet+1):
+                for c in range(b+1,snjet+1):
+                    for d in range(c+1,snjet+1):
                         j4str.append("J"+str(a)+" J"+str(b)+" J"+str(c)+" J"+str(d))
                         #if (a+b+c+d == 10):
                         #    continue
