@@ -78,7 +78,7 @@ def ana(files,returnplots=False):
         jets.pt = pd.DataFrame(events.array('Jet_pt')).rename(columns=inc)
         jets.mass=pd.DataFrame(events.array('Jet_mass')).rename(columns=inc)
         jets.CSVV2 = pd.DataFrame(events.array('Jet_btagCSVV2')).rename(columns=inc)
-        #jets.DeepB = pd.DataFrame(events.array('Jet_btagDeepB')).rename(columns=inc)
+        jets.DeepB = pd.DataFrame(events.array('Jet_btagDeepB')).rename(columns=inc)
         jets.DeepFB= pd.DataFrame(events.array('Jet_btagDeepFlavB')).rename(columns=inc)
 
         print('Processing ' + str(len(jets.eta)) + ' events')
@@ -91,6 +91,7 @@ def ana(files,returnplots=False):
         ev = Event(jets)
         jets.cut(jets.pt>15)
         jets.cut(abs(jets.eta)<2.4)
+        jets.cut(jets.DeepB > 0.4184 )
         ev.sync()
         
         
@@ -254,22 +255,14 @@ def ana(files,returnplots=False):
 
 def trig(files):
     ## Create a dictionary of histogram objects
-    rptbins = [0,0.5,1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,6.5,7,7.5,8,8.5,9,9.5,10,11,12,13,14,15,30,100]
+    
     plots = {
-        'hptplot':      Hist(rptbins,None,'Highest Muon pT','Events passing HLT','recplots/TrigHpTplot'),
-        'ptplot':       Hist(rptbins,None,'Highest Muon pT','Events','recplots/TrigpTplot'),
-        'ratioptplot':  Hist(rptbins,None,'Highest Muon pT','HLT_Mu7_IP4 / Events with Muons of sip > 5','recplots/TrigRatiopTPlot'),
-        'sipplot':      Hist(20,(0,20),'Highest Muon SIP', 'Events', 'recplots/TrigSIPplot'),
-        'hsipplot':     Hist(20,(0,20),'Highest Muon SIP', 'Events', 'recplots/TrigHSIPplot'),
-        'ratiosipplot': Hist(20,(0,20),'Highest Muon SIP', 'HLT_Mu7_IP4 / Events with muons of pT > 10', 'recplots/TrigRatioSIPplot'),
-        'HLTcutflow':      Hist(12,(-0.5,11.5),'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6','Events','recplots/cutflowHLT'),
-        'L1Tcutflow':      Hist(12,(-0.5,11.5),'All // L1_SingleMu6/7/8/9/10/12/14/16/18','Events','recplots/cutflowL1T'),
-        'HLTcutflowL':      Hist(12,(-0.5,11.5),'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6','Events','recplots/cutflowHLT-L'),
-        'L1TcutflowL':      Hist(12,(-0.5,11.5),'All // L1_SingleMu6/7/8/9/10/12/14/16/18','Events','recplots/cutflowL1T-L')
-
+        'cutflow':      Hist(4,(-0.5,4.5),'Total / Passed 4jet pT and |eta| cut/ passed DeepB > 0.4184','Events','recplots/datacutflow'),
+        "RjetCSVV2":Hist([0,0.1241,0.4184,0.7527,1],None,'RECO matched jet btagCSVV2 score','events','recplots/dataCSVV2'),
+        #"RjetDeepB":Hist([0,0.0494,0.2770,0.7264,1],None,'RECO matched jet btagDeepB score','events','recplots/RjetDeepB'),
+        "RjetDeepFB":Hist([0,0.0494,0.2770,0.7264,1],None,'RECO matched jet btagDeepFlavB score','events','recplots/dataDeepFB'),
+        
     }
-    cutflow2d = Hist2d([9,10],[[-0.5,8.5],[-0.5,9.5]],'All // HLT_Mu7/8/9/12_IP4/3,5,6/4,5,6/6',
-        'All // L1_SingleMu6/7/8/9/10/12/14/16/18','recplots/cutflowHLTvsL1T',files[0])
     for plot in plots:
         plots[plot].title = files[0]
     ## Create an internal figure for pyplot to write to
@@ -281,89 +274,47 @@ def trig(files):
         f = uproot.open(files[fnum])
         events = f.get('Events')
 
-        HLTcuts = ['HLT_Mu7_IP4','HLT_Mu8_IP3','HLT_Mu8_IP5','HLT_Mu8_IP6','HLT_Mu9_IP4','HLT_Mu9_IP5','HLT_Mu9_IP6','HLT_Mu12_IP6']
-        L1Tcuts = ['L1_SingleMu6','L1_SingleMu7','L1_SingleMu8','L1_SingleMu9','L1_SingleMu10','L1_SingleMu12','L1_SingleMu14','L1_SingleMu16','L1_SingleMu18']
+        jets = PhysObj('jets')
 
-        Muon = PhysObj('Muon',files[fnum],'pt','eta','phi','sip3d','mediumId')
-        Trig = PhysObj('trig')
-        HLT = PhysObj('HLTrig')
-        L1T = PhysObj('L1Trig')
-        Trig.vals = pd.DataFrame(events.array('HLT_Mu7_IP4_part0')).rename(columns=inc)
-        for tr in HLTcuts:
-            HLT[tr] = pd.DataFrame(events.array(tr+'_part0')).rename(columns=inc)
-        for tr in L1Tcuts:
-            L1T[tr]= pd.DataFrame(events.array(tr+'er1p5')).rename(columns=inc)
-        ev = Event(Muon,Trig,HLT,L1T)
-        print('Processing ' + str(len(Muon.pt)) + ' events')
-   
+        jets.eta= pd.DataFrame(events.array('Jet_eta')).rename(columns=inc)
+        jets.phi= pd.DataFrame(events.array('Jet_phi')).rename(columns=inc)
+        jets.pt = pd.DataFrame(events.array('Jet_pt')).rename(columns=inc)
+        jets.mass=pd.DataFrame(events.array('Jet_mass')).rename(columns=inc)
+        jets.CSVV2 = pd.DataFrame(events.array('Jet_btagCSVV2')).rename(columns=inc)
+        jets.DeepB = pd.DataFrame(events.array('Jet_btagDeepB')).rename(columns=inc)
+        jets.DeepFB= pd.DataFrame(events.array('Jet_btagDeepFlavB')).rename(columns=inc)
+
+        print('Processing ' + str(len(jets.eta)) + ' events')
+
+        ## Figure out how many bs and jets there are
+        njet= jets.eta.shape[1]
+
         ## Fill 0 bin of cut flow plots
+        plots['cutflow'].fill(jets.pt.max(axis=1)*0)
 
-        plots['HLTcutflow'].dfill(HLT[HLTcuts[0]]*0)
-        plots['L1Tcutflow'].dfill(L1T[L1Tcuts[0]]*0)
-        cutflow2d.dfill(HLT[HLTcuts[0]]*0,HLT[HLTcuts[0]]*0)
-
- 
-        ## Fill the rest of the bins
-        ct = 1
-        for i in HLT:
-            plots['HLTcutflow'].dfill(HLT[i][HLT[i]].dropna()*ct)
-            cutflow2d.dfill(HLT[i][HLT[i]].dropna()*ct,HLT[i][HLT[i]].dropna()*0)
-            ct = ct + 1
-        ct = 1
-        for i in L1T:
-            plots['L1Tcutflow'].dfill(L1T[i][L1T[i]].dropna()*ct)
-            cutflow2d.dfill(L1T[i][L1T[i]].dropna()*0,L1T[i][L1T[i]].dropna()*ct)
-            ct = ct + 1
-
-        ht = 1
-        for i in HLT:
-            lt = 1
-            for j in L1T:
-                cutflow2d.dfill(HLT[i][HLT[i] & L1T[j]].dropna()*ht,L1T[j][L1T[j] & HLT[i]].dropna()*lt)
-                lt = lt + 1
-            ht = ht + 1
-
-        ##Perform global cuts
-        Muon.cut(abs(Muon.eta)<1.5)
-        Muon.cut(Muon.mediumId==True)
+        ev = Event(jets)
+        jets.cut(abs(jets.eta)<2.4)
+        jets.cut(jets.pt>15)
+        resjets = (jets.pt/jets.pt).sum(axis=1)
+        resjets = resjets[resjets>=4]
+        plots['cutflow'].fill(resjets/resjets)
+        
+        plots['RjetCSVV2'].dfill(jets.CSVV2)
+        plots['RjetDeepFB'].dfill(jets.DeepFB)
+        
+        jets.cut(jets.DeepB > 0.4184 )
+        tagjets = (jets.DeepB/jets.DeepB).sum(axis=1)
+        tagjets = tagjets[tagjets>=2]
+        plots['cutflow'].fill(tagjets*2/tagjets)
+        
         ev.sync()
-
-        ##Fill bin 1 of cut flow lots
-
-        #plots['HLTcutflow'].fill((Muon.pt/Muon.pt).max(axis=1).dropna())
-        #plots['L1Tcutflow'].fill((Muon.pt/Muon.pt).max(axis=1).dropna())
-
-
-        ## Cut muons and trim triggers to the new size
-        MuonP = Muon.cut(Muon.sip3d>5,split=True)
-        MuonS = Muon.cut(Muon.pt>10,split=True)
-        TrigP = Trig.trimTo(MuonP.pt,split=True)
-        TrigS = Trig.trimTo(MuonS.sip3d,split=True)
-        ## Reshape triggers to fit our muons
-        for i in MuonP.pt.columns:
-            TrigP.vals[i] = TrigP.vals[1]
-        for i in MuonS.sip3d.columns:
-            TrigS.vals[i] = TrigS.vals[1]
-
-        ## Create the two histograms we want to divide
-        plt.figure(1)
-        plots['ptplot'].fill(MuonP.pt.max(axis=1))
-        plots['hptplot'].fill(MuonP.pt[TrigP.vals].max(axis=1).dropna(how='all'))
-        plots['sipplot'].fill(MuonS.sip3d.max(axis=1))
-        plots['hsipplot'].fill(MuonS.sip3d[TrigS.vals].max(axis=1).dropna(how='all'))
-    plots['ratioptplot'].add(plots['hptplot'].divideby(plots['ptplot'],split=True))
-    plots['ratiosipplot'].add(plots['hsipplot'].divideby(plots['sipplot'],split=True))
-    plots['HLTcutflowL'].add(plots['HLTcutflow'])
-    plots['L1TcutflowL'].add(plots['L1Tcutflow'])
-    cutflow2d.norm()[0][0][0] = 0
-    cutflow2d.plot(text=True,edgecolor='black')
-    plots.pop('HLTcutflowL').norm().plot(ylim=(None,.2))
-    plots.pop('L1TcutflowL').norm().plot(ylim=(None,.2))
-    plots.pop('HLTcutflow').norm().plot()
-    plots.pop('L1Tcutflow').norm().plot()
+        
 
     for pl in plots:
         plots[pl].plot()
+        
+    print(plots['cutflow'])
+        
     sys.exit()
 
 def main():
