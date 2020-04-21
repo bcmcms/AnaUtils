@@ -313,7 +313,8 @@ def trig(files):
     for pl in plots:
         plots[pl].plot()
         
-    print(plots['cutflow'])
+    print(plots['cutflow'][0],plots['cutflow'][1])
+
         
     sys.exit()
 

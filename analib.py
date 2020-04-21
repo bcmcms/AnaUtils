@@ -70,12 +70,13 @@ class Hist(object):
         return s
 
     ## Creates and returns a pyplot-compatible histogram object
-    def make(s,logv=False,htype='bar',color=None):
+    def make(s,logv=False,htype='bar',color=None,linestyle='solid'):
         #print(s.hs)
-        return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],log=logv,histtype=htype,color=color)
+        return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
 
-    def plot(s,logv=False,ylim=False):
-        plt.clf()
+    def plot(s,logv=False,ylim=False,same=False):
+        if not same:
+            plt.clf()
         s.make(logv)
         if ylim:
             plt.ylim(ylim)
@@ -148,7 +149,7 @@ class Hist2d(object):
         return out    
 
     def plot(s,logv=False,text=False,edgecolor='face',linewidth=1):
-        s.make(edgecolor)
+        s.make(edgecolor,linewidth,same)
         #print(s.hs[0])
         #print(s.hs[1])
         #print(s.hs[2])
