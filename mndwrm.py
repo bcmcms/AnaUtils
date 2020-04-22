@@ -144,7 +144,7 @@ def ana(sigfiles,bgfiles):
             
         ## Open our file and grab the events tree
         sigf = uproot.open(sigfiles[fnum])#'nobias.root')
-        bgf = uproot.open(sigfiles[fnum])
+        bgf = uproot.open(bgfiles[fnum])
         sigevents = sigf.get('Events')
         bgevents = bgf.get('Events')
 
@@ -262,14 +262,16 @@ def ana(sigfiles,bgfiles):
 #            #bs.sphi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
             
 #        plots['genAmass'].dfill(As.mass)
-            
+
         ev = Event(bs,sigjets,As,higgs)
+        
         for jets in [sigjets,bgjets]:
             jets.cut(jets.pt>170)
             jets.cut(abs(jets.eta)<2.4)
             jets.cut(jets.DDBvL > 0.6)
             jets.cut(jets.DeepB > 0.4184)
             jets.cut(jets.msoft > 0.25)
+        sys.exit(0)
         bs.cut(bs.pt>5)
         bs.cut(abs(bs.eta)<2.4)
         ev.sync()
