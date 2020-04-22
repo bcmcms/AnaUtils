@@ -34,7 +34,7 @@ def ana(sigfiles,bgfiles):
     model = keras.Sequential([
             keras.layers.Flatten(input_shape=(8,)),
             keras.layers.Dense(8, activation=tf.nn.relu),
-            keras.layers.Dense(8, activation=tf.nn.relu),
+            keras.layers.Dense(4, activation=tf.nn.relu),
             #keras.layers.Dense(2, activation=tf.nn.relu),
             keras.layers.Dense(1, activation=tf.nn.sigmoid),
     ])
@@ -271,7 +271,7 @@ def ana(sigfiles,bgfiles):
             jets.cut(jets.DDBvL > 0.6)
             jets.cut(jets.DeepB > 0.4184)
             jets.cut(jets.msoft > 0.25)
-        sys.exit(0)
+
         bs.cut(bs.pt>5)
         bs.cut(abs(bs.eta)<2.4)
         ev.sync()
@@ -415,7 +415,7 @@ def ana(sigfiles,bgfiles):
 
 
 
-        model.fit(X_train, Y_train, epochs=50, batch_size=1)
+        model.fit(X_train, Y_train, epochs=50, batch_size=5128)
         
         rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
         test_loss, test_acc = model.evaluate(X_test, Y_test)
@@ -436,9 +436,10 @@ def ana(sigfiles,bgfiles):
 
         plt.clf()
         plt.plot([0,1],[0,1],'k--')
-        plt.plot(rocx,rocy, label='Keras NN (area = {:.3f})'.format(auc(rocx,rocy)))
+        plt.plot(rocx,rocy)
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
+        plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
         plt.savefig('netplots/ROC')
     ############
     # Plotting #
