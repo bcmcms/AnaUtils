@@ -399,12 +399,13 @@ def ana(sigfiles,bgfiles):
                 sigjetframe['val'] = 1
         jetframe = pd.concat([bgjetframe,sigjetframe])
 
-        X_train =jetframe.drop('val',axis=1).sample(frac=0.7, random_state=6)
+        X_train =jetframe.sample(frac=0.7, random_state=6)
         #Z_train=jetframe.sample(frac=0.7, random_state=6)
-        X_test = jetframe.drop('val',axis=1).drop(X_train.index)
+        X_test = jetframe.drop(X_train.index)
         #Z_test = jetframe.drop(X_train.index)
-        Y_train =jetframe['val'].sample(frac=0.7, random_state=6)
-        Y_test = jetframe['val'].drop(Y_train.index)
+        Y_train =X_train['val']
+        Y_test = X_test['val']
+        X_test, X_train = X_test.drop('val',axis=1), X_train.drop('val',axis=1)
         
         #X_train, X_test, Y_train, Y_test = train_test_split(jetframe, jetframe['val'], test_size=0.3, random_state=0)
 
@@ -542,7 +543,7 @@ def main():
         if '-f' in sys.argv:
             idx = sys.argv.index('-f')+1
             try:                
-                for i in sys.argv[idx+1:]:
+                for i in sys.argv[idx:]:
                     if i == '-s':
                         fileptr = sigfiles
                     elif i == '-b':
@@ -554,7 +555,7 @@ def main():
         elif '-l' in sys.argv:
             idx = sys.argv.index('l')+1
             try:
-                for i in sys.argv[idx+1:]:
+                for i in sys.argv[idx:]:
                     if i == '-s':
                         fileptr = sigfiles
                     elif i == '-b':
@@ -569,13 +570,18 @@ def main():
             dialogue()
         ## Check specified run mode
         ana(sigfiles,bgfiles)
- 
+    else:
+        dialogue()
+        
 def dialogue():
     print("Expected mndwrm.py <-f/-l> -s (signal.root) -b (background.root)")
     print("---formatting flags--")
     print("-f     Targets a specific file to run over")
     print("-l     Specifies a list containing all files to run over")
     sys.exit(0)
+    
+if __name__ == "__main__":
+    main()
 
 #%%
 
