@@ -262,11 +262,11 @@ def ana(sigfiles,bgfiles):
 #            #bs.sphi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
             
 #        plots['genAmass'].dfill(As.mass)
-
+            
         ev = Event(bs,sigjets,As,higgs)
         for jets in [sigjets,bgjets]:
             jets.cut(jets.pt>170)
-            jets.cut(abs(jets.eta<2.4))
+            jets.cut(abs(jets.eta)<2.4)
             jets.cut(jets.DDBvL > 0.6)
             jets.cut(jets.DeepB > 0.4184)
             jets.cut(jets.msoft > 0.25)
@@ -398,8 +398,8 @@ def ana(sigfiles,bgfiles):
                 sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
                 sigjetframe['val'] = 1
         jetframe = pd.concat([bgjetframe,sigjetframe])
-        print('Signal cut to ',sigjetframe.shape[1], ' events')
-        print('Background has ',bgjetframe.shape[1],' events')
+        print('Signal cut to ',sigjetframe.shape[0], ' events')
+        print('Background has ',bgjetframe.shape[0],' events')
 
         X_train =jetframe.sample(frac=0.7, random_state=6)
         #Z_train=jetframe.sample(frac=0.7, random_state=6)
