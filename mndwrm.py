@@ -34,8 +34,8 @@ def ana(sigfiles,bgfiles):
     model = keras.Sequential([
             keras.layers.Flatten(input_shape=(8,)),
             keras.layers.Dense(8, activation=tf.nn.relu),
-            keras.layers.Dense(4, activation=tf.nn.relu),
-            keras.layers.Dense(2, activation=tf.nn.relu),
+            keras.layers.Dense(8, activation=tf.nn.relu),
+            #keras.layers.Dense(2, activation=tf.nn.relu),
             keras.layers.Dense(1, activation=tf.nn.sigmoid),
     ])
     
@@ -44,7 +44,7 @@ def ana(sigfiles,bgfiles):
                   metrics=['accuracy'])
     
     ## Define what pdgId we expect the A to have
-    #Aid = 9000006
+    Aid = 9000006
     ## How many resolved jets we want to target with our analysis
     #resjets = 4
     Aid = 36
@@ -326,7 +326,7 @@ def ana(sigfiles,bgfiles):
         sigjets.trimTo(fjets)
         ev.sync()
         
-        print('Signal cut to ' + str(len(bs.eta)) + ' events')
+
         
         
         #############################
@@ -398,6 +398,8 @@ def ana(sigfiles,bgfiles):
                 sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
                 sigjetframe['val'] = 1
         jetframe = pd.concat([bgjetframe,sigjetframe])
+        print('Signal cut to ',sigjetframe.shape[1], ' events')
+        print('Background has ',bgjetframe.shape[1],' events')
 
         X_train =jetframe.sample(frac=0.7, random_state=6)
         #Z_train=jetframe.sample(frac=0.7, random_state=6)
