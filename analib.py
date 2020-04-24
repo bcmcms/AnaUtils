@@ -33,6 +33,12 @@ class Hist(object):
         if (i > 1) or (i < -2):
             raise Exception('histo object was accessed with an invalid index')
         return s.hs[i]
+    
+    def __setitem__(s,i,val):
+        if (i > 1) or (i < -2):
+            raise Exception('histo object was accessed with an invalid index')
+        s.hs[i] = val
+        return s
 
     ## Adds the values of a passed histogram to the class's plot
     def add(s,inplot):

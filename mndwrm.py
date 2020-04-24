@@ -59,11 +59,11 @@ def ana(sigfiles,bgfiles):
 #        "s_bjdR"+str(i):      Hist(90 ,(0,3)        ,'GEN b '+str(i)+' (ranked by pT) to matched jet dR','Events','upplots/s_bjdR'+str(i))
 #        })
     plots = {
-        "Distribution": Hist(100,(0,1),'Signal (Red) and Background (Blue) training (..) and test samples','Events','netplots/distribution'),
-        "DistStr":  Hist(100,(0,1)),
-        "DistSte":  Hist(100,(0,1)),
-        "DistBtr":  Hist(100,(0,1)),
-        "DistBte":  Hist(100,(0,1))
+        "Distribution": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','Events','netplots/distribution'),
+        "DistStr":  Hist(20,(0,1)),
+        "DistSte":  Hist(20,(0,1)),
+        "DistBtr":  Hist(20,(0,1)),
+        "DistBte":  Hist(20,(0,1))
 #        "HpT":      Hist(60 ,(0,320)    ,'GEN Higgs pT','Events','upplots/HpT'),
 #        #"HAdR":     Hist(100,(0,2)      ,'GEN Higgs to A dR','Events','upplots/HAdR'),
 #        #'HAdeta':   Hist(66 ,(-3.3,3.3) ,'GEN Higgs to A deta','Events','upplots/HAdeta'),
@@ -410,35 +410,41 @@ def ana(sigfiles,bgfiles):
         Y_train =X_train['val']
         Y_test = X_test['val']
         X_test, X_train = X_test.drop('val',axis=1), X_train.drop('val',axis=1)
-        
-        #X_train, X_test, Y_train, Y_test = train_test_split(jetframe, jetframe['val'], test_size=0.3, random_state=0)
 
-
-
-        model.fit(X_train, Y_train, epochs=50, batch_size=5128)
+        model.fit(X_train, Y_train, epochs=100, batch_size=1024)
         
         rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
+        trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
         test_loss, test_acc = model.evaluate(X_test, Y_test)
         print('Test accuracy:', test_acc)
+
+        diststr = model.predict(X_train[Y_train==1])
+        distste = model.predict(X_test[Y_test==1])
+        distbtr = model.predict(X_train[Y_train==0])
+        distbte = model.predict(X_test[Y_test==0])
         
-        
-        plots['DistStr'].fill(model.predict(X_train[Y_train==1]))
-        plots['DistSte'].fill(model.predict(X_test[Y_test==1]))
-        plots['DistBtr'].fill(model.predict(X_train[Y_train==0]))
-        plots['DistBte'].fill(model.predict(X_test[Y_test==0]))
+        plots['DistStr'].fill(diststr)
+        plots['DistSte'].fill(distste)
+        plots['DistBtr'].fill(distbtr)
+        plots['DistBte'].fill(distbte)
         plt.clf()
+        for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
+            #p.norm(sum(p[0]))
+            p[0] = p[0]/sum(p[0])
         plots['DistStr'].make(color='red',linestyle='-',htype='step')
-        plots['DistBtr'].make(color='black',linestyle=':',htype='step')
-        plots['DistSte'].make(color='red',linestyle='-',htype='step')
-        plots['DistBte'].make(color='black',linestyle=':',htype='step')
+        plots['DistBtr'].make(color='blue',linestyle='-',htype='step')
+        plots['DistSte'].make(color='red',linestyle=':',htype='step')
+        plots['DistBte'].make(color='blue',linestyle=':',htype='step')
         plots['Distribution'].plot(same=True)
         
 
         plt.clf()
         plt.plot([0,1],[0,1],'k--')
-        plt.plot(rocx,rocy)
+        plt.plot(rocx,rocy,'red')
+        plt.plot(trocx,trocy,'b:')
         plt.xlabel('False Positive Rate')
         plt.ylabel('True Positive Rate')
+        plt.legend(['y=x','Validation','Training'])
         plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
         plt.savefig('netplots/ROC')
     ############
