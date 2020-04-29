@@ -24,18 +24,26 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_curve, auc
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.python.keras import backend as BE
+
+def focal_loss(yTrue, yGuess):
+    gamma = 2
+    alpha = .25
+    pt1 = tf.where(tf.equal(yTrue, 1), yGuess, tf.ones_like(yGuess))
+    pt0 = tf.where(tf.equal(yTrue, 0), yGuess, tf.zeros_like(yGuess))
+    return -BE.sum(alpha * BE.pow(1. - pt1, gamma) * BE.log(pt1))-BE.sum((1-alpha) * BE.pow( pt0, gamma) * BE.log(1. - pt0))
 #%%
 
-def ana(sigfiles,bgfiles):
+def ana(sigfiles,bgfiles,l1=8,l2=4,l3=1):
     #%%################
     # Plots and Setup #
     ###################
     
     model = keras.Sequential([
             keras.layers.Flatten(input_shape=(8,)),
-            keras.layers.Dense(8, activation=tf.nn.relu),
-            keras.layers.Dense(4, activation=tf.nn.relu),
-            #keras.layers.Dense(2, activation=tf.nn.relu),
+            keras.layers.Dense(l1, activation=tf.nn.relu),
+            keras.layers.Dense(l2, activation=tf.nn.relu),
+            keras.layers.Dense(l3, activation=tf.nn.relu),
             keras.layers.Dense(1, activation=tf.nn.sigmoid),
     ])
     
