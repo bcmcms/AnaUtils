@@ -34,7 +34,7 @@ def focal_loss(yTrue, yGuess):
     return -BE.sum(alpha * BE.pow(1. - pt1, gamma) * BE.log(pt1))-BE.sum((1-alpha) * BE.pow( pt0, gamma) * BE.log(1. - pt0))
 #%%
 
-def ana(sigfiles,bgfiles,l1=8,l2=4,l3=1):
+def ana(sigfiles,bgfiles,l1=8,l2=4,l3=1,training=False):
     #%%################
     # Plots and Setup #
     ###################
@@ -48,8 +48,9 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=1):
     ])
     
     model.compile(optimizer='adam',     
-                  loss='binary_crossentropy',
-                  metrics=['accuracy'])
+                  #loss='binary_crossentropy',
+                  loss=[focal_loss],
+                  metrics=['accuracy',tf.keras.metrics.AUC()])
     
     ## Define what pdgId we expect the A to have
     Aid = 9000006
@@ -137,24 +138,27 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=1):
         #####################
         # Loading Variables #
         #####################
+        if not training:
+            print('Opening ',sigfiles[fnum],' + ',bgfiles[fnum])
         
-        print('Opening ',sigfiles[fnum],' + ',bgfiles[fnum])
-        
-        ## Loop some data if the bg/signal files need to be equalized
-        if sigmbg > 0:
-            print('Catching up signal')
-            sigfiles.append(sigfiles[fnum])
-            sigmbg = sigmbg - 1
-        elif sigmbg < 0:
-            print('Catching up background')
-            bgfiles.append(bgfiles[fnum])
-            sigmbg = sigmbg + 1
+            ## Loop some data if the bg/signal files need to be equalized
+            if sigmbg > 0:
+                print('Catching up signal')
+                sigfiles.append(sigfiles[fnum])
+                sigmbg = sigmbg - 1
+            elif sigmbg < 0:
+                print('Catching up background')
+                bgfiles.append(bgfiles[fnum])
+                sigmbg = sigmbg + 1
             
-        ## Open our file and grab the events tree
-        sigf = uproot.open(sigfiles[fnum])#'nobias.root')
-        bgf = uproot.open(bgfiles[fnum])
-        sigevents = sigf.get('Events')
-        bgevents = bgf.get('Events')
+            ## Open our file and grab the events tree
+            sigf = uproot.open(sigfiles[fnum])#'nobias.root')
+            bgf = uproot.open(bgfiles[fnum])
+            sigevents = sigf.get('Events')
+            bgevents = bgf.get('Events')
+        else:
+            sigevents = sigfiles[0]
+            bgevents = bgfiles[0]
 
         pdgida  = sigevents.array('GenPart_pdgId')
         paridxa = sigevents.array('GenPart_genPartIdxMother')
@@ -407,24 +411,25 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=1):
             for prop in ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']:
                 sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
                 sigjetframe['val'] = 1
-        jetframe = pd.concat([bgjetframe,sigjetframe])
+        X_train = pd.concat([bgjetframe.sample(frac=0.7),sigjetframe.sample(frac=0.7)])
         print('Signal cut to ',sigjetframe.shape[0], ' events')
         print('Background has ',bgjetframe.shape[0],' events')
 
-        X_train =jetframe.sample(frac=0.7, random_state=6)
+        #X_train =pd.concat(jetframe.sample(frac=0.7, random_state=6)
         #Z_train=jetframe.sample(frac=0.7, random_state=6)
-        X_test = jetframe.drop(X_train.index)
+        #X_test = jetframe.drop(X_train.index)
+        X_test = pd.concat([bgjetframe, sigjetframe]).drop(X_train.index)
         #Z_test = jetframe.drop(X_train.index)
         Y_train =X_train['val']
         Y_test = X_test['val']
         X_test, X_train = X_test.drop('val',axis=1), X_train.drop('val',axis=1)
 
-        model.fit(X_train, Y_train, epochs=100, batch_size=1024)
+        model.fit(X_train, Y_train, epochs=50, batch_size=1024)
         
         rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
         trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
-        test_loss, test_acc = model.evaluate(X_test, Y_test)
-        print('Test accuracy:', test_acc)
+        test_loss, test_acc, test_aoc = model.evaluate(X_test, Y_test)
+        print('Test accuracy:', test_acc,' AOC: ',test_aoc)
 
         diststr = model.predict(X_train[Y_train==1])
         distste = model.predict(X_test[Y_test==1])

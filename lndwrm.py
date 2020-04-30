@@ -340,7 +340,7 @@ def main():
         elif sys.argv[1] == '-a':
             ana(files)
  
-    print("Expected n00dle.py <switch> (flag) (target)")
+    print("Expected lndwrm.py <switch> (flag) (target)")
     print("-----switches-----")
     print("-trig  Analyzes trigger efficiency for data")
     print("-a     Analyzes jet-b correlations")

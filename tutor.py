@@ -7,13 +7,18 @@ from mndwrm import ana as task
 def teach(sigfiles, bgfiles):
     records = {}
     rsums = {}
+    print('Opening ',sigfiles[0],' + ',bgfiles[0])
+    sigf = uproot.open(sigfiles[0])
+    bgf = uproot.open(bgfiles[0])
+    sigevents = sigf.get('Events')
+    bgevents = bgf.get('Events')
     for l1 in [6,8,10,12,14]:
         for l2 in [1,2,3,4,5,6,7]:
             for l3 in [1,2,3,4,5]:
                 rname = str(l1)+' '+str(l2)+' '+str(l3)
                 aoc = []
                 for i in range(10):
-                    aoc[i] = (task(sigfiles,bgfiles,l1,l2,l3))
+                    aoc[i] = (task(sigevents,bgevents,l1,l2,l3,training=True))
                     
                 aocsum = np.sum(aoc)/10               
                 records[rname] = aocsum
@@ -77,6 +82,7 @@ def dialogue():
     print("---formatting flags--")
     print("-f     Targets a specific file to run over")
     print("-l     Specifies a list containing all files to run over")
+    print("Currently, the program is formatted to only take the first input of each type")
     sys.exit(0)
     
 if __name__ == "__main__":
