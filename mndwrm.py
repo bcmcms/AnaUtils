@@ -27,7 +27,7 @@ from tensorflow import keras
 from tensorflow.python.keras import backend as BE
 
 def focal_loss(yTrue, yGuess):
-    gamma = .1
+    gamma = .2
     alpha = .85
     pt1 = tf.where(tf.equal(yTrue, 1), yGuess, tf.ones_like(yGuess))
     pt0 = tf.where(tf.equal(yTrue, 0), yGuess, tf.zeros_like(yGuess))
@@ -50,7 +50,7 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
     model.compile(optimizer='adam',     
                   #loss='binary_crossentropy',
                   loss=[focal_loss],
-                  metrics=['accuracy',tf.keras.metrics.AUC()])
+                  metrics=['accuracy'])#,tf.keras.metrics.AUC()])
     
     ## Define what pdgId we expect the A to have
     Aid = 9000006
@@ -411,7 +411,7 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
             for prop in ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']:
                 sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
                 sigjetframe['val'] = 1
-        X_train = pd.concat([bgjetframe.sample(frac=0.7),sigjetframe.sample(frac=0.7)])
+        X_train = pd.concat([bgjetframe.sample(frac=0.7,random_state=6),sigjetframe.sample(frac=0.7,random_state=6)])
         print('Signal cut to ',sigjetframe.shape[0], ' events')
         print('Background has ',bgjetframe.shape[0],' events')
 
@@ -428,9 +428,9 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
         
         rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
         trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
-        test_loss, test_acc, test_aoc = model.evaluate(X_test, Y_test)
-        print('Test accuracy:', test_acc,' AOC: ',test_aoc)
-
+        test_loss, test_acc = model.evaluate(X_test, Y_test)
+        print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
+        
         diststr = model.predict(X_train[Y_train==1])
         distste = model.predict(X_test[Y_test==1])
         distbtr = model.predict(X_train[Y_train==0])
