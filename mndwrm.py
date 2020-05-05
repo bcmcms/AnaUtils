@@ -35,7 +35,8 @@ def custom(y_true,y_pred):
     #return np.sum((-1*alphaT) * np.power((1 - pT),gamma) * np.log(pT)
 
     alphaT = tf.where(tf.equal(y_true,1),y_true*alpha,(1-alpha)*tf.ones_like(y_true))
-    pT = tf.where(tf.equal(y_true,1),y_pred,(1-y_pred))
+    pT = tf.where(tf.equal(y_true,1),y_pred,(1-y_pred)*tf.ones_like(y_true))
+    pT = BE.clip(pT,BE.epsilon(),1-BE.epsilon())
     loss = tf.reduce_mean((-1*alphaT) * tf.pow((1 - pT),gamma) * tf.log(pT))
     return loss
     #return tf.reduce_mean((-1*alphaT) * tf.pow((1 - pT),gamma) * tf.log(pT))
