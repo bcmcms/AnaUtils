@@ -19,12 +19,6 @@ import pandas as pd
 #import itertools as it
 #import copy as cp
 from analib import Hist, PhysObj, Event, Hist2d, inc
-from uproot_methods import TLorentzVector, TLorentzVectorArray
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import roc_curve, auc
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.python.keras import backend as BE
 
 
 
@@ -41,7 +35,7 @@ def main():
     Aid = 36
     netvars = ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']
     
-    sigfile = 'GGHK1M_Nano.root'
+    sigfile = 'GGH1M_Nano.root'
     bgfile = 'TestData.root'
     datafiles = ['/cms/data/store/user/abrinke1/NanoAOD/2018/MC/QCD/QCD_HT200to300_BGenFilter_TuneCP5_13TeV-madgraph-pythia8/Nano25Oct2019/003D724A-9341-2A40-A766-A663D3E4F10B.root',
                  '/cms/data/store/user/abrinke1/NanoAOD/2018/MC/QCD/QCD_HT300to500_BGenFilter_TuneCP5_13TeV-madgraph-pythia8/Nano25Oct2019/075AC8F4-7F0C-C447-82D1-CD6A47B26BCD.root',
@@ -345,9 +339,7 @@ def main():
             tempframe = tempframe.sample(frac=weight,random_state=6)
             datapieces.append(tempframe)
             
-        datajetframe = tempframe[0]
-        for i in range(1,7):
-            datajetframe = pd.concat(datajetframe,datapieces[i])
+        datajetframe =  pd.concat(datapieces)
             
         del datapieces
 
