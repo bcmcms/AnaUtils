@@ -58,7 +58,7 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
             keras.layers.Flatten(input_shape=(8,)),
             keras.layers.Dense(l1, activation=tf.nn.relu),
             keras.layers.Dense(l2, activation=tf.nn.relu),
-            #keras.layers.Dense(l3, activation=tf.nn.relu),
+            keras.layers.Dense(l3, activation=tf.nn.relu),
             keras.layers.Dense(1, activation=tf.nn.sigmoid),
     ])
     
@@ -418,15 +418,13 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
         # Training Neural Net #
         #######################
         bgjetframe = pd.DataFrame()
-        for i in range(njet):
-            for prop in ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']:
-                bgjetframe[prop] = bgjets[prop][bgjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
-                bgjetframe['val'] = 0
+        for prop in ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']:
+            bgjetframe[prop] = bgjets[prop][bgjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
+            bgjetframe['val'] = 0
         sigjetframe = pd.DataFrame()
-        for i in range(njet):
-            for prop in ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']:
-                sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
-                sigjetframe['val'] = 1
+        for prop in ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']:
+            sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
+            sigjetframe['val'] = 1
         X_train = pd.concat([bgjetframe.sample(frac=0.7,random_state=6),sigjetframe.sample(frac=0.7,random_state=6)])
         print('Signal cut to ',sigjetframe.shape[0], ' events')
         print('Background has ',bgjetframe.shape[0],' events')
@@ -439,8 +437,10 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
         Y_train =X_train['val']
         Y_test = X_test['val']
         X_test, X_train = X_test.drop('val',axis=1), X_train.drop('val',axis=1)
+        #X_train, Y_train = X_train.sample(frac=1.0,random_state=4), Y_train.sample(frac=1.0,random_state=4)
+        #X_train, Y_train = X_train.reset_index(drop=True), Y_train.reset_index(drop=True)
 
-        model.fit(X_train, Y_train, epochs=50, batch_size=1024)
+        model.fit(X_train, Y_train, epochs=50, batch_size=1024,shuffle=True)
         
         rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
         trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
@@ -476,102 +476,10 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
         plt.legend(['y=x','Validation','Training'])
         plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
         plt.savefig('netplots/ROC')
-    ############
-    # Plotting #
-    ############
-        
-#    plt.clf()
-#    #plots.pop('bjdR').plot(logv=True)
-#    for i in range(1,5):
-#        bjplots.pop('s_bjdR'+str(i)).plot(logv=True)
-#    for p in plots:
-#        plots[p].plot()
-#    for p in bjplots:
-#        bjplots[p].plot()
-#    #%%
-#    if returnplots==True:
-#        return plots
-#    else:
-#        sys.exit()
+        #%%
+        return auc(rocx,rocy)
+        #sys.exit()
 
-#def trig(sigfiles,bgfiles):
-#    #%%
-#    ## Create a dictionary of histogram objects
-#    
-#    #plots = {
-#        #'cutflow':      Hist(4,(-0.5,4.5),'Total / Passed 4jet pT and |eta| cut/ passed DeepB > 0.4184','Events','recplots/datacutflow'),
-#        #"RjetCSVV2":Hist([0,0.1241,0.4184,0.7527,1],None,'RECO matched jet btagCSVV2 score','events','recplots/dataCSVV2'),
-#        #"RjetDeepB":Hist([0,0.0494,0.2770,0.7264,1],None,'RECO matched jet btagDeepB score','events','recplots/RjetDeepB'),
-#        #"RjetDeepFB":Hist([0,0.0494,0.2770,0.7264,1],None,'RECO matched jet btagDeepFlavB score','events','recplots/dataDeepFB'),
-#        
-#    #}
-#    #for plot in plots:
-#        #plots[plot].title = files[0]
-#    ## Create an internal figure for pyplot to write to
-#    plt.figure(1)
-#    ## Loop over all input files
-#    nsig = len(sigfiles)
-#    nbg = len(bgfiles)
-#    smbg = nsig - nbg
-#    for fnum in range(max(nsig, nbg)):
-#        print('Opening ',sigfiles[fnum],' + ',bgfiles[fnum])
-#        ## Open the file and retrieve our key branches
-#        sigf = uproot.open(sigfiles[fnum])
-#        bgf = uproot.open(bgfiles[fnum])
-#        
-#        sigevents = sigf.get('Events')
-#        bgevents = bgf.get('Events')
-#        
-#        if smbg > 0:
-#            print('Opening ',sigfiles[fnum+1],' + ',bgfiles[fnum],' to catch up')
-#            sigf = uproot.open(sigfiles.pop(fnum+1))
-#            sigevents
-#        elif smbg < 0:
-#            pass
-#        
-#        jets = PhysObj('jets')
-#
-#        jets.eta= pd.DataFrame(sigevents.array('Jet_eta')).rename(columns=inc)
-#        jets.phi= pd.DataFrame(sigevents.array('Jet_phi')).rename(columns=inc)
-#        jets.pt = pd.DataFrame(sigevents.array('Jet_pt')).rename(columns=inc)
-#        jets.mass=pd.DataFrame(sigevents.array('Jet_mass')).rename(columns=inc)
-#        jets.CSVV2 = pd.DataFrame(sigevents.array('Jet_btagCSVV2')).rename(columns=inc)
-#        jets.DeepB = pd.DataFrame(sigevents.array('Jet_btagDeepB')).rename(columns=inc)
-#        jets.DeepFB= pd.DataFrame(sigevents.array('Jet_btagDeepFlavB')).rename(columns=inc)
-#
-#        print('Processing ' + str(len(jets.eta)) + ' events')
-#
-#        ## Figure out how many bs and jets there are
-#        njet= jets.eta.shape[1]
-#
-#        ## Fill 0 bin of cut flow plots
-#        plots['cutflow'].fill(jets.pt.max(axis=1)*0)
-#
-#        ev = Event(jets)
-#        jets.cut(abs(jets.eta)<2.4)
-#        jets.cut(jets.pt>15)
-#        resjets = (jets.pt/jets.pt).sum(axis=1)
-#        resjets = resjets[resjets>=4]
-#        plots['cutflow'].fill(resjets/resjets)
-#        
-#        plots['RjetCSVV2'].dfill(jets.CSVV2)
-#        plots['RjetDeepFB'].dfill(jets.DeepFB)
-#        
-#        jets.cut(jets.DeepB > 0.4184 )
-#        tagjets = (jets.DeepB/jets.DeepB).sum(axis=1)
-#        tagjets = tagjets[tagjets>=2]
-#        plots['cutflow'].fill(tagjets*2/tagjets)
-#        
-#        ev.sync()
-#        
-#
-#    for pl in plots:
-#        plots[pl].plot()
-#        
-#    print(plots['cutflow'][0],plots['cutflow'][1])
-#
-#
-#    sys.exit()
     #%%
     
 ## Define 'main' function as primary executable
