@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 
 ## Controls the targeted network to train
+import sys, uproot
+import numpy as np
 from mndwrm import ana as task
 
 def teach(sigfiles, bgfiles):
@@ -18,7 +20,7 @@ def teach(sigfiles, bgfiles):
                 rname = str(l1)+' '+str(l2)+' '+str(l3)
                 aoc = []
                 for i in range(10):
-                    aoc[i] = (task(sigevents,bgevents,l1,l2,l3,training=True))
+                    aoc.append(task(sigevents,bgevents,l1,l2,l3,training=True))
                     
                 aocsum = np.sum(aoc)/10               
                 records[rname] = aocsum

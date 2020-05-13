@@ -25,10 +25,40 @@ from sklearn.metrics import roc_curve, auc
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.python.keras import backend as BE
+from keras import backend as K
+
+def binary_focal_loss(gamma=2., alpha=.25):
+    """
+    Binary form of focal loss.
+      FL(p_t) = -alpha * (1 - p_t)**gamma * log(p_t)
+      where p = sigmoid(x), p_t = p or 1 - p depending on if the label is 1 or 0, respectively.
+    References:
+        https://arxiv.org/pdf/1708.02002.pdf
+    Usage:
+     model.compile(loss=[binary_focal_loss(alpha=.25, gamma=2)], metrics=["accuracy"], optimizer=adam)
+    """
+    def binary_focal_loss_fixed(y_true, y_pred):
+        """
+        :param y_true: A tensor of the same shape as `y_pred`
+        :param y_pred:  A tensor resulting from a sigmoid
+        :return: Output tensor.
+        """
+        pt_1 = tf.where(tf.equal(y_true, 1), y_pred, tf.ones_like(y_pred))
+        pt_0 = tf.where(tf.equal(y_true, 0), y_pred, tf.zeros_like(y_pred))
+
+        epsilon = K.epsilon()
+        # clip to prevent NaN's and Inf's
+        pt_1 = K.clip(pt_1, epsilon, 1. - epsilon)
+        pt_0 = K.clip(pt_0, epsilon, 1. - epsilon)
+
+        return -K.mean(alpha * K.pow(1. - pt_1, gamma) * K.log(pt_1)) \
+               -K.mean((1 - alpha) * K.pow(pt_0, gamma) * K.log(1. - pt_0))
+
+    return binary_focal_loss_fixed
 
 def custom(y_true,y_pred):
-    gamma = .2
-    alpha = .85
+    gamma = 2
+    alpha = .25
     
     #alphaT = np.where(y_true==1,y_true*alpha,(1-alpha)*np.ones_like(y_true))
     #pT = np.where(y_true==1,y_pred,(1-y_pred)*np.ones_like(y_pred))
@@ -37,7 +67,7 @@ def custom(y_true,y_pred):
     alphaT = tf.where(tf.equal(y_true,1),y_true*alpha,(1-alpha)*tf.ones_like(y_true))
     pT = tf.where(tf.equal(y_true,1),y_pred,(1-y_pred)*tf.ones_like(y_true))
     pT = BE.clip(pT,BE.epsilon(),1-BE.epsilon())
-    loss = tf.reduce_mean((-1*alphaT) * tf.pow((1 - pT),gamma) * tf.log(pT))
+    loss = tf.reduce_mean((-1*alphaT) * tf.pow((1 - pT),gamma) * BE.log(pT))
     return loss
     #return tf.reduce_mean((-1*alphaT) * tf.pow((1 - pT),gamma) * tf.log(pT))
 
@@ -47,26 +77,61 @@ def focal_loss(yTrue, yGuess):
     pt1 = tf.where(tf.equal(yTrue, 1), yGuess, tf.ones_like(yGuess))
     pt0 = tf.where(tf.equal(yTrue, 0), yGuess, tf.zeros_like(yGuess))
     return -BE.sum(alpha * BE.pow(1. - pt1, gamma) * BE.log(pt1))-BE.sum((1-alpha) * BE.pow( pt0, gamma) * BE.log(1. - pt0))
+
+def tutor(X_train,X_test,Y_train,Y_test):
+    records = {}
+    rsums = {}
+    for l1 in [8]:
+        for l2 in [4]:
+            for l3 in [8]:            
+                for alpha in [.2,.4,.6,.8]:
+                    for gamma in [.2,.4,.6,.8,1.,1.2,1.4,1.6,1.8,2.]:
+                        rname = str(l1)+' '+str(l2)+' '+str(l3)+': a '+str(alpha)+', g '+str(gamma)
+                        aoc = []
+                        for i in range(10):
+                            model = keras.Sequential([
+                                    keras.layers.Flatten(input_shape=(8,)),
+                                    keras.layers.Dense(l1, activation=tf.nn.relu),
+                                    keras.layers.Dense(l2, activation=tf.nn.relu),
+                                    #keras.layers.Dense(l3, activation=tf.nn.relu),
+                                    keras.layers.Dense(1, activation=tf.nn.sigmoid),
+                                    ])
+                            model.compile(optimizer='adam',     
+                                          #loss='binary_crossentropy',
+                                          #loss=[focal_loss],
+                                          #loss=[custom],
+                                          loss=[binary_focal_loss(alpha, gamma)],
+                                          metrics=['accuracy'])#,tf.keras.metrics.AUC()])
+                            model.fit(X_train, Y_train, epochs=25, batch_size=5128,shuffle=True)
+                            rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
+                            aoc.append(auc(rocx,rocy))
+                        aocsum = np.sum(aoc)/10               
+                        records[rname] = aocsum
+                        rsums[rname] = aoc
+                        print(rname,' = ',aocsum)
+                    
+    winner = max(records,key=records.get)
+    print('Best performance was AOC of ',records.pop(winner),' for layout ',winner)
+    print(rsums[winner])
+    winner = max(records,key=records.get)
+    print('2nd Best performance was AOC of ',records.pop(winner),' for layout ',winner)
+    print(rsums[winner])
+    winner = max(records,key=records.get)
+    print('3rd Best performance was AOC of ',records.pop(winner),' for layout ',winner)
+    print(rsums[winner])
+    sys.exit()
 #%%
 
-def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
+def ana(sigfiles,bgfiles):
     #%%################
     # Plots and Setup #
     ###################
+    training=True
+    training=False
+    tf.random.set_random_seed(2)
+    tf.compat.v1.set_random_seed(2)
+    np.random.seed(2)
 
-    model = keras.Sequential([
-            keras.layers.Flatten(input_shape=(8,)),
-            keras.layers.Dense(l1, activation=tf.nn.relu),
-            keras.layers.Dense(l2, activation=tf.nn.relu),
-            keras.layers.Dense(l3, activation=tf.nn.relu),
-            keras.layers.Dense(1, activation=tf.nn.sigmoid),
-    ])
-    
-    model.compile(optimizer='adam',     
-                  #loss='binary_crossentropy',
-                  #loss=[focal_loss],
-                  loss=[custom],
-                  metrics=['accuracy'])#,tf.keras.metrics.AUC()])
     
     ## Define what pdgId we expect the A to have
     Aid = 9000006
@@ -88,7 +153,9 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
         "DistStr":  Hist(20,(0,1)),
         "DistSte":  Hist(20,(0,1)),
         "DistBtr":  Hist(20,(0,1)),
-        "DistBte":  Hist(20,(0,1))
+        "DistBte":  Hist(20,(0,1)),
+        "LossvEpoch":   Hist(25,(0.5,25.5),'Epoch Number','Loss','netplots/LossvEpoch'),
+        "AccvEpoch":Hist(25,(0.5,25.5),'Epoch Number','Accuracy','netplots/AccvEpoch'),
 #        "HpT":      Hist(60 ,(0,320)    ,'GEN Higgs pT','Events','upplots/HpT'),
 #        #"HAdR":     Hist(100,(0,2)      ,'GEN Higgs to A dR','Events','upplots/HAdR'),
 #        #'HAdeta':   Hist(66 ,(-3.3,3.3) ,'GEN Higgs to A deta','Events','upplots/HAdeta'),
@@ -154,27 +221,24 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
         #####################
         # Loading Variables #
         #####################
-        if not training:
-            print('Opening ',sigfiles[fnum],' + ',bgfiles[fnum])
+        print('Opening ',sigfiles[fnum],' + ',bgfiles[fnum])
         
-            ## Loop some data if the bg/signal files need to be equalized
-            if sigmbg > 0:
-                print('Catching up signal')
-                sigfiles.append(sigfiles[fnum])
-                sigmbg = sigmbg - 1
-            elif sigmbg < 0:
-                print('Catching up background')
-                bgfiles.append(bgfiles[fnum])
-                sigmbg = sigmbg + 1
-            
-            ## Open our file and grab the events tree
-            sigf = uproot.open(sigfiles[fnum])#'nobias.root')
-            bgf = uproot.open(bgfiles[fnum])
-            sigevents = sigf.get('Events')
-            bgevents = bgf.get('Events')
-        else:
-            sigevents = sigfiles[0]
-            bgevents = bgfiles[0]
+        ## Loop some data if the bg/signal files need to be equalized
+        if sigmbg > 0:
+            print('Catching up signal')
+            sigfiles.append(sigfiles[fnum])
+            sigmbg = sigmbg - 1
+        elif sigmbg < 0:
+            print('Catching up background')
+            bgfiles.append(bgfiles[fnum])
+            sigmbg = sigmbg + 1
+        
+        ## Open our file and grab the events tree
+        sigf = uproot.open(sigfiles[fnum])#'nobias.root')
+        bgf = uproot.open(bgfiles[fnum])
+        sigevents = sigf.get('Events')
+        bgevents = bgf.get('Events')
+
 
         pdgida  = sigevents.array('GenPart_pdgId')
         paridxa = sigevents.array('GenPart_genPartIdxMother')
@@ -358,62 +422,6 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
         
 
         
-        
-        #############################
-        # Constructing RECO objects #
-        #############################
-
-
-
-#        for prop in ['bpt','beta','bphi','bmass']:
-#            jets[prop] = pd.DataFrame()
-#            for i in range(nb):
-#                jets[prop][i+1] = jets[prop[1:]][blist[i]>0].max(axis=1)
-#                
-#        jets.bdr = pd.DataFrame()
-#        for i in range(nb):
-#            jets.bdr[i+1] = blist[i][blist[i]>0].max(axis=1)
-#            
-#        ev.sync()
-#            
-#        if resjets==3:
-#            pidx = [2,1,4,3]
-#            for prop in ['bpt','beta','bphi','bmass']:
-#                jets[prop]['merged'], jets[prop]['missing'] = (jets[prop][1]==jets[prop][3]),(jets[prop][1]==jets[prop][3])
-#                for i in range(1,nb+1):
-#                    jets[prop]['merged']=jets[prop]['merged']+jets[prop].fillna(0)[i][(jets.bmass[i]>=15) & (jets.bmass[i]+jets.bmass[pidx[i-1]]==jets.bmass[i])]
-#                    jets[prop]['missing']=jets[prop]['missing']+jets[prop].fillna(0)[i][(jets.bmass[i]<15) & (jets.bmass[i]+jets.bmass[pidx[i-1]]==jets.bmass[i])]
-#                    #jets[prop][i] = jets[prop][i]+(0*jets[prop][pidx])
-#                    
-#        bvec = []
-#        for i in range(1,nb+1):
-#            bvec.append(TLorentzVectorArray.from_ptetaphim(jets.bpt[i],jets.beta[i],jets.bphi[i],jets.bmass[i]))
-#        
-#        avec = []
-#        for i in range(0,nb,2):
-#            avec.append(bvec[i]+bvec[i+1])
-#        
-#        for prop in ['apt','aeta','aphi','amass']:
-#            jets[prop] = pd.DataFrame()
-#        for i in range(na):
-#            jets.apt[i+1]  = avec[i].pt
-#            jets.aeta[i+1] = avec[i].eta
-#            jets.aphi[i+1] = avec[i].phi
-#            jets.amass[i+1]= avec[i].mass
-#        for prop in ['apt','aeta','aphi','amass']:
-#            jets[prop].index = jets.pt.index
-#        
-#        hvec = [avec[0]+avec[1]]
-#        
-#        for prop in ['hpt','heta','hphi','hmass']:
-#            jets[prop] = pd.DataFrame()
-#        jets.hpt[1]  = hvec[0].pt
-#        jets.heta[1] = hvec[0].eta
-#        jets.hphi[1] = hvec[0].phi
-#        jets.hmass[1]= hvec[0].mass
-#        for prop in ['hpt','heta','hphi','hmass']:
-#            jets[prop].index = jets.eta.index
-#        
         #######################
         # Training Neural Net #
         #######################
@@ -440,7 +448,30 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
         #X_train, Y_train = X_train.sample(frac=1.0,random_state=4), Y_train.sample(frac=1.0,random_state=4)
         #X_train, Y_train = X_train.reset_index(drop=True), Y_train.reset_index(drop=True)
 
-        model.fit(X_train, Y_train, epochs=50, batch_size=1024,shuffle=True)
+        if training == True:
+            tutor(X_train,X_test,Y_train,Y_test)
+        else:
+            l1 = 8
+            l2 = 4
+            l3 = 2
+            alpha=.85
+            gamma=.2
+            model = keras.Sequential([
+                    keras.layers.Flatten(input_shape=(8,)),
+                    keras.layers.Dense(l1, activation=tf.nn.relu),#, bias_regularizer=tf.keras.regularizers.l2(l=0.0)),
+                    keras.layers.Dense(l2, activation=tf.nn.relu),
+                    #keras.layers.Dense(l3, activation=tf.nn.relu),
+                    #keras.layers.Dropout(0.1),
+                    keras.layers.Dense(1, activation=tf.nn.sigmoid),
+                    ])
+            optimizer  = keras.optimizers.Adam(learning_rate=0.00003)
+            model.compile(optimizer=optimizer,#'adam',     
+                         #loss='binary_crossentropy',
+                         #loss=[focal_loss],
+                         #loss=[custom],
+                         loss=[binary_focal_loss(alpha, gamma)],
+                         metrics=['accuracy'])#,tf.keras.metrics.AUC()])
+            history = model.fit(X_train, Y_train, epochs=25, batch_size=5128,shuffle=True)
         
         rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
         trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
@@ -451,6 +482,15 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
         distste = model.predict(X_test[Y_test==1])
         distbtr = model.predict(X_train[Y_train==0])
         distbte = model.predict(X_test[Y_test==0])
+        
+        hist = pd.DataFrame(history.history)
+        hist['epoch'] = history.epoch
+        plots['LossvEpoch'][0]=hist['loss']
+        plots['AccvEpoch'][0]=hist['acc']
+        plt.clf()
+        plots['LossvEpoch'].plot()
+        plots['AccvEpoch'].plot()
+        plt.clf()
         
         plots['DistStr'].fill(diststr)
         plots['DistSte'].fill(distste)
@@ -476,6 +516,7 @@ def ana(sigfiles,bgfiles,l1=8,l2=4,l3=2,training=False):
         plt.legend(['y=x','Validation','Training'])
         plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
         plt.savefig('netplots/ROC')
+        
         #%%
         return auc(rocx,rocy)
         #sys.exit()
