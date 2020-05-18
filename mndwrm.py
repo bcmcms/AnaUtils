@@ -14,6 +14,7 @@
 import sys
 import uproot
 import numpy as np
+import math
 import matplotlib.pyplot as plt
 import pandas as pd
 #import itertools as it
@@ -78,31 +79,55 @@ def focal_loss(yTrue, yGuess):
     pt0 = tf.where(tf.equal(yTrue, 0), yGuess, tf.zeros_like(yGuess))
     return -BE.sum(alpha * BE.pow(1. - pt1, gamma) * BE.log(pt1))-BE.sum((1-alpha) * BE.pow( pt0, gamma) * BE.log(1. - pt0))
 
-def tutor(X_train,X_test,Y_train,Y_test):
+def tutor(bgjetframe,sigjetframe):
+    bgtestframe = bgjetframe.sample(frac=0.7,random_state=6)
+    nbg = bgtestframe.shape[0]
+    sigtestframe = sigjetframe.sample(frac=0.7,random_state=6)
+    nsig = sigtestframe.shape[0]
+    nbatch = math.floor(nbg / (2*nsig))
+    bgfrac = nbatch/nbg
+    X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
+    Y_test = X_test['val']
+    X_test = X_test.drop('val',axis=1)
+    
     records = {}
     rsums = {}
     for l1 in [8]:
-        for l2 in [4]:
+        for l2 in [8]:
             for l3 in [8]:            
-                for alpha in [.2,.4,.6,.8]:
-                    for gamma in [.2,.4,.6,.8,1.,1.2,1.4,1.6,1.8,2.]:
-                        rname = str(l1)+' '+str(l2)+' '+str(l3)+': a '+str(alpha)+', g '+str(gamma)
+                for lr in [0.1,0.05,0.01,0.005,0.001]:
+                    for placeholder in [1]:
+                        rname = str(l1)+' '+str(l2)+' '+str(l3)+': lr '+str(lr)
                         aoc = []
                         for i in range(10):
+                            #tf.random.set_random_seed(2)
+                            #tf.compat.v1.random.set_random_seed(2)
+                            #tf.compat.v1.set_random_seed(2)
+                            np.random.seed(2)
                             model = keras.Sequential([
                                     keras.layers.Flatten(input_shape=(8,)),
                                     keras.layers.Dense(l1, activation=tf.nn.relu),
                                     keras.layers.Dense(l2, activation=tf.nn.relu),
-                                    #keras.layers.Dense(l3, activation=tf.nn.relu),
+                                    keras.layers.Dense(l3, activation=tf.nn.relu),
                                     keras.layers.Dense(1, activation=tf.nn.sigmoid),
                                     ])
-                            model.compile(optimizer='adam',     
-                                          #loss='binary_crossentropy',
+                            optimizer  = keras.optimizers.Adam(learning_rate=lr)
+                            model.compile(optimizer=optimizer,     
+                                          loss='binary_crossentropy',
                                           #loss=[focal_loss],
                                           #loss=[custom],
-                                          loss=[binary_focal_loss(alpha, gamma)],
+                                          #loss=[binary_focal_loss(alpha, gamma)],
                                           metrics=['accuracy'])#,tf.keras.metrics.AUC()])
-                            model.fit(X_train, Y_train, epochs=25, batch_size=5128,shuffle=True)
+                            bgtmpframe = bgtestframe
+                            for i in range(nbatch):
+                                #print(bgtestframe.shape[0],nsig)
+                                Xsample= bgtmpframe.sample(n=nsig*2,random_state=i)
+                                X_train = pd.concat([Xsample,sigjetframe.sample(frac=1,random_state=i)],ignore_index=True)
+                                Y_train= X_train['val']
+                                X_train = X_train.drop('val',axis=1)
+                                bgtmpframe = bgtmpframe.drop(Xsample.index) 
+                                model.fit(X_train, Y_train, epochs=10, batch_size=5128,shuffle=True)
+                            #model.fit(X_train, Y_train, epochs=25, batch_size=5128,shuffle=True)
                             rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
                             aoc.append(auc(rocx,rocy))
                         aocsum = np.sum(aoc)/10               
@@ -128,9 +153,9 @@ def ana(sigfiles,bgfiles):
     ###################
     training=True
     training=False
-    tf.random.set_random_seed(2)
-    tf.compat.v1.set_random_seed(2)
-    np.random.seed(2)
+    #tf.random.set_random_seed(2)
+    #tf.compat.v1.set_random_seed(2)
+    #np.random.seed(2)
 
     
     ## Define what pdgId we expect the A to have
@@ -139,15 +164,6 @@ def ana(sigfiles,bgfiles):
     #resjets = 4
     Aid = 36
     ## Make a dictionary of histogram objects
-#    bjplots = {}
-#    for i in range(1,5):
-#        bjplots.update({
-#        "s_beta"+str(i):      Hist(33 ,(-3.3,3.3)   ,'GEN b '+str(i)+' Eta (ranked by pT)','Events','upplots/s_beta'+str(i)),
-#        "s_bpT"+str(i):       Hist(60 ,(0,120)      ,'GEN pT of b '+str(i)+' (ranked by pT)','Events','upplots/s_bpT'+str(i)),
-#        "s_bjetpT"+str(i):    Hist(60 ,(0,120)      ,'Matched RECO jet '+str(i)+' pT (ranked by b pT)','Events','upplots/s_RjetpT'+str(i)),
-#        "s_bjeteta"+str(i):   Hist(33 ,(-3.3,3.3)   ,'Matched RECO jet '+str(i)+' Eta (ranked by b pT)','Events','upplots/s_Rjeteta'+str(i)),
-#        "s_bjdR"+str(i):      Hist(90 ,(0,3)        ,'GEN b '+str(i)+' (ranked by pT) to matched jet dR','Events','upplots/s_bjdR'+str(i))
-#        })
     plots = {
         "Distribution": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','Events','netplots/distribution'),
         "DistStr":  Hist(20,(0,1)),
@@ -156,57 +172,7 @@ def ana(sigfiles,bgfiles):
         "DistBte":  Hist(20,(0,1)),
         "LossvEpoch":   Hist(25,(0.5,25.5),'Epoch Number','Loss','netplots/LossvEpoch'),
         "AccvEpoch":Hist(25,(0.5,25.5),'Epoch Number','Accuracy','netplots/AccvEpoch'),
-#        "HpT":      Hist(60 ,(0,320)    ,'GEN Higgs pT','Events','upplots/HpT'),
-#        #"HAdR":     Hist(100,(0,2)      ,'GEN Higgs to A dR','Events','upplots/HAdR'),
-#        #'HAdeta':   Hist(66 ,(-3.3,3.3) ,'GEN Higgs to A deta','Events','upplots/HAdeta'),
-#        #'HAdphi':   Hist(66 ,(-3.3,3.3) ,'GEN Higgs to A dphi','Events','upplots/HAdphi'),
-#        "A1pT":     Hist(80 ,(0,160)    ,'Highest GEN A pT','Events','upplots/A1pT'),
-#        "A2pT":     Hist(80 ,(0,160)    ,'Lowest GEN A pT','Events','upplots/A2pT'),
-#        "AdR":      Hist(50 ,(0,5)      ,'GEN A1 to A2 dR','Events','upplots/AdR'),
-#        "bdRA1":    Hist(50 ,(0,5)      ,'GEN dR between highest pT A child bs','Events','upplots/bdRA1'),
-#        "bdRA2":    Hist(50 ,(0,5)      ,'GEN dR between lowest pT A child bs','Events','upplots/bdRA2'),
-#        "bdetaA1":  Hist(34 ,(0,3.4)    ,'GEN |deta| between highest-A child bs','Events','upplots/bdetaA1'),
-#        "bdetaA2":  Hist(34 ,(0,3.4)    ,'GEN |deta| between lowest-A child bs','Events','upplots/bdetaA2'),
-#        "bdphiA1":  Hist(34 ,(0,3.4)    ,'GEN |dphi| between highest-A child bs','Events','upplots/bdphiA1'),
-#        "bdphiA2":  Hist(34 ,(0,3.4)    ,'GEN |dphi| between lowest-A child bs','Events','upplots/bdphiA2'),
-#        "bphi":     Hist(66 ,(-3.3,3.3) ,'GEN b Phi','Events','upplots/bphi'),
-#        "bjdR":     Hist(100,(0,2)      ,'All GEN bs to matched jet dR','Events','upplots/bjdR'),
-#        "RjetpT":   Hist(100,(0,100)    ,'RECO matched jet pT','Events','upplots/RjetpT'),
-#        "Rjeteta":  Hist(66 ,(-3.3,3.3) ,'RECO matched jet eta','Events','upplots/Rjeteta'),
-#        "RjetCSVV2":Hist(140 ,(-12,2)    ,'RECO matched jet btagCSVV2 score','events','upplots/RjetCSVV2'),
-#        "RjetDeepB":Hist(40 ,(-2.5,1.5) ,'RECO matched jet btagDeepB score','events','upplots/RjetDeepB'),
-#        "RjetDeepFB"    :Hist(24 ,(0,1.2)    ,'RECO matched jet btagDeepFlavB score','events','upplots/RjetDeepFB'),
-#        "RA1pT":    Hist(80 ,(0,160)    ,'pT of RECO A1 objects constructed from matched jets','Events','upplots/RA1pT'),
-#        "RA2pT":    Hist(80 ,(0,160)    ,'pT of RECO A2 objects constructed from matched jets','Events','upplots/RA2pT'),
-#        "RA1mass":  Hist(40 ,(0,80)     ,'reconstructed mass of A1 objects from matched jets','Events','upplots/RA1mass'),
-#        "RA2mass":  Hist(40 ,(0,80)     ,'reconstructed mass of A2 objects from matched jets','Events','upplots/RA2mass'),
-#        "RA1dR":    Hist(50 ,(0,5)      ,'dR between jet children of reconstructed A1 object','Events','upplots/RA1dR'),
-#        "RA2dR":    Hist(50 ,(0,5)      ,'dR between jet children of reconstructed A2 object','Events','upplots/RA2dR'),
-#        "RA1deta":  Hist(33 ,(0,3.3)    ,'|deta| between jet children of reconstructed A1 object','Events','upplots/RA1deta'),
-#        "RA2deta":  Hist(33 ,(0,3.3)    ,'|deta| between jet children of reconstructed A2 object','Events','upplots/RA2deta'),
-#        "RA1dphi":  Hist(33 ,(0,3.3)    ,'|dphi| between jet children of reconstructed A1 object','Events','upplots/RA1dphi'),
-#        "RA2dphi":  Hist(33 ,(0,3.3)    ,'|dphi| between jet children of reconstructed A2 object','Events','upplots/RA2dphi'),
-#        "RHmass":   Hist(80 ,(0,160)     ,'reconstructed mass of Higgs object from reconstructed As','Events','upplots/RHmass'),
-#        "RHpT":     Hist(100,(0,200)    ,'pT of reconstructed higgs object from reconstructed As','Events','upplots/RHpT'),
-#        "RHdR":     Hist(50 ,(0,5)      ,'dR between A children of reconstructed higgs object','Events','upplots/RHdR'),
-#        "RHdeta":   Hist(33 ,(0,3.3)    ,'|deta| between A children of reconstructed higgs object','Events','upplots/RHdeta'),
-#        "RHdphi":   Hist(33 ,(0,3.3)    ,'|dphi| between A children of reconstructed higgs object','Events','upplots/RHdphi'),
-#        ##
-#        "RalljetpT":    Hist(100,(0,100),'All RECO jet pT','Events','upplots/RalljetpT'),
-#        "bjdRvlogbpT1":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 1st pT GEN b to matched RECO jet','upplots/bjdRvlogbpT1'),
-#        "bjdRvlogbpT2":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 2nd pT GEN b to matched RECO jet','upplots/bjdRvlogbpT2'),
-#        "bjdRvlogbpT3":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 3rd pT GEN b to matched RECO jet','upplots/bjdRvlogbpT3'),
-#        "bjdRvlogbpT4":   Hist2d([80,200],[[0,8],[0,2]],'log2(GEN b pT)','dR from 4th pT GEN b to matched RECO jet','upplots/bjdRvlogbpT4'),
-#        "jetoverbpTvlogbpT1":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 1st GEN b pT for matched jets','upplots/jetoverbpTvlogbpT1'),
-#        "jetoverbpTvlogbpT2":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 2nd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT2'),
-#        "jetoverbpTvlogbpT3":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 3rd GEN b pT for matched jets','upplots/jetoverbpTvlogbpT3'),
-#        "jetoverbpTvlogbpT4":    Hist2d([60,40],[[2,8],[0,4]],'log2(GEN b pT)','RECO jet pT / 4th GEN b pT for matched jets','upplots/jetoverbpTvlogbpT4'),
-#        "npassed":  Hist(1  ,(0.5,1.5) ,'','Number of events that passed cuts', 'upplots/npassed'),
-#        "genAmass": Hist(40 ,(0,80)     ,'GEN mass of A objects','Events','upplots/Amass_g'),
-#        "cutAmass": Hist(40 ,(0,80)     ,'GEN mass of A objects that pass cuts','Events','upplots/Amass_c')
     }
-#    for plot in bjplots:
-#        bjplots[plot].title = files[0]
 #    for plot in plots:
 #        plots[plot].title = files[0]
 
@@ -426,53 +392,61 @@ def ana(sigfiles,bgfiles):
         # Training Neural Net #
         #######################
         bgjetframe = pd.DataFrame()
+        
         for prop in ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']:
             bgjetframe[prop] = bgjets[prop][bgjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
             bgjetframe['val'] = 0
+        bgtestframe = bgjetframe.sample(frac=0.7,random_state=6)
         sigjetframe = pd.DataFrame()
+        nbg = bgtestframe.shape[0]
         for prop in ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']:
             sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
             sigjetframe['val'] = 1
-        X_train = pd.concat([bgjetframe.sample(frac=0.7,random_state=6),sigjetframe.sample(frac=0.7,random_state=6)])
+        sigtestframe = sigjetframe.sample(frac=0.7,random_state=6)
+        nsig = sigtestframe.shape[0]
+        
         print('Signal cut to ',sigjetframe.shape[0], ' events')
         print('Background has ',bgjetframe.shape[0],' events')
-
-        #X_train =pd.concat(jetframe.sample(frac=0.7, random_state=6)
-        #Z_train=jetframe.sample(frac=0.7, random_state=6)
-        #X_test = jetframe.drop(X_train.index)
-        X_test = pd.concat([bgjetframe, sigjetframe]).drop(X_train.index)
-        #Z_test = jetframe.drop(X_train.index)
-        Y_train =X_train['val']
-        Y_test = X_test['val']
-        X_test, X_train = X_test.drop('val',axis=1), X_train.drop('val',axis=1)
-        #X_train, Y_train = X_train.sample(frac=1.0,random_state=4), Y_train.sample(frac=1.0,random_state=4)
-        #X_train, Y_train = X_train.reset_index(drop=True), Y_train.reset_index(drop=True)
-
+        
         if training == True:
-            tutor(X_train,X_test,Y_train,Y_test)
+            tutor(bgjetframe,sigjetframe)
         else:
             l1 = 8
-            l2 = 4
-            l3 = 2
-            alpha=.85
-            gamma=.2
+            l2 = 8
+            l3 = 8
+            
             model = keras.Sequential([
                     keras.layers.Flatten(input_shape=(8,)),
                     keras.layers.Dense(l1, activation=tf.nn.relu),#, bias_regularizer=tf.keras.regularizers.l2(l=0.0)),
                     keras.layers.Dense(l2, activation=tf.nn.relu),
-                    #keras.layers.Dense(l3, activation=tf.nn.relu),
+                    keras.layers.Dense(l3, activation=tf.nn.relu),
                     #keras.layers.Dropout(0.1),
                     keras.layers.Dense(1, activation=tf.nn.sigmoid),
                     ])
-            optimizer  = keras.optimizers.Adam(learning_rate=0.00003)
+            optimizer  = keras.optimizers.Adam(learning_rate=0.005)
             model.compile(optimizer=optimizer,#'adam',     
-                         #loss='binary_crossentropy',
+                         loss='binary_crossentropy',
                          #loss=[focal_loss],
                          #loss=[custom],
-                         loss=[binary_focal_loss(alpha, gamma)],
+                         #loss=[binary_focal_loss(alpha, gamma)],
                          metrics=['accuracy'])#,tf.keras.metrics.AUC()])
-            history = model.fit(X_train, Y_train, epochs=25, batch_size=5128,shuffle=True)
-        
+            
+            nbatch = math.floor(nbg / (2*nsig))
+            bgfrac = nbatch/nbg
+            X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
+            Y_test = X_test['val']
+            X_test = X_test.drop('val',axis=1)
+            
+            history = {}
+            for i in range(nbatch):
+                Xsample= bgtestframe.sample(n=nsig*2,random_state=i)
+                X_train = pd.concat([Xsample,sigjetframe.sample(frac=1,random_state=i)],ignore_index=True)
+                Y_train= X_train['val']
+                X_train = X_train.drop('val',axis=1)
+                bgtestframe = bgtestframe.drop(Xsample.index) 
+                history = model.fit(X_train, Y_train, epochs=10, batch_size=5128,shuffle=True)
+                #history.update(htmp)
+            
         rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
         trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
         test_loss, test_acc = model.evaluate(X_test, Y_test)
@@ -484,12 +458,16 @@ def ana(sigfiles,bgfiles):
         distbte = model.predict(X_test[Y_test==0])
         
         hist = pd.DataFrame(history.history)
+        #for h in history:
+            #hist = pd.concat([hist,pd.DataFrame(h.history)],ignore_index=True)
         hist['epoch'] = history.epoch
-        plots['LossvEpoch'][0]=hist['loss']
-        plots['AccvEpoch'][0]=hist['acc']
+        #plots['LossvEpoch'][0]=hist['loss']
+        #plots['AccvEpoch'][0]=hist['acc']
+        #plots['LossvEpoch'][0]=hist['epoch']
+        #plots['AccvEpoch'][0]=hist['epoch']
         plt.clf()
-        plots['LossvEpoch'].plot()
-        plots['AccvEpoch'].plot()
+        #plots['LossvEpoch'].plot()
+        #plots['AccvEpoch'].plot()
         plt.clf()
         
         plots['DistStr'].fill(diststr)
