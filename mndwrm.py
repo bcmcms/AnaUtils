@@ -23,6 +23,7 @@ from analib import Hist, PhysObj, Event, Hist2d, inc
 from uproot_methods import TLorentzVector, TLorentzVectorArray
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_curve, auc
+from sklearn.preprocessing import MinMaxScaler
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.python.keras import backend as BE
@@ -85,10 +86,11 @@ def tutor(bgjetframe,sigjetframe):
     sigtestframe = sigjetframe.sample(frac=0.7,random_state=6)
     nsig = sigtestframe.shape[0]
     nbatch = math.floor(nbg / (2*nsig))
-    bgfrac = nbatch/nbg
+    scaler = MinMaxScaler()
     X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
     Y_test = X_test['val']
     X_test = X_test.drop('val',axis=1)
+    X_test = scaler.fit_transform(X_test)
     
     records = {}
     rsums = {}
@@ -122,9 +124,10 @@ def tutor(bgjetframe,sigjetframe):
                             for i in range(nbatch):
                                 #print(bgtestframe.shape[0],nsig)
                                 Xsample= bgtmpframe.sample(n=nsig*2,random_state=i)
-                                X_train = pd.concat([Xsample,sigjetframe.sample(frac=1,random_state=i)],ignore_index=True)
+                                X_train = pd.concat([Xsample,sigtestframe.sample(frac=1,random_state=i)],ignore_index=True)
                                 Y_train= X_train['val']
                                 X_train = X_train.drop('val',axis=1)
+                                X_train = scaler.transform(X_train)
                                 bgtmpframe = bgtmpframe.drop(Xsample.index) 
                                 model.fit(X_train, Y_train, epochs=10, batch_size=5128,shuffle=True)
                             #model.fit(X_train, Y_train, epochs=25, batch_size=5128,shuffle=True)
@@ -152,7 +155,7 @@ def ana(sigfiles,bgfiles):
     # Plots and Setup #
     ###################
     training=True
-    training=False
+    #training=False
     #tf.random.set_random_seed(2)
     #tf.compat.v1.set_random_seed(2)
     #np.random.seed(2)
@@ -432,17 +435,22 @@ def ana(sigfiles,bgfiles):
                          metrics=['accuracy'])#,tf.keras.metrics.AUC()])
             
             nbatch = math.floor(nbg / (2*nsig))
-            bgfrac = nbatch/nbg
+            
+            scaler = MinMaxScaler()
+            
             X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
             Y_test = X_test['val']
             X_test = X_test.drop('val',axis=1)
             
+            X_test = scaler.fit_transform(X_test)
+            
             history = {}
             for i in range(nbatch):
                 Xsample= bgtestframe.sample(n=nsig*2,random_state=i)
-                X_train = pd.concat([Xsample,sigjetframe.sample(frac=1,random_state=i)],ignore_index=True)
+                X_train = pd.concat([Xsample,sigtestframe.sample(frac=1,random_state=i)],ignore_index=True)
                 Y_train= X_train['val']
                 X_train = X_train.drop('val',axis=1)
+                X_train = scaler.transform(X_train)
                 bgtestframe = bgtestframe.drop(Xsample.index) 
                 history = model.fit(X_train, Y_train, epochs=10, batch_size=5128,shuffle=True)
                 #history.update(htmp)
