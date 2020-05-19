@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 #import itertools as it
 #import copy as cp
-from analib import Hist, PhysObj, Event, Hist2d, inc
-from uproot_methods import TLorentzVector, TLorentzVectorArray
+from analib import Hist, PhysObj, Event, inc, #Hist2D
+#from uproot_methods import TLorentzVector, TLorentzVectorArray
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_curve, auc
 from sklearn.preprocessing import MinMaxScaler
@@ -30,7 +30,7 @@ from tensorflow.python.keras import backend as BE
 from keras import backend as K
 
 ##Controls how many epochs the network will train for; binary loss will run for a multiple of this
-epochs = 200
+epochs = 50
 ##Switches whether focal loss or binary crossentropy loss is used
 FOCAL = True
 ##Switches tutoring mode on or off
@@ -108,9 +108,9 @@ def batchtrain(bgtestframe,sigtestframe, scaler):
 
 def tutor(bgjetframe,sigjetframe):
     bgtestframe = bgjetframe.sample(frac=0.7,random_state=6)
-    nbg = bgtestframe.shape[0]
+    #nbg = bgtestframe.shape[0]
     sigtestframe = sigjetframe.sample(frac=0.7,random_state=6)
-    nsig = sigtestframe.shape[0]
+    #nsig = sigtestframe.shape[0]
 
     scaler = MinMaxScaler()
     X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
@@ -219,7 +219,8 @@ def ana(sigfiles,bgfiles):
     Aid = 36
     ## Make a dictionary of histogram objects
     plots = {
-        "Distribution": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','Events','netplots/distribution'),
+        "Distribution": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','Events','netplots/Distribution'),
+        "DistributionL": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','Events','netplots/LogDistribution'),
         "DistStr":  Hist(20,(0,1)),
         "DistSte":  Hist(20,(0,1)),
         "DistBtr":  Hist(20,(0,1)),
@@ -495,12 +496,20 @@ def ana(sigfiles,bgfiles):
         distbtr = model.predict(X_train[Y_train==0])
         distbte = model.predict(X_test[Y_test==0])
         
+        for key in history:
+            print(key)
+        
         hist = pd.DataFrame(history.history)
         #for h in history:
             #hist = pd.concat([hist,pd.DataFrame(h.history)],ignore_index=True)
         hist['epoch'] = history.epoch
         plots['LossvEpoch'][0]=hist['loss']
-        plots['AccvEpoch'][0]=hist['acc']
+        if 'acc' in hist.columns:
+            plots['AccvEpoch'][0]=hist['acc']
+        elif 'accuracy' in hist.columns:
+            plots['AccvEpoch'][0]=hist['accuracy']
+        else:
+            plots['AccvEpoch'][0]=hist['loss']
         #plots['LossvEpoch'][0]=hist['epoch']
         #plots['AccvEpoch'][0]=hist['epoch']
         plt.clf()
@@ -516,11 +525,18 @@ def ana(sigfiles,bgfiles):
         for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
             #p.norm(sum(p[0]))
             p[0] = p[0]/sum(p[0])
+        plots['DistStr'].make(color='red',linestyle='-',htype='step')
+        plots['DistBtr'].make(color='blue',linestyle='-',htype='step')
+        plots['DistSte'].make(color='red',linestyle=':',htype='step')
+        plots['DistBte'].make(color='blue',linestyle=':',htype='step')
+        plots['Distribution'].plot(same=True)
+        
+        plt.clf()
         plots['DistStr'].make(color='red',linestyle='-',htype='step',logv=True)
         plots['DistBtr'].make(color='blue',linestyle='-',htype='step',logv=True)
         plots['DistSte'].make(color='red',linestyle=':',htype='step',logv=True)
         plots['DistBte'].make(color='blue',linestyle=':',htype='step',logv=True)
-        plots['Distribution'].plot(same=True,logv=True)
+        plots['DistributionL'].plot(same=True,logv=True)
         
 
         plt.clf()
