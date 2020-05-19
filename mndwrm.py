@@ -29,6 +29,14 @@ from tensorflow import keras
 from tensorflow.python.keras import backend as BE
 from keras import backend as K
 
+##Controls how many epochs the network will train for; binary loss will run for a multiple of this
+epochs = 200
+##Switches whether focal loss or binary crossentropy loss is used
+FOCAL = True
+##Switches tutoring mode on or off
+TUTOR = True
+TUTOR = False
+
 def binary_focal_loss(gamma=2., alpha=.25):
     """
     Binary form of focal loss.
@@ -58,34 +66,52 @@ def binary_focal_loss(gamma=2., alpha=.25):
 
     return binary_focal_loss_fixed
 
-def custom(y_true,y_pred):
-    gamma = 2
-    alpha = .25
+def batchtrain(bgtestframe,sigtestframe, scaler):
+    l1 = 8
+    l2 = 8
+    l3 = 8
+    lr = 0.01
+    model = keras.Sequential([
+            keras.layers.Flatten(input_shape=(8,)),
+            keras.layers.Dense(l1, activation=tf.nn.relu),#, bias_regularizer=tf.keras.regularizers.l2(l=0.0)),
+            keras.layers.Dense(l2, activation=tf.nn.relu),
+            keras.layers.Dense(l3, activation=tf.nn.relu),
+            #keras.layers.Dropout(0.1),
+            keras.layers.Dense(1, activation=tf.nn.sigmoid),
+            ])
+    optimizer  = keras.optimizers.Adam(learning_rate=lr)
+    model.compile(optimizer=optimizer,#'adam',     
+                  loss='binary_crossentropy',
+                  #loss=[focal_loss],
+                  #loss=[custom],
+                  #loss=[binary_focal_loss(alpha, gamma)],
+                  metrics=['accuracy'])#,tf.keras.metrics.AUC()])
     
-    #alphaT = np.where(y_true==1,y_true*alpha,(1-alpha)*np.ones_like(y_true))
-    #pT = np.where(y_true==1,y_pred,(1-y_pred)*np.ones_like(y_pred))
-    #return np.sum((-1*alphaT) * np.power((1 - pT),gamma) * np.log(pT)
-
-    alphaT = tf.where(tf.equal(y_true,1),y_true*alpha,(1-alpha)*tf.ones_like(y_true))
-    pT = tf.where(tf.equal(y_true,1),y_pred,(1-y_pred)*tf.ones_like(y_true))
-    pT = BE.clip(pT,BE.epsilon(),1-BE.epsilon())
-    loss = tf.reduce_mean((-1*alphaT) * tf.pow((1 - pT),gamma) * BE.log(pT))
-    return loss
-    #return tf.reduce_mean((-1*alphaT) * tf.pow((1 - pT),gamma) * tf.log(pT))
-
-def focal_loss(yTrue, yGuess):
-    gamma = .2
-    alpha = .85
-    pt1 = tf.where(tf.equal(yTrue, 1), yGuess, tf.ones_like(yGuess))
-    pt0 = tf.where(tf.equal(yTrue, 0), yGuess, tf.zeros_like(yGuess))
-    return -BE.sum(alpha * BE.pow(1. - pt1, gamma) * BE.log(pt1))-BE.sum((1-alpha) * BE.pow( pt0, gamma) * BE.log(1. - pt0))
+    nsig = sigtestframe.shape[0]
+    nbg = bgtestframe.shape[0]
+    nbatch = math.floor(nbg / (2*nsig))
+    #X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
+    #Y_test = X_test['val']
+    #X_test = X_test.drop('val',axis=1)
+    #X_test = scaler.fit_transform(X_test)
+    for i in range(nbatch):
+        Xsample= bgtestframe.sample(n=nsig*2,random_state=i)
+        X_train = pd.concat([Xsample,sigtestframe.sample(frac=1,random_state=i)],ignore_index=True)
+        Y_train= X_train['val']
+        X_train = X_train.drop('val',axis=1)
+        X_train = scaler.transform(X_train)
+        bgtestframe = bgtestframe.drop(Xsample.index) 
+        history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True)
+    return history, model
+    
+    
 
 def tutor(bgjetframe,sigjetframe):
     bgtestframe = bgjetframe.sample(frac=0.7,random_state=6)
     nbg = bgtestframe.shape[0]
     sigtestframe = sigjetframe.sample(frac=0.7,random_state=6)
     nsig = sigtestframe.shape[0]
-    nbatch = math.floor(nbg / (2*nsig))
+
     scaler = MinMaxScaler()
     X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
     Y_test = X_test['val']
@@ -94,12 +120,13 @@ def tutor(bgjetframe,sigjetframe):
     
     records = {}
     rsums = {}
-    for l1 in [8]:
-        for l2 in [8]:
-            for l3 in [8]:            
-                for lr in [0.1,0.05,0.01,0.005,0.001]:
-                    for placeholder in [1]:
-                        rname = str(l1)+' '+str(l2)+' '+str(l3)+': lr '+str(lr)
+    lr=.01
+    for l1 in [4,8,16]:
+        for l2 in [2,4,8]:
+            for l3 in [1,2,4,8]:            
+                for alpha in [.7]:
+                    for gamma in [.6]:
+                        rname = str(l1)+' '+str(l2)+' '+str(l3)+': alpha '+str(alpha)+' gamma '+str(gamma)
                         aoc = []
                         for i in range(10):
                             #tf.random.set_random_seed(2)
@@ -115,22 +142,18 @@ def tutor(bgjetframe,sigjetframe):
                                     ])
                             optimizer  = keras.optimizers.Adam(learning_rate=lr)
                             model.compile(optimizer=optimizer,     
-                                          loss='binary_crossentropy',
+                                          #loss='binary_crossentropy',
                                           #loss=[focal_loss],
                                           #loss=[custom],
-                                          #loss=[binary_focal_loss(alpha, gamma)],
+                                          loss=[binary_focal_loss(alpha, gamma)],
                                           metrics=['accuracy'])#,tf.keras.metrics.AUC()])
-                            bgtmpframe = bgtestframe
-                            for i in range(nbatch):
-                                #print(bgtestframe.shape[0],nsig)
-                                Xsample= bgtmpframe.sample(n=nsig*2,random_state=i)
-                                X_train = pd.concat([Xsample,sigtestframe.sample(frac=1,random_state=i)],ignore_index=True)
-                                Y_train= X_train['val']
-                                X_train = X_train.drop('val',axis=1)
-                                X_train = scaler.transform(X_train)
-                                bgtmpframe = bgtmpframe.drop(Xsample.index) 
-                                model.fit(X_train, Y_train, epochs=10, batch_size=5128,shuffle=True)
-                            #model.fit(X_train, Y_train, epochs=25, batch_size=5128,shuffle=True)
+
+                            X_train = pd.concat([bgtestframe,sigtestframe],ignore_index=True)
+                            Y_train= X_train['val']
+                            X_train = X_train.drop('val',axis=1)
+                            X_train = scaler.transform(X_train)
+                            model.fit(X_train, Y_train, epochs=25, batch_size=5128,shuffle=True)
+
                             rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
                             aoc.append(auc(rocx,rocy))
                         aocsum = np.sum(aoc)/10               
@@ -148,17 +171,45 @@ def tutor(bgjetframe,sigjetframe):
     print('3rd Best performance was AOC of ',records.pop(winner),' for layout ',winner)
     print(rsums[winner])
     sys.exit()
+    
+
 #%%
 
 def ana(sigfiles,bgfiles):
     #%%################
     # Plots and Setup #
     ###################
-    training=True
+    #training=True
     #training=False
     #tf.random.set_random_seed(2)
     #tf.compat.v1.set_random_seed(2)
     #np.random.seed(2)
+    
+    l1 = 8
+    l2 = 8
+    l3 = 8
+    alpha = 0.7
+    gamma = 0.6
+    model = keras.Sequential([
+            keras.layers.Flatten(input_shape=(8,)),
+            keras.layers.Dense(l1, activation=tf.nn.relu),#, bias_regularizer=tf.keras.regularizers.l2(l=0.0)),
+            keras.layers.Dense(l2, activation=tf.nn.relu),
+            keras.layers.Dense(l3, activation=tf.nn.relu),
+            #keras.layers.Dropout(0.1),
+            keras.layers.Dense(1, activation=tf.nn.sigmoid),
+            ])
+    optimizer  = keras.optimizers.Adam(learning_rate=0.01)
+    model.compile(optimizer=optimizer,#'adam',     
+                  #loss='binary_crossentropy',
+                  #loss=[focal_loss],
+                  #loss=[custom],
+                  loss=[binary_focal_loss(alpha, gamma)],
+                  metrics=['accuracy'])#,tf.keras.metrics.AUC()])
+            
+    #nbatch = math.floor(nbg / (2*nsig))
+    
+    scaler = MinMaxScaler()
+    
 
     
     ## Define what pdgId we expect the A to have
@@ -173,8 +224,8 @@ def ana(sigfiles,bgfiles):
         "DistSte":  Hist(20,(0,1)),
         "DistBtr":  Hist(20,(0,1)),
         "DistBte":  Hist(20,(0,1)),
-        "LossvEpoch":   Hist(25,(0.5,25.5),'Epoch Number','Loss','netplots/LossvEpoch'),
-        "AccvEpoch":Hist(25,(0.5,25.5),'Epoch Number','Accuracy','netplots/AccvEpoch'),
+        "LossvEpoch":   Hist(epochs,(0.5,epochs+.5),'Epoch Number','Loss','netplots/LossvEpoch'),
+        "AccvEpoch":Hist(epochs,(0.5,epochs+.5),'Epoch Number','Accuracy','netplots/AccvEpoch'),
     }
 #    for plot in plots:
 #        plots[plot].title = files[0]
@@ -411,32 +462,10 @@ def ana(sigfiles,bgfiles):
         print('Signal cut to ',sigjetframe.shape[0], ' events')
         print('Background has ',bgjetframe.shape[0],' events')
         
-        if training == True:
+        if TUTOR == True:
             tutor(bgjetframe,sigjetframe)
         else:
-            l1 = 8
-            l2 = 8
-            l3 = 8
             
-            model = keras.Sequential([
-                    keras.layers.Flatten(input_shape=(8,)),
-                    keras.layers.Dense(l1, activation=tf.nn.relu),#, bias_regularizer=tf.keras.regularizers.l2(l=0.0)),
-                    keras.layers.Dense(l2, activation=tf.nn.relu),
-                    keras.layers.Dense(l3, activation=tf.nn.relu),
-                    #keras.layers.Dropout(0.1),
-                    keras.layers.Dense(1, activation=tf.nn.sigmoid),
-                    ])
-            optimizer  = keras.optimizers.Adam(learning_rate=0.005)
-            model.compile(optimizer=optimizer,#'adam',     
-                         loss='binary_crossentropy',
-                         #loss=[focal_loss],
-                         #loss=[custom],
-                         #loss=[binary_focal_loss(alpha, gamma)],
-                         metrics=['accuracy'])#,tf.keras.metrics.AUC()])
-            
-            nbatch = math.floor(nbg / (2*nsig))
-            
-            scaler = MinMaxScaler()
             
             X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
             Y_test = X_test['val']
@@ -444,16 +473,17 @@ def ana(sigfiles,bgfiles):
             
             X_test = scaler.fit_transform(X_test)
             
-            history = {}
-            for i in range(nbatch):
-                Xsample= bgtestframe.sample(n=nsig*2,random_state=i)
-                X_train = pd.concat([Xsample,sigtestframe.sample(frac=1,random_state=i)],ignore_index=True)
-                Y_train= X_train['val']
-                X_train = X_train.drop('val',axis=1)
-                X_train = scaler.transform(X_train)
-                bgtestframe = bgtestframe.drop(Xsample.index) 
-                history = model.fit(X_train, Y_train, epochs=10, batch_size=5128,shuffle=True)
-                #history.update(htmp)
+            
+            X_train = pd.concat([bgtestframe,sigtestframe],ignore_index=True)
+            Y_train= X_train['val']
+            X_train = X_train.drop('val',axis=1)
+            X_train = scaler.transform(X_train)
+            
+            
+            if FOCAL:
+                history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True)
+            else:
+                history, model = batchtrain(bgtestframe,sigtestframe,scaler)
             
         rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
         trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
@@ -469,13 +499,13 @@ def ana(sigfiles,bgfiles):
         #for h in history:
             #hist = pd.concat([hist,pd.DataFrame(h.history)],ignore_index=True)
         hist['epoch'] = history.epoch
-        #plots['LossvEpoch'][0]=hist['loss']
-        #plots['AccvEpoch'][0]=hist['acc']
+        plots['LossvEpoch'][0]=hist['loss']
+        plots['AccvEpoch'][0]=hist['acc']
         #plots['LossvEpoch'][0]=hist['epoch']
         #plots['AccvEpoch'][0]=hist['epoch']
         plt.clf()
-        #plots['LossvEpoch'].plot()
-        #plots['AccvEpoch'].plot()
+        plots['LossvEpoch'].plot()
+        plots['AccvEpoch'].plot()
         plt.clf()
         
         plots['DistStr'].fill(diststr)
@@ -486,11 +516,11 @@ def ana(sigfiles,bgfiles):
         for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
             #p.norm(sum(p[0]))
             p[0] = p[0]/sum(p[0])
-        plots['DistStr'].make(color='red',linestyle='-',htype='step')
-        plots['DistBtr'].make(color='blue',linestyle='-',htype='step')
-        plots['DistSte'].make(color='red',linestyle=':',htype='step')
-        plots['DistBte'].make(color='blue',linestyle=':',htype='step')
-        plots['Distribution'].plot(same=True)
+        plots['DistStr'].make(color='red',linestyle='-',htype='step',logv=True)
+        plots['DistBtr'].make(color='blue',linestyle='-',htype='step',logv=True)
+        plots['DistSte'].make(color='red',linestyle=':',htype='step',logv=True)
+        plots['DistBte'].make(color='blue',linestyle=':',htype='step',logv=True)
+        plots['Distribution'].plot(same=True,logv=True)
         
 
         plt.clf()
