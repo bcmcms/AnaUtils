@@ -215,7 +215,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
     
     scaler = MinMaxScaler()
     
-
+    netvars = ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']
     
     ## Define what pdgId we expect the A to have
     Aid = 9000006
@@ -224,8 +224,8 @@ def ana(sigfiles,bgfiles,isLHE=False):
     Aid = 36
     ## Make a dictionary of histogram objects
     plots = {
-        "Distribution": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','Events','netplots/Distribution'),
-        "DistributionL": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','Events','netplots/LogDistribution'),
+        "Distribution": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','% of Events','netplots/Distribution'),
+        "DistributionL": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','% of Events','netplots/LogDistribution'),
         "DistStr":  Hist(20,(0,1)),
         "DistSte":  Hist(20,(0,1)),
         "DistBtr":  Hist(20,(0,1)),
@@ -271,6 +271,11 @@ def ana(sigfiles,bgfiles,isLHE=False):
         #"SGLHEHT":  Hist(400,(0,4000)),
         #"DTLHEHT":  Hist(400,(0,4000)),
     }
+    if isLHE:
+        lheplots = {}
+        for i in range(nlhe):
+            lheplots.update({'dist'+str(i):Hist(20,(0,1),'Normalized MC background classifcation','% of Events','netplots/LHEdist_'+str(i)),})
+            lheplots['dist'+str(i)].title = 'Distrubution for LHE segment '+str(i)
 #    for plot in plots:
 #        plots[plot].title = files[0]
 
@@ -537,7 +542,6 @@ def ana(sigfiles,bgfiles,isLHE=False):
         # Training Neural Net #
         #######################
         bgjetframe = pd.DataFrame()
-        netvars = ['pt','eta','phi','mass','CSVV2','DeepB','msoft','DDBvL']
         
         if isLHE:
             bgpieces = []
@@ -555,7 +559,6 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 wtpieces.append(twgtframe)
             bgjetframe = pd.concat(wtpieces,ignore_index=True)
             bgrawframe = pd.concat(bgpieces,ignore_index=True)
-            del bgpieces,wtpieces
             bgjetframe = bgjetframe.dropna()
             bgrawframe = bgrawframe.dropna()
         else:
@@ -605,6 +608,21 @@ def ana(sigfiles,bgfiles,isLHE=False):
         distbtr = model.predict(X_train[Y_train==0])
         distbte = model.predict(X_test[Y_test==0])
         
+        if isLHE:
+            for i in range(nlhe):
+                test = pd.concat(wtpieces,ignore_index=True).drop('val',axis=1)
+                piece = wtpieces[i].drop('val',axis=1)
+                piece = piece.reset_index(drop=True)
+                #print(piece)
+                #print('xxxxx')
+                piece = scaler.transform(test)
+                print(piece)
+                #print('............')
+                print(X_test[Y_test==0])
+                lhedist = model.predict(piece)
+                #print(lhedist)
+                lheplots['dist'+str(i)].fill(lhedist)
+        
         hist = pd.DataFrame(history.history)
         #for h in history:
             #hist = pd.concat([hist,pd.DataFrame(h.history)],ignore_index=True)
@@ -622,8 +640,6 @@ def ana(sigfiles,bgfiles,isLHE=False):
         plots['LossvEpoch'].plot()
         plots['AccvEpoch'].plot()
         plt.clf()
-
-
         
         plots['DistStr'].fill(diststr)
         plots['DistSte'].fill(distste)
@@ -635,6 +651,8 @@ def ana(sigfiles,bgfiles,isLHE=False):
             vplots['BG'+col].fill(bgjetframe[col])
             vplots['SG'+col].fill(sigjetframe[col])
             vplots['RW'+col].fill(bgrawframe[col])
+
+        
         
         plt.clf()
         plt.plot([0,1],[0,1],'k--')
@@ -668,6 +686,10 @@ def ana(sigfiles,bgfiles,isLHE=False):
         vplots['SG'+col][0] = vplots['SG'+col][0]/sum(vplots['SG'+col][0])
         vplots['RW'+col][0] = vplots['RW'+col][0]/sum(vplots['RW'+col][0])
 
+    if isLHE:
+        for i in range(nlhe):
+            lheplots['dist'+str(i)][0] = lheplots['dist'+str(i)][0]/sum(lheplots['dist'+str(i)][0])
+            lheplots['dist'+str(i)].plot(htype='step',logv=True)
             
     for col in netvars:
         plt.clf()
