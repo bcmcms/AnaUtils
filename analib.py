@@ -80,10 +80,10 @@ class Hist(object):
         #print(s.hs)
         return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
 
-    def plot(s,logv=False,ylim=False,same=False):
+    def plot(s,logv=False,ylim=False,same=False,htype='bar'):
         if not same:
             plt.clf()
-        s.make(logv)
+        s.make(logv,htype)
         if ylim:
             plt.ylim(ylim)
         if s.xlabel != '':
