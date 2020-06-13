@@ -36,6 +36,8 @@ bgweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401]
 nlhe = len(bgweights)
 ##Switches whether focal loss or binary crossentropy loss is used
 FOCAL = True
+##Switches whether the inputs to the neural network for training are weighted appropriately
+TRWEIGHT = False
 ##Switches tutoring mode on or off
 TUTOR = True
 TUTOR = False
@@ -71,7 +73,7 @@ def binary_focal_loss(gamma=2., alpha=.25):
 
     return binary_focal_loss_fixed
 
-def batchtrain(bgtestframe,sigtestframe, scaler):
+def batchtrain(bgtrnframe,sigtrnframe, scaler):
     l1 = 8
     l2 = 8
     l3 = 8
@@ -92,33 +94,33 @@ def batchtrain(bgtestframe,sigtestframe, scaler):
                   #loss=[binary_focal_loss(alpha, gamma)],
                   metrics=['accuracy'])#,tf.keras.metrics.AUC()])
     
-    nsig = sigtestframe.shape[0]
-    nbg = bgtestframe.shape[0]
+    nsig = sigtrnframe.shape[0]
+    nbg = bgtrnframe.shape[0]
     nbatch = math.floor(nbg / (2*nsig))
     #X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
     #Y_test = X_test['val']
     #X_test = X_test.drop('val',axis=1)
     #X_test = scaler.fit_transform(X_test)
     for i in range(nbatch):
-        Xsample= bgtestframe.sample(n=nsig*2,random_state=i)
-        X_train = pd.concat([Xsample,sigtestframe.sample(frac=1,random_state=i)],ignore_index=True)
+        Xsample= bgtrnframe.sample(n=nsig*2,random_state=i)
+        X_train = pd.concat([Xsample,sigtrnframe.sample(frac=1,random_state=i)],ignore_index=True)
         Y_train= X_train['val']
         X_train = X_train.drop('val',axis=1)
         X_train = scaler.transform(X_train)
-        bgtestframe = bgtestframe.drop(Xsample.index) 
+        bgtrnframe = bgtrnframe.drop(Xsample.index) 
         history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True)
     return history, model
     
     
 
 def tutor(bgjetframe,sigjetframe):
-    bgtestframe = bgjetframe.sample(frac=0.7,random_state=6)
+    bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
     #nbg = bgtestframe.shape[0]
-    sigtestframe = sigjetframe.sample(frac=0.7,random_state=6)
+    sigtrnframe = sigjetframe.sample(frac=0.7,random_state=6)
     #nsig = sigtestframe.shape[0]
 
     scaler = MinMaxScaler()
-    X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
+    X_test = pd.concat([bgjetframe.drop(bgtrnframe.index), sigjetframe.drop(sigtrnframe.index)],ignore_index=True)
     Y_test = X_test['val']
     X_test = X_test.drop('val',axis=1)
     X_test = scaler.fit_transform(X_test)
@@ -153,7 +155,7 @@ def tutor(bgjetframe,sigjetframe):
                                           loss=[binary_focal_loss(alpha, gamma)],
                                           metrics=['accuracy'])#,tf.keras.metrics.AUC()])
 
-                            X_train = pd.concat([bgtestframe,sigtestframe],ignore_index=True)
+                            X_train = pd.concat([bgtrnframe,sigtrnframe],ignore_index=True)
                             Y_train= X_train['val']
                             X_train = X_train.drop('val',axis=1)
                             X_train = scaler.transform(X_train)
@@ -234,35 +236,35 @@ def ana(sigfiles,bgfiles,isLHE=False):
         "AccvEpoch":Hist(epochs,(0.5,epochs+.5),'Epoch Number','Accuracy','netplots/AccvEpoch'),
     }
     vplots = {
-        "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet in passing signal (red), BG (blue), and raw BG (black) events','% Distribution','netplots/pt'),
+        "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/pt'),
         "BGpt":     Hist(80 ,(150,550)),
         "SGpt":     Hist(80 ,(150,550)),
         "RWpt":     Hist(80 ,(150,550)),
-        "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet in passing signal (red), BG (blue), and raw BG (black) events','% Distribution','netplots/eta'),
+        "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/eta'),
         "BGeta":    Hist(15 ,(0,3)),
         "SGeta":    Hist(15 ,(0,3)),
         "RWeta":    Hist(15 ,(0,3)),
-        "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet in passing signal (red), BG (blue), and raw BG (black) events','% Distribution','netplots/phi'),
+        "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/phi'),
         "BGphi":    Hist(32 ,(-3.2,3.2)),
         "SGphi":    Hist(32 ,(-3.2,3.2)),
         "RWphi":    Hist(32 ,(-3.2,3.2)),
-        "mass":     Hist(50 ,(0,200)    ,'mass for highest pT jet in passing signal (red), BG (blue), and raw BG (black) events','% Distribution','netplots/mass'),
+        "mass":     Hist(50 ,(0,200)    ,'mass for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/mass'),
         "BGmass":   Hist(50 ,(0,200)),
         "SGmass":   Hist(50 ,(0,200)),
         "RWmass":   Hist(50 ,(0,200)),
-        "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet in passing signal (red), BG (blue), and raw BG (black) events','% Distribution','netplots/CSVV2'),
+        "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/CSVV2'),
         "BGCSVV2":  Hist(22 ,(0,1.1)),
         "SGCSVV2":  Hist(22 ,(0,1.1)),
         "RWCSVV2":  Hist(22 ,(0,1.1)),
-        "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet in passing signal (red), BG (blue), and raw BG (black) events','% Distribution','netplots/DeepB'),
+        "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/DeepB'),
         "BGDeepB":  Hist(22 ,(0,1.1)),
         "SGDeepB":  Hist(22 ,(0,1.1)),
         "RWDeepB":  Hist(22 ,(0,1.1)),
-        "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet in passing signal (red), BG (blue), and raw BG (black) events','% Distribution','netplots/msoft'),
+        "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/msoft'),
         "BGmsoft":  Hist(50 ,(0,200)),
         "SGmsoft":  Hist(50 ,(0,200)),
         "RWmsoft":  Hist(50 ,(0,200)),
-        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet in passing signal (red), BG (blue), and raw BG (black) events','% Distribution','netplots/DDBvL'),
+        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/DDBvL'),
         "BGDDBvL":  Hist(22 ,(0,1.1)),
         "SGDDBvL":  Hist(22 ,(0,1.1)),
         "RWDDBvL":  Hist(22 ,(0,1.1)),
@@ -561,20 +563,27 @@ def ana(sigfiles,bgfiles,isLHE=False):
             bgrawframe = pd.concat(bgpieces,ignore_index=True)
             bgjetframe = bgjetframe.dropna()
             bgrawframe = bgrawframe.dropna()
+            if TRWEIGHT:
+                bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
+            else:
+                bgtestframe = bgjetframe.sample(frac=0.3,random_state=6)
+                bgtrnframe = bgrawframe.drop(bgtestframe.index)
+                #bg
         else:
             for prop in netvars:
                 bgjetframe[prop] = bgjets[prop][bgjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
-                bgjetframe['val'] = 0
-        bgtestframe = bgjetframe.sample(frac=0.7,random_state=6)
-        rwtestframe = bgrawframe.sample(frac=0.7,random_state=6)
-        nbg = bgtestframe.shape[0]
+            bgjetframe['val'] = 0
+            bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
+        
+        
+        nbg = bgtrnframe.shape[0]
             
         sigjetframe = pd.DataFrame()
         for prop in netvars:
             sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
-            sigjetframe['val'] = 1
-        sigtestframe = sigjetframe.sample(frac=0.7,random_state=6)
-        nsig = sigtestframe.shape[0]
+        sigjetframe['val'] = 1
+        sigtrnframe = sigjetframe.sample(frac=0.7,random_state=6)
+        nsig = sigtrnframe.shape[0]
         
         print('Signal cut to ',sigjetframe.shape[0], ' events')
         print('Background has ',bgjetframe.shape[0],' events')
@@ -582,12 +591,21 @@ def ana(sigfiles,bgfiles,isLHE=False):
         if TUTOR == True:
             tutor(bgjetframe,sigjetframe)
         else:
-            X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
+            if TRWEIGHT or not isLHE:
+                X_test = pd.concat([bgjetframe.drop(bgtrnframe.index), sigjetframe.drop(sigtrnframe.index)],ignore_index=True)
+                X_train = pd.concat([bgtrnframe,sigtrnframe],ignore_index=True)
+                passnum = 0.6
+                for plot in plots:
+                    plots[plot].title = 'Weighted Training'
+            else:
+                X_test = pd.concat([bgtestframe,sigjetframe.drop(sigtrnframe.index)])
+                X_train = pd.concat([bgtrnframe,sigtrnframe])
+                passnum = 0.8
+                for plot in plots:
+                    plots[plot].title = 'Un-weighted Training'                   
             Y_test = X_test['val']
             X_test = X_test.drop('val',axis=1)
             X_test = scaler.fit_transform(X_test)
-            ## toggle between rwtestframe and bgtestframe to control whether weights are used to train
-            X_train = pd.concat([rwtestframe,sigtestframe],ignore_index=True)
             Y_train= X_train['val']
             X_train = X_train.drop('val',axis=1)
             X_train = scaler.transform(X_train)
@@ -595,7 +613,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
             if FOCAL:
                 history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=VERBOSE)
             else:
-                history, model = batchtrain(bgtestframe,sigtestframe,scaler)
+                history, model = batchtrain(bgtrnframe,sigtrnframe,scaler)
 
         rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
         trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
@@ -607,20 +625,16 @@ def ana(sigfiles,bgfiles,isLHE=False):
         distste = model.predict(X_test[Y_test==1])
         distbtr = model.predict(X_train[Y_train==0])
         distbte = model.predict(X_test[Y_test==0])
+        #debugbgf = bgjetframe.drop('val',axis=1)
+        diststt = model.predict(scaler.transform(sigjetframe.drop('val',axis=1)))
+        distbtt = model.predict(scaler.transform(bgjetframe.drop('val',axis=1)))
         
         if isLHE:
             for i in range(nlhe):
-                test = pd.concat(wtpieces,ignore_index=True).drop('val',axis=1)
-                piece = wtpieces[i].drop('val',axis=1)
+                piece = bgpieces[i].drop('val',axis=1)
                 piece = piece.reset_index(drop=True)
-                #print(piece)
-                #print('xxxxx')
-                piece = scaler.transform(test)
-                print(piece)
-                #print('............')
-                print(X_test[Y_test==0])
+                piece = scaler.transform(piece)
                 lhedist = model.predict(piece)
-                #print(lhedist)
                 lheplots['dist'+str(i)].fill(lhedist)
         
         hist = pd.DataFrame(history.history)
@@ -648,9 +662,20 @@ def ana(sigfiles,bgfiles,isLHE=False):
         plt.clf()
         
         for col in netvars:
-            vplots['BG'+col].fill(bgjetframe[col])
-            vplots['SG'+col].fill(sigjetframe[col])
-            vplots['RW'+col].fill(bgrawframe[col])
+            #t1 = bgjetframe[distbtt > passnum].reset_index(drop=True)[col]
+            #t2 = sigjetframe[diststt > passnum].reset_index(drop=True)[col]
+            #vplots['BG'+col].fill(t1)
+            #vplots['SG'+col].fill(t2)
+            #if passnum == 0.0:
+            #    vplots['RW'+col].fill(bgrawframe[col])
+            ##Temporary hack
+            t1 = sigjetframe.reset_index(drop=True)[col]
+            t2 = sigjetframe[diststt > passnum].reset_index(drop=True)[col]
+            t3 = sigjetframe[diststt <= passnum].reset_index(drop=True)[col]
+            vplots['SG'+col].fill(t1)
+            vplots['BG'+col].fill(t2)
+            vplots['RW'+col].fill(t3)
+            
 
         
         
@@ -663,6 +688,11 @@ def ana(sigfiles,bgfiles,isLHE=False):
         plt.legend(['y=x','Validation','Training'])
         plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
         plt.savefig('netplots/ROC_'+str(fnum))
+        
+        if TRWEIGHT:
+            model.save('weighted.hdf5')
+        else:
+            model.save('unweighted.hdf5')
     
     for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
         #p.norm(sum(p[0]))
@@ -682,9 +712,9 @@ def ana(sigfiles,bgfiles,isLHE=False):
     plots['DistributionL'].plot(same=True,logv=True)
     
     for col in netvars:
-        vplots['BG'+col][0] = vplots['BG'+col][0]/sum(vplots['BG'+col][0])
-        vplots['SG'+col][0] = vplots['SG'+col][0]/sum(vplots['SG'+col][0])
-        vplots['RW'+col][0] = vplots['RW'+col][0]/sum(vplots['RW'+col][0])
+        vplots['BG'+col][0] = vplots['BG'+col][0]/(sum(vplots['BG'+col][0])+.001)
+        vplots['SG'+col][0] = vplots['SG'+col][0]/(sum(vplots['SG'+col][0])+.001)
+        vplots['RW'+col][0] = vplots['RW'+col][0]/(sum(vplots['RW'+col][0])+.001)
 
     if isLHE:
         for i in range(nlhe):
@@ -696,6 +726,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
         vplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
         vplots['RW'+col].make(color='black',linestyle='--',htype='step')
         vplots['BG'+col].make(color='blue' ,linestyle=':',htype='step')
+        vplots[col].title = 'For BG and SG rated above '+str(passnum)
         vplots[col].plot(same=True)
     
         
