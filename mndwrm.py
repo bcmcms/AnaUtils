@@ -37,7 +37,7 @@ nlhe = len(bgweights)
 ##Switches whether focal loss or binary crossentropy loss is used
 FOCAL = True
 ##Switches whether the inputs to the neural network for training are weighted appropriately
-TRWEIGHT = True
+TRWEIGHT = False
 ##Switches tutoring mode on or off
 TUTOR = True
 TUTOR = False
