@@ -20,6 +20,7 @@ import pandas as pd
 #import itertools as it
 #import copy as cp
 from analib import Hist, PhysObj, Event, inc#, Hist2D
+import pickle
 #from uproot_methods import TLorentzVector, TLorentzVectorArray
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_curve, auc
@@ -37,7 +38,7 @@ nlhe = len(bgweights)
 ##Switches whether focal loss or binary crossentropy loss is used
 FOCAL = True
 ##Switches whether the inputs to the neural network for training are weighted appropriately
-TRWEIGHT = False
+TRWEIGHT = True
 ##Switches tutoring mode on or off
 TUTOR = True
 TUTOR = False
@@ -79,7 +80,8 @@ def batchtrain(bgtrnframe,sigtrnframe, scaler):
     l3 = 8
     lr = 0.01
     model = keras.Sequential([
-            keras.layers.Flatten(input_shape=(8,)),
+            keras.Input(shape=(8,),dtype='float32'),
+            #keras.layers.Flatten(input_shape=(8,,)),
             keras.layers.Dense(l1, activation=tf.nn.relu),#, bias_regularizer=tf.keras.regularizers.l2(l=0.0)),
             keras.layers.Dense(l2, activation=tf.nn.relu),
             keras.layers.Dense(l3, activation=tf.nn.relu),
@@ -141,7 +143,8 @@ def tutor(bgjetframe,sigjetframe):
                             #tf.compat.v1.set_random_seed(2)
                             np.random.seed(2)
                             model = keras.Sequential([
-                                    keras.layers.Flatten(input_shape=(8,)),
+                                    keras.Input(shape=(8,),dtype='float32'),
+                                    #keras.layers.Flatten(input_shape=(8,)),
                                     keras.layers.Dense(l1, activation=tf.nn.relu),
                                     keras.layers.Dense(l2, activation=tf.nn.relu),
                                     keras.layers.Dense(l3, activation=tf.nn.relu),
@@ -198,7 +201,8 @@ def ana(sigfiles,bgfiles,isLHE=False):
     alpha = 0.7
     gamma = 0.6
     model = keras.Sequential([
-            keras.layers.Flatten(input_shape=(8,)),
+            keras.Input(shape=(8,),dtype='float32'),
+            #keras.layers.Flatten(input_shape=(8,)),
             keras.layers.Dense(l1, activation=tf.nn.relu),#, bias_regularizer=tf.keras.regularizers.l2(l=0.0)),
             keras.layers.Dense(l2, activation=tf.nn.relu),
             keras.layers.Dense(l3, activation=tf.nn.relu),
@@ -235,36 +239,70 @@ def ana(sigfiles,bgfiles,isLHE=False):
         "LossvEpoch":   Hist(epochs,(0.5,epochs+.5),'Epoch Number','Loss','netplots/LossvEpoch'),
         "AccvEpoch":Hist(epochs,(0.5,epochs+.5),'Epoch Number','Accuracy','netplots/AccvEpoch'),
     }
-    vplots = {
-        "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/pt'),
+    pplots = {
+        "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/ppt'),
         "BGpt":     Hist(80 ,(150,550)),
         "SGpt":     Hist(80 ,(150,550)),
         "RWpt":     Hist(80 ,(150,550)),
-        "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/eta'),
+        "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/peta'),
         "BGeta":    Hist(15 ,(0,3)),
         "SGeta":    Hist(15 ,(0,3)),
         "RWeta":    Hist(15 ,(0,3)),
-        "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/phi'),
+        "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/pphi'),
         "BGphi":    Hist(32 ,(-3.2,3.2)),
         "SGphi":    Hist(32 ,(-3.2,3.2)),
         "RWphi":    Hist(32 ,(-3.2,3.2)),
-        "mass":     Hist(50 ,(0,200)    ,'mass for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/mass'),
+        "mass":     Hist(50 ,(0,200)    ,'mass for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/pmass'),
         "BGmass":   Hist(50 ,(0,200)),
         "SGmass":   Hist(50 ,(0,200)),
         "RWmass":   Hist(50 ,(0,200)),
-        "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/CSVV2'),
+        "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/pCSVV2'),
         "BGCSVV2":  Hist(22 ,(0,1.1)),
         "SGCSVV2":  Hist(22 ,(0,1.1)),
         "RWCSVV2":  Hist(22 ,(0,1.1)),
-        "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/DeepB'),
+        "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/pDeepB'),
         "BGDeepB":  Hist(22 ,(0,1.1)),
         "SGDeepB":  Hist(22 ,(0,1.1)),
         "RWDeepB":  Hist(22 ,(0,1.1)),
-        "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/msoft'),
+        "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/pmsoft'),
         "BGmsoft":  Hist(50 ,(0,200)),
         "SGmsoft":  Hist(50 ,(0,200)),
         "RWmsoft":  Hist(50 ,(0,200)),
-        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/DDBvL'),
+        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet in all signal (red), passing signal (blue), and failing signal (black) events','% Distribution','netplots/pDDBvL'),
+        "BGDDBvL":  Hist(22 ,(0,1.1)),
+        "SGDDBvL":  Hist(22 ,(0,1.1)),
+        "RWDDBvL":  Hist(22 ,(0,1.1)),
+        }
+    vplots = {
+        "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/pt'),
+        "BGpt":     Hist(80 ,(150,550)),
+        "SGpt":     Hist(80 ,(150,550)),
+        "RWpt":     Hist(80 ,(150,550)),
+        "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/eta'),
+        "BGeta":    Hist(15 ,(0,3)),
+        "SGeta":    Hist(15 ,(0,3)),
+        "RWeta":    Hist(15 ,(0,3)),
+        "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/phi'),
+        "BGphi":    Hist(32 ,(-3.2,3.2)),
+        "SGphi":    Hist(32 ,(-3.2,3.2)),
+        "RWphi":    Hist(32 ,(-3.2,3.2)),
+        "mass":     Hist(50 ,(0,200)    ,'mass for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/mass'),
+        "BGmass":   Hist(50 ,(0,200)),
+        "SGmass":   Hist(50 ,(0,200)),
+        "RWmass":   Hist(50 ,(0,200)),
+        "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/CSVV2'),
+        "BGCSVV2":  Hist(22 ,(0,1.1)),
+        "SGCSVV2":  Hist(22 ,(0,1.1)),
+        "RWCSVV2":  Hist(22 ,(0,1.1)),
+        "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/DeepB'),
+        "BGDeepB":  Hist(22 ,(0,1.1)),
+        "SGDeepB":  Hist(22 ,(0,1.1)),
+        "RWDeepB":  Hist(22 ,(0,1.1)),
+        "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/msoft'),
+        "BGmsoft":  Hist(50 ,(0,200)),
+        "SGmsoft":  Hist(50 ,(0,200)),
+        "RWmsoft":  Hist(50 ,(0,200)),
+        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/DDBvL'),
         "BGDDBvL":  Hist(22 ,(0,1.1)),
         "SGDDBvL":  Hist(22 ,(0,1.1)),
         "RWDDBvL":  Hist(22 ,(0,1.1)),
@@ -662,19 +700,19 @@ def ana(sigfiles,bgfiles,isLHE=False):
         plt.clf()
         
         for col in netvars:
-            #t1 = bgjetframe[distbtt > passnum].reset_index(drop=True)[col]
-            #t2 = sigjetframe[diststt > passnum].reset_index(drop=True)[col]
-            #vplots['BG'+col].fill(t1)
-            #vplots['SG'+col].fill(t2)
-            #if passnum == 0.0:
-            #    vplots['RW'+col].fill(bgrawframe[col])
+            t1 = bgjetframe.reset_index(drop=True)[col]
+            t2 = sigjetframe.reset_index(drop=True)[col]
+            vplots['BG'+col].fill(abs(t1))
+            vplots['SG'+col].fill(abs(t2))
+            if not TRWEIGHT and isLHE:
+                vplots['RW'+col].fill(bgrawframe[col])
             ##Temporary hack
             t1 = sigjetframe.reset_index(drop=True)[col]
             t2 = sigjetframe[diststt > passnum].reset_index(drop=True)[col]
             t3 = sigjetframe[diststt <= passnum].reset_index(drop=True)[col]
-            vplots['SG'+col].fill(t1)
-            vplots['BG'+col].fill(t2)
-            vplots['RW'+col].fill(t3)
+            pplots['SG'+col].fill(abs(t1))
+            pplots['BG'+col].fill(abs(t2))
+            pplots['RW'+col].fill(abs(t3))
             
 
         
@@ -689,10 +727,6 @@ def ana(sigfiles,bgfiles,isLHE=False):
         plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
         plt.savefig('netplots/ROC_'+str(fnum))
         
-        if TRWEIGHT:
-            model.save('weighted.hdf5')
-        else:
-            model.save('unweighted.hdf5')
     
     for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
         #p.norm(sum(p[0]))
@@ -712,9 +746,12 @@ def ana(sigfiles,bgfiles,isLHE=False):
     plots['DistributionL'].plot(same=True,logv=True)
     
     for col in netvars:
-        vplots['BG'+col][0] = vplots['BG'+col][0]/(sum(vplots['BG'+col][0])+.001)
-        vplots['SG'+col][0] = vplots['SG'+col][0]/(sum(vplots['SG'+col][0])+.001)
-        vplots['RW'+col][0] = vplots['RW'+col][0]/(sum(vplots['RW'+col][0])+.001)
+        vplots['BG'+col][0] = vplots['BG'+col][0]/(sum(vplots['BG'+col][0]))
+        vplots['SG'+col][0] = vplots['SG'+col][0]/(sum(vplots['SG'+col][0]))
+        vplots['RW'+col][0] = vplots['RW'+col][0]/(sum(vplots['RW'+col][0]+.0001))
+        pplots['BG'+col][0] = pplots['BG'+col][0]/(sum(pplots['BG'+col][0]))
+        pplots['SG'+col][0] = pplots['SG'+col][0]/(sum(pplots['SG'+col][0]))
+        pplots['RW'+col][0] = pplots['RW'+col][0]/(sum(pplots['RW'+col][0]))
 
     if isLHE:
         for i in range(nlhe):
@@ -726,8 +763,25 @@ def ana(sigfiles,bgfiles,isLHE=False):
         vplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
         vplots['RW'+col].make(color='black',linestyle='--',htype='step')
         vplots['BG'+col].make(color='blue' ,linestyle=':',htype='step')
-        vplots[col].title = 'For BG and SG rated above '+str(passnum)
+        if TRWEIGHT:
+            vplots[col].title = 'With weighted network training'
+        else:
+            vplots[col].title = 'With unweighted network training'
         vplots[col].plot(same=True)
+        plt.clf()
+        pplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
+        pplots['RW'+col].make(color='black',linestyle='--',htype='step')
+        pplots['BG'+col].make(color='blue' ,linestyle=':',htype='step')
+        pplots[col].title = 'For BG and SG rated above '+str(passnum)
+        pplots[col].plot(same=True)
+        
+        if TRWEIGHT:
+            model.save('weighted.hdf5')
+            pickle.dump(scaler, open("weightscaler.p", "wb"))
+        else:
+            model.save('unweighted.hdf5')
+            pickle.dump(scaler, open("unweightscaler.p", "wb"))
+        pickle.dump(sigjetframe, open("sigj.p","wb"))
     
         
     #%%
