@@ -62,7 +62,7 @@ def mc(files):
         
     
     plt.clf()  
-    plot = pdgplt.make(logv=True) 
+    plot = pdgplt.make() 
     plt.xlabel('Parent PdgId')
     plt.ylabel('Number of b Children')
     plt.savefig('upplots/parents.png')
