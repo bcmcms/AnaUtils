@@ -42,7 +42,7 @@ nlhe = len(bgweights)
 ##Switches whether focal loss or binary crossentropy loss is used
 FOCAL = True
 ##Switches whether the inputs to the neural network for training are weighted appropriately
-TRWEIGHT = True
+TRWEIGHT = False
 ##Controls whether a network is trained up or loaded from disc
 LOADMODEL = False
 ##Switches tutoring mode on or off
@@ -53,7 +53,8 @@ VERBOSE=False
 
 evtlist = [35899001,24910172,106249475,126514437,43203653,27186346,17599588,64962950,61283040,54831588]
 
-def binary_focal_loss(alpha=.25, gamma=2.):
+
+def binary_focal_loss(gamma=2., alpha=.25):
     """
     Binary form of focal loss.
       FL(p_t) = -alpha * (1 - p_t)**gamma * log(p_t)
@@ -81,6 +82,56 @@ def binary_focal_loss(alpha=.25, gamma=2.):
                -K.mean((1 - alpha) * K.pow(pt_0, gamma) * K.log(1. - pt_0))
 
     return binary_focal_loss_fixed
+
+def categorical_focal_loss(gamma=2., alpha=.25):
+    """
+    Softmax version of focal loss.
+    When there is a skew between different categories/labels in your data set, you can try to apply this function as a
+    loss.
+           m
+      FL = ∑  -alpha * (1 - p_o,c)^gamma * y_o,c * log(p_o,c)
+          c=1
+      where m = number of classes, c = class and o = observation
+    Parameters:
+      alpha -- the same as weighing factor in balanced cross entropy. Alpha is used to specify the weight of different
+      categories/labels, the size of the array needs to be consistent with the number of classes.
+      gamma -- focusing parameter for modulating factor (1-p)
+    Default value:
+      gamma -- 2.0 as mentioned in the paper
+      alpha -- 0.25 as mentioned in the paper
+    References:
+        Official paper: https://arxiv.org/pdf/1708.02002.pdf
+        https://www.tensorflow.org/api_docs/python/tf/keras/backend/categorical_crossentropy
+    Usage:
+     model.compile(loss=[categorical_focal_loss(alpha=[[.25, .25, .25]], gamma=2)], metrics=["accuracy"], optimizer=adam)
+    """
+
+    alpha = np.array(alpha, dtype=np.float32)
+
+    def categorical_focal_loss_fixed(y_true, y_pred):
+        """
+        :param y_true: A tensor of the same shape as `y_pred`
+        :param y_pred: A tensor resulting from a softmax
+        :return: Output tensor.
+        """
+
+        # Scale predictions so that the class probas of each sample sum to 1
+        y_pred /= K.sum(y_pred, axis=-1, keepdims=True)
+
+        # Clip the prediction value to prevent NaN's and Inf's
+        epsilon = K.epsilon()
+        y_pred = K.clip(y_pred, epsilon, 1. - epsilon)
+
+        # Calculate Cross Entropy
+        cross_entropy = -y_true * K.log(y_pred)
+
+        # Calculate Focal Loss
+        loss = alpha * K.pow(1 - y_pred, gamma) * cross_entropy
+
+        # Compute mean loss in mini_batch
+        return K.mean(K.sum(loss, axis=-1))
+
+    return categorical_focal_loss_fixed
 
 def batchtrain(bgtrnframe,sigtrnframe, scaler):
     l1 = 8
@@ -215,14 +266,16 @@ def ana(sigfiles,bgfiles,isLHE=False):
             keras.layers.Dense(l2, activation=tf.nn.relu),
             keras.layers.Dense(l3, activation=tf.nn.relu),
             #keras.layers.Dropout(0.1),
-            keras.layers.Dense(1, activation=tf.nn.sigmoid),
+            #keras.layers.Dense(1, activation=tf.nn.sigmoid),
+            keras.layers.Dense(2,  activation=tf.nn.softmax)
             ])
     optimizer  = keras.optimizers.Adam(learning_rate=0.01)
     model.compile(optimizer=optimizer,#'adam',     
                   #loss='binary_crossentropy',
                   #loss=[focal_loss],
                   #loss=[custom],
-                  loss=[binary_focal_loss(alpha, gamma)],
+                  #loss=[binary_focal_loss(alpha, gamma)],
+                  loss=[categorical_focal_loss(gamma,alpha)],
                   metrics=['accuracy'])#,tf.keras.metrics.AUC()])
             
     #nbatch = math.floor(nbg / (2*nsig))
@@ -585,7 +638,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 tempframe['eta'] = abs(tempframe['eta'])
                 ## controls event-number cutting
                 #tempframe = tempframe[tempframe['event'].isin(evtlist)] 
-                #tempframe = tempframe.drop(extvars,axis=1)
+                tempframe = tempframe.drop(extvars,axis=1)
                 ##
                 twgtframe = tempframe.sample(frac=bgweights[i],random_state=6)
                 tempframe['val'] = 0
@@ -598,11 +651,9 @@ def ana(sigfiles,bgfiles,isLHE=False):
             bgjetframe = bgjetframe.dropna()
             bgrawframe = bgrawframe.dropna()
             if TRWEIGHT:
-                #bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
-                bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
+                bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
             else:
-                bgtestframe = bgjetframe[bgjetframe['event']%2 == 0]
-                #bgtestframe = bgjetframe.sample(frac=0.3,random_state=6)
+                bgtestframe = bgjetframe.sample(frac=0.3,random_state=6)
                 bgtrnframe = bgrawframe.drop(bgtestframe.index)
         else:
             for prop in netvars + extvars:
@@ -611,25 +662,23 @@ def ana(sigfiles,bgfiles,isLHE=False):
             ##
             #bgjetframe = bgjetframe[bgjets['event'].isin(evtlist)]
             ##
-            #bgjetframe = bgjetframe.drop(extvars,axis=1)
+            bgjetframe = bgjetframe.drop(extvars,axis=1)
             bgjetframe['val'] = 0
-            #bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
-            bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
+            bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
+        
         
         nbg = bgtrnframe.shape[0]
             
         sigjetframe = pd.DataFrame()
-        for prop in netvars + extvars:
+        for prop in netvars:
             sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
         sigjetframe['eta'] = abs(sigjetframe['eta'])
         sigjetframe['val'] = 1
         ##
         #sigjetframe = sigjetframe[sigjets['event'].isin([0])]
         ##
-        #sigtrnframe = sigjetframe.sample(frac=0.7,random_state=6)
-        sigtrnframe = sigjetframe[sigjetframe['event']%2 == 0]
+        sigtrnframe = sigjetframe.sample(frac=0.7,random_state=6)
         nsig = sigtrnframe.shape[0]
-        
         
         print('Signal cut to ',sigjetframe.shape[0], ' events')
         if not TRWEIGHT and isLHE:
@@ -637,7 +686,6 @@ def ana(sigfiles,bgfiles,isLHE=False):
         else:
             print('Background has ',bgjetframe.shape[0],' events')
             
-        extvars = extvars + ['val']
         #######################
         # Training Neural Net #
         #######################
@@ -658,16 +706,20 @@ def ana(sigfiles,bgfiles,isLHE=False):
             passnum = 0.15
             for plot in plots:
                 plots[plot].title = 'Un-weighted Training'  
+                 
+        ## Debug block - cuts down X_test to correspond to tighter pre-selection
+        
+        #X_test = X_test[X_test['pt'] > 240]
+        #X_test = X_test[X_test['DDBvL'] > 0.6]#0.8)#0.6)
+        #X_test = X_test[X_test['msoft'] > 0.25]#90)
                 
-        Y_test = X_test['val']
-        #X_test = X_test.drop('val',axis=1)
-        Y_train= X_train['val']
-        #X_train = X_train.drop('val',axis=1)
+        Y_test = X_test['val'].astype(float)
+        X_test = X_test.drop('val',axis=1)
+        Y_train= X_train['val'].astype(float)
+        X_train = X_train.drop('val',axis=1)
         
 
-        X_test = X_test.drop(extvars,axis=1)
-        X_train = X_train.drop(extvars,axis=1)
-
+    
         if not LOADMODEL:
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
@@ -680,7 +732,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
             model = keras.models.load_model(prefix+'.hdf5', compile=False) 
             scaler = pickle.load( open( prefix+"scaler.p", "rb" ) )
             ##
-            #print(scaler.transform(bgpieces[1].drop('val',axis=1)))
+            print(scaler.transform(bgpieces[1].drop('val',axis=1)))
             ##
             X_test = scaler.transform(X_test)
             X_train = scaler.transform(X_train)
@@ -690,24 +742,24 @@ def ana(sigfiles,bgfiles,isLHE=False):
             history, model = batchtrain(bgtrnframe,sigtrnframe,scaler)
             
         if not LOADMODEL:
-            rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
-            trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
+            rocx, rocy, roct = roc_curve(Y_test, pd.DataFrame(model.predict(X_test))[0])
+            trocx, trocy, troct = roc_curve(Y_train, pd.DataFrame(model.predict(X_train))[0])
             test_loss, test_acc = model.evaluate(X_test, Y_test)
             print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
     
-        diststr = model.predict(X_train[Y_train==1])
-        distste = model.predict(X_test[Y_test==1])
-        distbtr = model.predict(X_train[Y_train==0])
-        distbte = model.predict(X_test[Y_test==0])
-        diststt = model.predict(scaler.transform(sigjetframe.drop(extvars,axis=1)))
-        distbtt = model.predict(scaler.transform(bgjetframe.drop(extvars,axis=1)))
+        diststr = pd.DataFrame(model.predict(X_train[Y_train==1]))[0]
+        distste = pd.DataFrame(model.predict(X_test[Y_test==1]))[0]
+        distbtr = pd.DataFrame(model.predict(X_train[Y_train==0]))[0]
+        distbte = pd.DataFrame(model.predict(X_test[Y_test==0]))[0]
+        diststt = pd.DataFrame(model.predict(scaler.transform(sigjetframe.drop('val',axis=1))))[0]
+        distbtt = pd.DataFrame(model.predict(scaler.transform(bgjetframe.drop('val',axis=1))))[0]
         
         if isLHE:
             for i in range(nlhe):
-                piece = bgpieces[i].drop(extvars,axis=1)
+                piece = bgpieces[i].drop('val',axis=1)
                 piece = piece.reset_index(drop=True)
                 piece = scaler.transform(piece)
-                lhedist = model.predict(piece)
+                lhedist = pd.DataFrame(model.predict(piece))[0]
                 lheplots['dist'+str(i)].fill(lhedist)
                 
         if not LOADMODEL:
@@ -741,11 +793,11 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 vplots['RW'+col].fill(bgrawframe[col])
 
             pplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col])
-            pplots['SPS'+col].fill(sigjetframe[diststt > passnum].reset_index(drop=True)[col])
-            pplots['SFL'+col].fill(sigjetframe[diststt <= passnum].reset_index(drop=True)[col])
+            pplots['SPS'+col].fill(sigjetframe[diststt.ravel() > passnum].reset_index(drop=True)[col])
+            pplots['SFL'+col].fill(sigjetframe[diststt.ravel() <= passnum].reset_index(drop=True)[col])
             pplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col])
-            pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col])
-            pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col])
+            pplots['BPS'+col].fill(bgjetframe[distbtt.ravel() > passnum].reset_index(drop=True)[col])
+            pplots['BFL'+col].fill(bgjetframe[distbtt.ravel() <= passnum].reset_index(drop=True)[col])
 
         if not LOADMODEL:
             plt.clf()
@@ -787,7 +839,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
 
     if isLHE:
         for i in range(nlhe):
-            lheplots['dist'+str(i)][0][0] = sum(lheplots['dist'+str(i)][0])#lheplots['dist'+str(i)][0]/sum(lheplots['dist'+str(i)][0])
+            lheplots['dist'+str(i)][0] = lheplots['dist'+str(i)][0]/sum(lheplots['dist'+str(i)][0])
             lheplots['dist'+str(i)].plot(htype='step')#,logv=True)
             
     for col in netvars:
@@ -819,13 +871,15 @@ def ana(sigfiles,bgfiles,isLHE=False):
         else:
             model.save('unweighted.hdf5')
             pickle.dump(scaler, open("unweightedscaler.p", "wb"))
-        #pickle.dump(sigjetframe, open("sigj.p","wb"))
+        pickle.dump(sigjetframe, open("sigj.p","wb"))
     
         
     #%%
     #return auc(rocx,rocy)
         #sys.exit()
 
+    #%%
+    
 ## Define 'main' function as primary executable
 def main():
     if (len(sys.argv) > 1):
@@ -868,12 +922,11 @@ def main():
                 isLHE = True
                 
         ana(sigfiles,bgfiles,isLHE)
-
     else:
         dialogue()
         
 def dialogue():
-    print("Expected:\n mndwrm.py [-LHE] <-f/-l>s (signal.root) <-f/-l>b (background.root)")
+    print("Expected mndwrm.py [-LHE] <-f/-l>s (signal.root) <-f/-l>b (background.root)")
     print("---formatting flags--")
     print("-f     Targets a specific file to run over")
     print("-l     Specifies a list containing all files to run over")
