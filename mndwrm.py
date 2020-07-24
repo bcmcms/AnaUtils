@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 #import itertools as it
 #import copy as cp
-from analib import Hist, PhysObj, Event, inc#, Hist2D
+from analib import Hist, PhysObj, Event, inc, fstrip#, Hist2D
 import pickle
 import copy as cp
 #from uproot_methods import TLorentzVector, TLorentzVectorArray
@@ -200,12 +200,12 @@ def ana(sigfiles,bgfiles,isLHE=False):
     Aid = 36
     ## Make a dictionary of histogram objects
     plots = {
-        "Distribution": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','% of Events','netplots/Distribution'),
-        "DistributionL": Hist(20,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','% of Events','netplots/LogDistribution'),
-        "DistStr":  Hist(20,(0,1)),
-        "DistSte":  Hist(20,(0,1)),
-        "DistBtr":  Hist(20,(0,1)),
-        "DistBte":  Hist(20,(0,1)),
+        "Distribution": Hist(50,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','% of Events','netplots/Distribution'),
+        "DistributionL": Hist(50,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','% of Events','netplots/LogDistribution'),
+        "DistStr":  Hist(50,(0,1)),
+        "DistSte":  Hist(50,(0,1)),
+        "DistBtr":  Hist(50,(0,1)),
+        "DistBte":  Hist(50,(0,1)),
         "LossvEpoch":   Hist(epochs,(0.5,epochs+.5),'Epoch Number','Loss','netplots/LossvEpoch'),
         "AccvEpoch":Hist(epochs,(0.5,epochs+.5),'Epoch Number','Accuracy','netplots/AccvEpoch'),
     }
@@ -257,7 +257,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
     if isLHE:
         lheplots = {}
         for i in range(nlhe):
-            lheplots.update({'dist'+str(i):Hist(20,(0,1),'Normalized MC background classifcation','% of Events','netplots/LHEdist_'+str(i)),})
+            lheplots.update({'dist'+str(i):Hist(50,(0,1),'Normalized MC background classifcation','% of Events','netplots/LHEdist_'+str(i)),})
             lheplots['dist'+str(i)].title = 'Distrubution for LHE segment '+str(i)
 #    for plot in plots:
 #        plots[plot].title = files[0]
@@ -381,7 +381,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 
         sigjets = loadjets(PhysObj('sigjets'),sigevents)
         if POSTWEIGHT:
-            sigweights = pickle.load(open(fstrip(sigfiles[fnum])+'-'+fstrip(DATANAME)+'.p',"rb" ))
+            sigweights = pickle.load(open('weights/'+fstrip(sigfiles[fnum])+'-'+fstrip(DATANAME)+'.p',"rb" ))
             wtvars = ['genweights','PUweights','normweights']
             for prop in wtvars:
                 sigjets[prop] = sigweights[prop]
@@ -407,9 +407,9 @@ def ana(sigfiles,bgfiles,isLHE=False):
             for i in range(nlhe):
                 bgjets[i] = loadjets(bgjets[i],bgevents[i])
                 if POSTWEIGHT:
-                    bgweights = pickle.load(open(fstrip(bgfiles[(fnum*lhe)+i])+'-'+fstrip(DATANAME)+'.p',"rb" ))
+                    bgweights = pickle.load(open('weights/'+fstrip(bgfiles[(fnum*nlhe)+i])+'-'+fstrip(DATANAME)+'.p',"rb" ))
                     for prop in wtvars:
-                        bgjets[prop] = bgweights[prop]
+                        bgjets[i][prop] = bgweights[i][prop]
                     
         else:
             bgjets = loadjets(PhysObj('bgjets'),bgevents)
@@ -659,7 +659,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
             ##
             X_test = scaler.transform(X_test)
             X_train = scaler.transform(X_train)
-        else FOCAL:
+        else:
             history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=VERBOSE)
 
             
