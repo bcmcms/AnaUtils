@@ -155,7 +155,7 @@ class Hist2d(object):
         return out    
 
     def plot(s,logv=False,text=False,edgecolor='face',linewidth=1):
-        s.make(edgecolor,linewidth,same)
+        s.make(edgecolor,linewidth)
         #print(s.hs[0])
         #print(s.hs[1])
         #print(s.hs[2])
@@ -179,6 +179,8 @@ class Hist2d(object):
 def inc(var):
     return var+1
 
+def fstrip(path):
+    return path.split('/')[-1].split[.root][0]
 
 class PhysObj(DefaultMunch):
     def __init__(s,name='',rfile='',*args):
