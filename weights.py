@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 #import itertools as it
 #import copy as cp
-from analib import Hist, PhysObj, Event, inc#, Hist2D
+from analib import Hist, PhysObj, Event, inc, fstrip#, Hist2D
 import pickle
 import copy as cp
 
@@ -67,6 +67,7 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
                     # x-sec * lumi / nEvents
                     'floatNorm': 43.92 * 60000 / sigevents.array('Jet_eta').shape[0],
                     'PUhist': dataPU.divideby(sigPU,split=True),
+                    'events': pd.DataFrame(sigevents.array('event')).rename(columns=inc),
                     }
             sigweights.update({'PUweights': pd.DataFrame(np.array(sigweights['PUhist'][0])[sigevents.array('PV_npvs')]).rename(columns=inc)})
             sigweights.update({'normweights': sigweights['floatNorm']*(sigweights['genweights']/sigweights['genweights'])})
@@ -76,12 +77,17 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
                         'genweights': pd.DataFrame(bgevents[i].array('Generator_weight')).rename(columns=inc),
                         # data events / (bg events * bg lhe weight)
                         'floatNorm': dataevents.array('Jet_eta').shape[0]/(bgevents[i].array('Jet_eta').shape[0]*bgfracs[i]),
-                        'PUhist': dataPU.divideby(bgPU[i],split=True),        
+                        'PUhist': dataPU.divideby(bgPU[i],split=True),   
+                        'events': pd.DataFrame(bgevents[i].array('event')).rename(columns=inc)
                         })
                 bgweights[i].update({'PUweights': pd.DataFrame(np.array(bgweights[i]['PUhist'][0])[bgevents[i].array( 'PV_npvs')]).rename(columns=inc)})
                 bgweights[i].update({'normweights': bgweights[i]['floatNorm']*(bgweights[i]['genweights']/bgweights[i]['genweights'])})
-                pickle.dump(bgweights,open('weights/'+LHEBGfiles[i].split('/')[-1].split('.root')[0]+"-"+dfile.split('/')[-1].split('.root')[0]+".p", "wb"))
-            pickle.dump(sigweights,open('weights/'+sfile.split('/')[-1].split('.root')[0]+"-"+dfile.split('/')[-1].split('.root')[0]+".p", "wb"))
+                bgname = 'weights/'+fstrip(LHEBGfiles[i])+"-"+fstrip(dfile)+".p"
+                print('Writing to',bgname)
+                pickle.dump(bgweights,open(bgname, "wb"))
+            sgname = 'weights/'+fstrip(sfile)+"-"+fstrip(dfile)+".p"
+            print('Writing to',sgname)
+            pickle.dump(sigweights,open(sgname, "wb"))
             return sigweights, bgweights
                 
 ## Define 'main' function as primary executable

@@ -179,6 +179,8 @@ class Hist2d(object):
 def inc(var):
     return var+1
 
+def fstrip(path):
+    return path.split('/')[-1].split[.root][0]
 
 class PhysObj(DefaultMunch):
     def __init__(s,name='',rfile='',*args):

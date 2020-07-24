@@ -34,13 +34,11 @@ from keras import backend as K
 import concurrent.futures
 executor = concurrent.futures.ThreadPoolExecutor()
 
-##Controls how many epochs the network will train for; binary loss will run for a multiple of this
+##Controls how many epochs the network will train for
 epochs = 50
 ##The weights LHE segment split data should be merged by
-bgweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401]
-nlhe = len(bgweights)
-##Switches whether focal loss or binary crossentropy loss is used
-FOCAL = True
+lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401]
+nlhe = len(lheweights)
 ##Switches whether the inputs to the neural network for training are weighted appropriately
 TRWEIGHT = True
 ##Controls whether a network is trained up or loaded from disc
@@ -50,6 +48,10 @@ TUTOR = True
 TUTOR = False
 ##Switches whether training statistics are reported or suppressed (for easier to read debugging)
 VERBOSE=False
+##Switches whether weights are loaded and applied to the post-training statistics,
+##and what data file they expect to be associated with
+POSTWEIGHT = True
+DATANAME = 'Parked.root'
 
 evtlist = [35899001,24910172,106249475,126514437,43203653,27186346,17599588,64962950,61283040,54831588]
 
@@ -81,46 +83,6 @@ def binary_focal_loss(alpha=.25, gamma=2.):
                -K.mean((1 - alpha) * K.pow(pt_0, gamma) * K.log(1. - pt_0))
 
     return binary_focal_loss_fixed
-
-def batchtrain(bgtrnframe,sigtrnframe, scaler):
-    l1 = 8
-    l2 = 8
-    l3 = 8
-    lr = 0.01
-    model = keras.Sequential([
-            keras.Input(shape=(8,),dtype='float32'),
-            #keras.layers.Flatten(input_shape=(8,,)),
-            keras.layers.Dense(l1, activation=tf.nn.relu),#, bias_regularizer=tf.keras.regularizers.l2(l=0.0)),
-            keras.layers.Dense(l2, activation=tf.nn.relu),
-            keras.layers.Dense(l3, activation=tf.nn.relu),
-            #keras.layers.Dropout(0.1),
-            keras.layers.Dense(1, activation=tf.nn.sigmoid),
-            ])
-    optimizer  = keras.optimizers.Adam(learning_rate=lr)
-    model.compile(optimizer=optimizer,#'adam',     
-                  loss='binary_crossentropy',
-                  #loss=[focal_loss],
-                  #loss=[custom],
-                  #loss=[binary_focal_loss(alpha, gamma)],
-                  metrics=['accuracy'])#,tf.keras.metrics.AUC()])
-    
-    nsig = sigtrnframe.shape[0]
-    nbg = bgtrnframe.shape[0]
-    nbatch = math.floor(nbg / (2*nsig))
-    #X_test = pd.concat([bgjetframe.drop(bgtestframe.index), sigjetframe.drop(sigtestframe.index)],ignore_index=True)
-    #Y_test = X_test['val']
-    #X_test = X_test.drop('val',axis=1)
-    #X_test = scaler.fit_transform(X_test)
-    for i in range(nbatch):
-        Xsample= bgtrnframe.sample(n=nsig*2,random_state=i)
-        X_train = pd.concat([Xsample,sigtrnframe.sample(frac=1,random_state=i)],ignore_index=True)
-        Y_train= X_train['val']
-        X_train = X_train.drop('val',axis=1)
-        X_train = scaler.transform(X_train)
-        bgtrnframe = bgtrnframe.drop(Xsample.index) 
-        history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True)
-    return history, model
-    
     
 
 def tutor(bgjetframe,sigjetframe):
@@ -418,7 +380,15 @@ def ana(sigfiles,bgfiles,isLHE=False):
             return jets
                 
         sigjets = loadjets(PhysObj('sigjets'),sigevents)
-        
+        if POSTWEIGHT:
+            sigweights = pickle.load(open(fstrip(sigfiles[fnum])+'-'+fstrip(DATANAME)+'.p',"rb" ))
+            wtvars = ['genweights','PUweights','normweights']
+            for prop in wtvars:
+                sigjets[prop] = sigweights[prop]
+        else:
+            wtvars = []
+            
+            
         slimjets = PhysObj('slimjets')
         slimjets.eta= pd.DataFrame(sigevents.array('Jet_eta', executor=executor)).rename(columns=inc)
         slimjets.phi= pd.DataFrame(sigevents.array('Jet_phi', executor=executor)).rename(columns=inc)
@@ -436,6 +406,11 @@ def ana(sigfiles,bgfiles,isLHE=False):
             bgjets = [PhysObj('300'),PhysObj('500'),PhysObj('700'),PhysObj('1000'),PhysObj('1500'),PhysObj('2000'),PhysObj('inf')]
             for i in range(nlhe):
                 bgjets[i] = loadjets(bgjets[i],bgevents[i])
+                if POSTWEIGHT:
+                    bgweights = pickle.load(open(fstrip(bgfiles[(fnum*lhe)+i])+'-'+fstrip(DATANAME)+'.p',"rb" ))
+                    for prop in wtvars:
+                        bgjets[prop] = bgweights[prop]
+                    
         else:
             bgjets = loadjets(PhysObj('bgjets'),bgevents)
 
@@ -567,7 +542,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
         # Preparing Neural Net Variables #
         ##################################
         bgjetframe = pd.DataFrame()
-        extvars = ['event']
+        extvars = ['event']+wtvars
         
         if isLHE:
             bgpieces = []
@@ -587,7 +562,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 #tempframe = tempframe[tempframe['event'].isin(evtlist)] 
                 #tempframe = tempframe.drop(extvars,axis=1)
                 ##
-                twgtframe = tempframe.sample(frac=bgweights[i],random_state=6)
+                twgtframe = tempframe.sample(frac=lheweights[i],random_state=6)
                 tempframe['val'] = 0
                 twgtframe['val'] = 0
                 bgpieces.append(tempframe)
@@ -684,10 +659,9 @@ def ana(sigfiles,bgfiles,isLHE=False):
             ##
             X_test = scaler.transform(X_test)
             X_train = scaler.transform(X_train)
-        elif FOCAL:
+        else FOCAL:
             history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=VERBOSE)
-        else:
-            history, model = batchtrain(bgtrnframe,sigtrnframe,scaler)
+
             
         if not LOADMODEL:
             rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
