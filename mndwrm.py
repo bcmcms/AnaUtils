@@ -622,15 +622,18 @@ def ana(sigfiles,bgfiles,isLHE=False):
         if not isLHE:
             X_test = pd.concat([bgjetframe.drop(bgtrnframe.index), sigjetframe.drop(sigtrnframe.index)],ignore_index=True)
             X_train = pd.concat([bgtrnframe,sigtrnframe],ignore_index=True)
-            passnum = 0.6
-            for plot in plots:
-                plots[plot].title = 'Weighted Training'
+            passnum = 0.6        
         else:
-            X_test = pd.concat([bgtestframe,sigjetframe.drop(sigtrnframe.index)])
+            X_test = pd.concat([bgjetframe.drop(bgtrnframe.index),sigjetframe.drop(sigtrnframe.index)])
             X_train = pd.concat([bgtrnframe,sigtrnframe])
-            passnum = 0.15
+            passnum = 0.9
+            
+        if POSTWEIGHT:
             for plot in plots:
-                plots[plot].title = 'Post-Weighted Training'  
+                plots[plot].title = 'Post-Weighted Training'
+        else:
+            for plot in plots:
+                plots[plot].title = 'Weighted Training'  
                 
         Y_test = X_test['val']
         #X_test = X_test.drop('val',axis=1)
@@ -646,12 +649,8 @@ def ana(sigfiles,bgfiles,isLHE=False):
             X_test = scaler.transform(X_test)
     
         if LOADMODEL:
-            if POSTMODEL:
-                prefix = 'postweighted'
-            else:
-                prefix = 'weighted'
-            model = keras.models.load_model(prefix+'.hdf5', compile=False) 
-            scaler = pickle.load( open( prefix+"scaler.p", "rb" ) )
+            model = keras.models.load_model('weighted.hdf5', compile=False) 
+            scaler = pickle.load( open("weightedscaler.p", "rb" ) )
             ##
             #print(scaler.transform(bgpieces[1].drop('val',axis=1)))
             ##
