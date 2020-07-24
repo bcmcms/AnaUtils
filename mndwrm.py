@@ -785,12 +785,12 @@ def ana(sigfiles,bgfiles,isLHE=False):
         pplots['B'+col].title = 'For BG rated above '+str(passnum)
         pplots['B'+col].plot(same=True)
         
-        if POSTWEIGHT:
-            model.save('postweighted.hdf5')
-            pickle.dump(scaler, open("postweightedscaler.p", "wb"))
-        else:
-            model.save('weighted.hdf5')
-            pickle.dump(scaler, open("weightedscaler.p", "wb"))
+        #if POSTWEIGHT:
+            #model.save('postweighted.hdf5')
+            #pickle.dump(scaler, open("postweightedscaler.p", "wb"))
+        #else:
+        model.save('weighted.hdf5')
+        pickle.dump(scaler, open("weightedscaler.p", "wb"))
         #pickle.dump(sigjetframe, open("sigj.p","wb"))
     
         
