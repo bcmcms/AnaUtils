@@ -39,8 +39,6 @@ epochs = 50
 ##The weights LHE segment split data should be merged by
 lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401]
 nlhe = len(lheweights)
-##Switches whether the inputs to the neural network for training are weighted appropriately
-TRWEIGHT = True
 ##Controls whether a network is trained up or loaded from disc
 LOADMODEL = False
 ##Switches tutoring mode on or off
@@ -263,7 +261,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
 #        plots[plot].title = files[0]
             
 
-    if LOADMODEL or TRWEIGHT:
+    if LOADMODEL or POSTWEIGHT:
         if isLHE:
             for key in lheplots:
                 lheplots[key].fname = 'S'+lheplots[key].fname
@@ -572,13 +570,13 @@ def ana(sigfiles,bgfiles,isLHE=False):
             bgrawframe = pd.concat(bgpieces,ignore_index=True)
             bgjetframe = bgjetframe.dropna()
             bgrawframe = bgrawframe.dropna()
-            if TRWEIGHT:
+            #if TRWEIGHT:
                 #bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
-                bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
-            else:
-                bgtestframe = bgjetframe[bgjetframe['event']%2 == 0]
-                #bgtestframe = bgjetframe.sample(frac=0.3,random_state=6)
-                bgtrnframe = bgrawframe.drop(bgtestframe.index)
+            bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
+            #else:
+            #    bgtestframe = bgjetframe[bgjetframe['event']%2 == 0]
+            #    #bgtestframe = bgjetframe.sample(frac=0.3,random_state=6)
+            #    bgtrnframe = bgrawframe.drop(bgtestframe.index)
         else:
             for prop in netvars + extvars:
                 bgjetframe[prop] = bgjets[prop][bgjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
@@ -607,10 +605,10 @@ def ana(sigfiles,bgfiles,isLHE=False):
         
         
         print('Signal cut to ',sigjetframe.shape[0], ' events')
-        if not TRWEIGHT and isLHE:
-            print('Background has ',bgtrnframe.shape[0]+bgrawframe.shape[0],' events')
-        else:
-            print('Background has ',bgjetframe.shape[0],' events')
+        #if not TRWEIGHT and isLHE:
+            #print('Background has ',bgtrnframe.shape[0]+bgrawframe.shape[0],' events')
+        #else:
+        print('Background has ',bgjetframe.shape[0],' events')
             
         extvars = extvars + ['val']
         #######################
@@ -621,7 +619,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
             tutor(bgjetframe,sigjetframe)
             sys.exit()
             
-        if TRWEIGHT or not isLHE:
+        if not isLHE:
             X_test = pd.concat([bgjetframe.drop(bgtrnframe.index), sigjetframe.drop(sigtrnframe.index)],ignore_index=True)
             X_train = pd.concat([bgtrnframe,sigtrnframe],ignore_index=True)
             passnum = 0.6
@@ -632,7 +630,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
             X_train = pd.concat([bgtrnframe,sigtrnframe])
             passnum = 0.15
             for plot in plots:
-                plots[plot].title = 'Un-weighted Training'  
+                plots[plot].title = 'Post-Weighted Training'  
                 
         Y_test = X_test['val']
         #X_test = X_test.drop('val',axis=1)
@@ -648,10 +646,10 @@ def ana(sigfiles,bgfiles,isLHE=False):
             X_test = scaler.transform(X_test)
     
         if LOADMODEL:
-            if TRWEIGHT:
-                prefix = 'weighted'
+            if POSTMODEL:
+                prefix = 'postweighted'
             else:
-                prefix = 'unweighted'
+                prefix = 'weighted'
             model = keras.models.load_model(prefix+'.hdf5', compile=False) 
             scaler = pickle.load( open( prefix+"scaler.p", "rb" ) )
             ##
@@ -711,8 +709,8 @@ def ana(sigfiles,bgfiles,isLHE=False):
         for col in netvars:
             vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col])
             vplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col])
-            if not TRWEIGHT and isLHE:
-                vplots['RW'+col].fill(bgrawframe[col])
+            #if not TRWEIGHT and isLHE:
+                #vplots['RW'+col].fill(bgrawframe[col])
 
             pplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col])
             pplots['SPS'+col].fill(sigjetframe[diststt > passnum].reset_index(drop=True)[col])
@@ -730,7 +728,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
             plt.ylabel('True Positive Rate')
             plt.legend(['y=x','Validation','Training'])
             plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
-            if TRWEIGHT:
+            if POSTWEIGHT:
                 plt.savefig('Snetplots/ROC_'+str(fnum))
             else:
                 plt.savefig('netplots/ROC_'+str(fnum))
@@ -769,10 +767,10 @@ def ana(sigfiles,bgfiles,isLHE=False):
         vplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
         vplots['RW'+col].make(color='black',linestyle='--',htype='step')
         vplots['BG'+col].make(color='blue' ,linestyle=':',htype='step')
-        if TRWEIGHT:
-            vplots[col].title = 'With weighted network training'
+        if POSTWEIGHT:
+            vplots[col].title = 'With post-weighted network training'
         else:
-            vplots[col].title = 'With unweighted network training'
+            vplots[col].title = 'With weighted network training'
         vplots[col].plot(same=True)
         plt.clf()
         pplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
@@ -787,12 +785,12 @@ def ana(sigfiles,bgfiles,isLHE=False):
         pplots['B'+col].title = 'For BG rated above '+str(passnum)
         pplots['B'+col].plot(same=True)
         
-        if TRWEIGHT:
+        if POSTWEIGHT:
+            model.save('postweighted.hdf5')
+            pickle.dump(scaler, open("postweightedscaler.p", "wb"))
+        else:
             model.save('weighted.hdf5')
             pickle.dump(scaler, open("weightedscaler.p", "wb"))
-        else:
-            model.save('unweighted.hdf5')
-            pickle.dump(scaler, open("unweightedscaler.p", "wb"))
         #pickle.dump(sigjetframe, open("sigj.p","wb"))
     
         
