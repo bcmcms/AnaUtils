@@ -48,8 +48,8 @@ class Hist(object):
         return s
 
     ## Fills the stored histogram with the supplied values
-    def fill(s,vals):
-        s.hs[0] = s.hs[0] + plt.hist(vals,s.size,s.bounds)[0]
+    def fill(s,vals,weights=None):
+        s.hs[0] = s.hs[0] + plt.hist(vals,s.size,s.bounds,weights=weights)[0]
         return s
 
     ## Fills the stored histogram with values from the supplied dataframe

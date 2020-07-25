@@ -362,7 +362,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
         higgs.pt =  pd.DataFrame(sigevents.array('GenPart_pt' , executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
         
         
-        def loadjets(jets, events):
+        def loadjets(jets, events,wname='empty'):
             jets.eta= pd.DataFrame(events.array('FatJet_eta', executor=executor)).rename(columns=inc)
             jets.phi= pd.DataFrame(events.array('FatJet_phi', executor=executor)).rename(columns=inc)
             jets.pt = pd.DataFrame(events.array('FatJet_pt' , executor=executor)).rename(columns=inc)
@@ -373,19 +373,18 @@ def ana(sigfiles,bgfiles,isLHE=False):
             jets.msoft = pd.DataFrame(events.array('FatJet_msoftdrop', executor=executor)).rename(columns=inc)
             jets.H4qvs = pd.DataFrame(events.array('FatJet_deepTagMD_H4qvsQCD', executor=executor)).rename(columns=inc)
             jets.event = pd.DataFrame(events.array('event', executor=executor)).rename(columns=inc)
+            jets.extweight = jets.event / jets.event
+            if POSTWEIGHT:
+                weights = pickle.load(open('weights/'+wname+'-'+fstrip(DATANAME)+'.p',"rb" ))
+                for prop in ['genweights','PUweights','normweights']:
+                    jets.extweight[0] = jets.extweight[0] * weights[prop][0]
             for j in range(1,jets.pt.shape[1]):
                 jets.event[j+1] = jets.event[1]
+                if POSTWEIGHT:
+                    jets.extweight[j+1] = jets.extweight[1]
             return jets
                 
-        sigjets = loadjets(PhysObj('sigjets'),sigevents)
-        if POSTWEIGHT:
-            sigweights = pickle.load(open('weights/'+fstrip(sigfiles[fnum])+'-'+fstrip(DATANAME)+'.p',"rb" ))
-            wtvars = ['genweights','PUweights','normweights']
-            for prop in wtvars:
-                sigjets[prop] = sigweights[prop]
-        else:
-            wtvars = []
-            
+        sigjets = loadjets(PhysObj('sigjets'),sigevents,fstrip(sigfiles[fnum]))
             
         slimjets = PhysObj('slimjets')
         slimjets.eta= pd.DataFrame(sigevents.array('Jet_eta', executor=executor)).rename(columns=inc)
@@ -403,14 +402,9 @@ def ana(sigfiles,bgfiles,isLHE=False):
         if isLHE:
             bgjets = [PhysObj('300'),PhysObj('500'),PhysObj('700'),PhysObj('1000'),PhysObj('1500'),PhysObj('2000'),PhysObj('inf')]
             for i in range(nlhe):
-                bgjets[i] = loadjets(bgjets[i],bgevents[i])
-                if POSTWEIGHT:
-                    bgweights = pickle.load(open('weights/'+fstrip(bgfiles[(fnum*nlhe)+i])+'-'+fstrip(DATANAME)+'.p',"rb" ))
-                    for prop in wtvars:
-                        bgjets[i][prop] = bgweights[i][prop]
-                    
+                bgjets[i] = loadjets(bgjets[i],bgevents[i],fstrip(bgfiles[(fnum*nlhe)+i]))                    
         else:
-            bgjets = loadjets(PhysObj('bgjets'),bgevents)
+            bgjets = loadjets(PhysObj('bgjets'),bgevents,fstrip(bgfiles[fnum]))
 
         print('Processing ' + str(len(bs.oeta)) + ' events')
 
@@ -540,7 +534,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
         # Preparing Neural Net Variables #
         ##################################
         bgjetframe = pd.DataFrame()
-        extvars = ['event']+wtvars
+        extvars = ['event','extweight']
         
         if isLHE:
             bgpieces = []
@@ -631,6 +625,8 @@ def ana(sigfiles,bgfiles,isLHE=False):
         if POSTWEIGHT:
             for plot in plots:
                 plots[plot].title = 'Post-Weighted Training'
+                W_test = X_test['extweight']
+                W_train = X_train['extweight']
         else:
             for plot in plots:
                 plots[plot].title = 'Weighted Training'  
@@ -640,7 +636,6 @@ def ana(sigfiles,bgfiles,isLHE=False):
         Y_train= X_train['val']
         #X_train = X_train.drop('val',axis=1)
         
-
         X_test = X_test.drop(extvars,axis=1)
         X_train = X_train.drop(extvars,axis=1)
 
@@ -679,7 +674,10 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 piece = piece.reset_index(drop=True)
                 piece = scaler.transform(piece)
                 lhedist = model.predict(piece)
-                lheplots['dist'+str(i)].fill(lhedist)
+                if POSTWEIGHT:
+                    lheplots['dist'+str(i)].fill(lhedist,piece['extweight'])
+                else:
+                    lheplots['dist'+str(i)].fill(lhedist)
                 
         if not LOADMODEL:
             hist = pd.DataFrame(history.history)
@@ -698,25 +696,39 @@ def ana(sigfiles,bgfiles,isLHE=False):
             plots['LossvEpoch'].plot()
             plots['AccvEpoch'].plot()
                 
-        
-        plots['DistStr'].fill(diststr)
-        plots['DistSte'].fill(distste)
-        plots['DistBtr'].fill(distbtr)
-        plots['DistBte'].fill(distbte)
-        plt.clf()
-        
+        if POSTWEIGHT:
+            plots['DistStr'].fill(diststr,W_train)
+            plots['DistSte'].fill(distste,W_test)
+            plots['DistBtr'].fill(distbtr,W_train)
+            plots['DistBte'].fill(distbte,W_test)
+            plt.clf()
+        else:
+            plots['DistStr'].fill(diststr)
+            plots['DistSte'].fill(distste)
+            plots['DistBtr'].fill(distbtr)
+            plots['DistBte'].fill(distbte)
+            plt.clf()
         for col in netvars:
-            vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col])
-            vplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col])
-            #if not TRWEIGHT and isLHE:
-                #vplots['RW'+col].fill(bgrawframe[col])
+            if POSTWEIGHT:
+                vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
+                vplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
 
-            pplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col])
-            pplots['SPS'+col].fill(sigjetframe[diststt > passnum].reset_index(drop=True)[col])
-            pplots['SFL'+col].fill(sigjetframe[diststt <= passnum].reset_index(drop=True)[col])
-            pplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col])
-            pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col])
-            pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col])
+                pplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
+                pplots['SPS'+col].fill(sigjetframe[diststt > passnum].reset_index(drop=True)[col],sigjetframe[diststt > passnum].reset_index(drop=True)['extweight'])
+                pplots['SFL'+col].fill(sigjetframe[diststt <= passnum].reset_index(drop=True)[col],sigjetframe[diststt <= passnum].reset_index(drop=True)['extweight'])
+                pplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
+                pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col],bgjetframe[distbtt > passnum].reset_index(drop=True)['extweight'])
+                pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col],bgjetframe[distbtt <= passnum].reset_index(drop=True)['extweight'])
+            else:
+                vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col])
+                vplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col])
+                
+                pplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col])
+                pplots['SPS'+col].fill(sigjetframe[diststt > passnum].reset_index(drop=True)[col])
+                pplots['SFL'+col].fill(sigjetframe[diststt <= passnum].reset_index(drop=True)[col])
+                pplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col])
+                pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col])
+                pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col])
 
         if not LOADMODEL:
             plt.clf()
@@ -731,7 +743,6 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 plt.savefig('Snetplots/ROC_'+str(fnum))
             else:
                 plt.savefig('netplots/ROC_'+str(fnum))
-        
 
     for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
         #p.norm(sum(p[0]))
