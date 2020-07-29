@@ -207,6 +207,14 @@ def ana(sigfiles,bgfiles,isLHE=False):
         "LossvEpoch":   Hist(epochs,(0.5,epochs+.5),'Epoch Number','Loss','netplots/LossvEpoch'),
         "AccvEpoch":Hist(epochs,(0.5,epochs+.5),'Epoch Number','Accuracy','netplots/AccvEpoch'),
     }
+    if POSTWEIGHT:
+        plots.update({
+                "WeightStr":Hist(40,(0,5)),
+                "WeightSte":Hist(40,(0,5)),
+                "WeightBtr":Hist(40,(0,5)),
+                "WeightBte":Hist(40,(0,5)),
+                "Weights": Hist(40,(0,5),'Signal (Red) and Background (Blue) testing (..) and training postweight values','# of weights','netplots/Weights')})
+    
     pplots = {
         "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet in all (red), passing (blue), and failing (black) events','% Distribution','netplots/ppt'),
         "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet in all (red), passing (blue), and failing (black) events','% Distribution','netplots/peta'),
@@ -377,7 +385,8 @@ def ana(sigfiles,bgfiles,isLHE=False):
             if POSTWEIGHT:
                 weights = pickle.load(open('weights/'+wname+'-'+fstrip(DATANAME)+'.p',"rb" ))
                 for prop in ['genweights','PUweights','normweights']:
-                    jets.extweight[0] = jets.extweight[0] * weights[prop][0]
+                    #print('jets.extweight[1]')#,jets.extweight[1])    
+                    jets.extweight[1] = jets.extweight[1] * weights[prop][1]
             for j in range(1,jets.pt.shape[1]):
                 jets.event[j+1] = jets.event[1]
                 if POSTWEIGHT:
@@ -655,12 +664,16 @@ def ana(sigfiles,bgfiles,isLHE=False):
             history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=VERBOSE)
 
             
-        if not LOADMODEL:
-            rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
-            trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
-            test_loss, test_acc = model.evaluate(X_test, Y_test)
-            print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
+        #if not LOADMODEL:
+        rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
+        trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
+        test_loss, test_acc = model.evaluate(X_test, Y_test)
+        print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
     
+        ##################################
+        # Analyzing and Plotting Outputs #
+        ##################################
+        
         diststr = model.predict(X_train[Y_train==1])
         distste = model.predict(X_test[Y_test==1])
         distbtr = model.predict(X_train[Y_train==0])
@@ -675,7 +688,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 piece = scaler.transform(piece)
                 lhedist = model.predict(piece)
                 if POSTWEIGHT:
-                    lheplots['dist'+str(i)].fill(lhedist,piece['extweight'])
+                    lheplots['dist'+str(i)].fill(lhedist,bgpieces[i]['extweight'])
                 else:
                     lheplots['dist'+str(i)].fill(lhedist)
                 
@@ -697,17 +710,23 @@ def ana(sigfiles,bgfiles,isLHE=False):
             plots['AccvEpoch'].plot()
                 
         if POSTWEIGHT:
-            plots['DistStr'].fill(diststr,W_train)
-            plots['DistSte'].fill(distste,W_test)
-            plots['DistBtr'].fill(distbtr,W_train)
-            plots['DistBte'].fill(distbte,W_test)
+            plots['DistStr'].fill(diststr,W_train[Y_train==1])
+            plots['DistSte'].fill(distste,W_test[Y_test==1])
+            plots['DistBtr'].fill(distbtr,W_train[Y_train==0])
+            plots['DistBte'].fill(distbte,W_test[Y_test==0])
+            plots['WeightStr'].fill(W_train[Y_train==1])
+            plots['WeightSte'].fill(W_test[Y_test==1])
+            plots['WeightBtr'].fill(W_train[Y_train==0])
+            plots['WeightBte'].fill(W_test[Y_test==0])
             plt.clf()
+            
         else:
             plots['DistStr'].fill(diststr)
             plots['DistSte'].fill(distste)
             plots['DistBtr'].fill(distbtr)
             plots['DistBte'].fill(distbte)
             plt.clf()
+            
         for col in netvars:
             if POSTWEIGHT:
                 vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
@@ -744,7 +763,8 @@ def ana(sigfiles,bgfiles,isLHE=False):
             else:
                 plt.savefig('netplots/ROC_'+str(fnum))
 
-    for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
+    for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte'],
+              plots['WeightStr'],plots['WeightSte'],plots['WeightBtr'],plots['WeightBte']]:
         #p.norm(sum(p[0]))
         p[0] = p[0]/sum(p[0])    
     plt.clf()
@@ -761,6 +781,14 @@ def ana(sigfiles,bgfiles,isLHE=False):
     plots['DistBte'].make(color='blue',linestyle=':',htype='step',logv=True)
     plots['DistributionL'].plot(same=True,logv=True)
     
+    if POSTWEIGHT:
+        plt.clf()
+        plots['WeightStr'].make(color='red',linestyle='-',htype='step')
+        plots['WeightBtr'].make(color='blue',linestyle='-',htype='step')
+        plots['WeightSte'].make(color='red',linestyle=':',htype='step')
+        plots['WeightBte'].make(color='blue',linestyle=':',htype='step')
+        plots['Weights'].plot(same=True)
+        
     for col in netvars:
         for plot in vplots:
             vplots[plot][0] = vplots[plot][0]/(sum(abs(vplots[plot][0])))
@@ -769,7 +797,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
 
     if isLHE:
         for i in range(nlhe):
-            lheplots['dist'+str(i)][0][0] = sum(lheplots['dist'+str(i)][0])#lheplots['dist'+str(i)][0]/sum(lheplots['dist'+str(i)][0])
+            lheplots['dist'+str(i)][0] = lheplots['dist'+str(i)][0]/sum(lheplots['dist'+str(i)][0])
             lheplots['dist'+str(i)].plot(htype='step')#,logv=True)
             
     for col in netvars:
@@ -795,13 +823,13 @@ def ana(sigfiles,bgfiles,isLHE=False):
         pplots['B'+col].title = 'For BG rated above '+str(passnum)
         pplots['B'+col].plot(same=True)
         
-        #if POSTWEIGHT:
-            #model.save('postweighted.hdf5')
-            #pickle.dump(scaler, open("postweightedscaler.p", "wb"))
-        #else:
-        model.save('weighted.hdf5')
-        pickle.dump(scaler, open("weightedscaler.p", "wb"))
-        #pickle.dump(sigjetframe, open("sigj.p","wb"))
+    #if POSTWEIGHT:
+    #model.save('postweighted.hdf5')
+    #pickle.dump(scaler, open("postweightedscaler.p", "wb"))
+    #else:
+    model.save('weighted.hdf5')
+    pickle.dump(scaler, open("weightedscaler.p", "wb"))
+    #pickle.dump(sigjetframe, open("sigj.p","wb"))
     
         
     #%%

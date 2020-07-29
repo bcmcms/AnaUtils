@@ -51,16 +51,20 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
                     bgevents.append(uproot.open(LHEBGfiles[i]).get('Events'))
                 dataevents = uproot.open(dfile).get('Events')
             
-            sigPU = Hist(200,(-0.5,199.5))
-            dataPU= Hist(200,(-0.5,199.5))
+            sigPU = Hist(200,(-0.5,199.5),fname='weightplots/sigPU')
+            dataPU= Hist(200,(-0.5,199.5),fname='weightplots/dataPU')
                 
             sigPU.dfill( pd.DataFrame(sigevents.array( 'PV_npvs')))
             dataPU.dfill(pd.DataFrame(dataevents.array('PV_npvs')))
             
+            sigPU[0] = sigPU[0] / sum(sigPU[0])
+            dataPU[0] = dataPU[0] / sum(dataPU[0])
+            
             bgPU = []
             for i in range(nlhe):
-                bgPU.append(Hist(200,(-0.5,199.5)))
+                bgPU.append(Hist(200,(-0.5,199.5),fname='weightplots/bgPU_'+str(i)))
                 bgPU[i].dfill(pd.DataFrame(bgevents[i].array('PV_npvs')))
+                bgPU[i][0] = bgPU[i][0] / sum(bgPU[i][0])
                 
             sigweights = {
                     'genweights': pd.DataFrame(sigevents.array('Generator_weight')).rename(columns=inc),
@@ -71,12 +75,17 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
                     }
             sigweights.update({'PUweights': pd.DataFrame(np.array(sigweights['PUhist'][0])[sigevents.array('PV_npvs')]).rename(columns=inc)})
             sigweights.update({'normweights': sigweights['floatNorm']*(sigweights['genweights']/sigweights['genweights'])})
+            tPU = sigweights['PUhist']
+            tPU.fname = "weightplots/sig\dataPU_"+str(i)
+            tPU.plot()
+            sigPU.plot()
+            
             bgweights = []
             for i in range(nlhe):
                 bgweights.append({
                         'genweights': pd.DataFrame(bgevents[i].array('Generator_weight')).rename(columns=inc),
                         # data events / (bg events * bg lhe weight)
-                        'floatNorm': dataevents.array('Jet_eta').shape[0]/(bgevents[i].array('Jet_eta').shape[0]*bgfracs[i]),
+                        'floatNorm': dataevents.array('Jet_eta').shape[0]/(dataevents.array('Jet_eta').shape[0]),#*bgfracs[i]),
                         'PUhist': dataPU.divideby(bgPU[i],split=True),   
                         'events': pd.DataFrame(bgevents[i].array('event')).rename(columns=inc)
                         })
@@ -84,7 +93,11 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
                 bgweights[i].update({'normweights': bgweights[i]['floatNorm']*(bgweights[i]['genweights']/bgweights[i]['genweights'])})
                 bgname = 'weights/'+fstrip(LHEBGfiles[i])+"-"+fstrip(dfile)+".p"
                 print('Writing to',bgname)
-                pickle.dump(bgweights,open(bgname, "wb"))
+                pickle.dump(bgweights[i],open(bgname, "wb"))
+                tPU = bgweights[i]['PUhist']
+                tPU.fname = "weightplots/bg\dataPU_"+str(i)
+                tPU.plot()
+                bgPU[i].plot()
             sgname = 'weights/'+fstrip(sfile)+"-"+fstrip(dfile)+".p"
             print('Writing to',sgname)
             pickle.dump(sigweights,open(sgname, "wb"))
@@ -134,6 +147,8 @@ def main():
                         i = j
         if (len(sigfiles) and len(bgfiles) and len(datafiles)):        
             getweights(sigfiles,bgfiles,datafiles)
+        else:
+            dialogue()
 
     else:
         dialogue()
