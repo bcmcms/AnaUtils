@@ -111,7 +111,7 @@ def tutor(bgjetframe,sigjetframe):
                             #tf.compat.v1.set_random_seed(2)
                             np.random.seed(2)
                             model = keras.Sequential([
-                                    keras.Input(shape=(7,),dtype='float32'),
+                                    keras.Input(shape=(8,),dtype='float32'),
                                     #keras.layers.Flatten(input_shape=(8,)),
                                     keras.layers.Dense(l1, activation=tf.nn.relu),
                                     keras.layers.Dense(l2, activation=tf.nn.relu),
@@ -153,7 +153,11 @@ def tutor(bgjetframe,sigjetframe):
 
 #%%
 
-def ana(sigfiles,bgfiles,isLHE=False):
+def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
+    ## The dataflag controls which file list if any has been replaced by data
+    if dataflag is not False:
+        LOADMODEL = True
+    
     #%%################
     # Plots and Setup #
     ###################
@@ -198,8 +202,8 @@ def ana(sigfiles,bgfiles,isLHE=False):
     Aid = 36
     ## Make a dictionary of histogram objects
     plots = {
-        "Distribution": Hist(50,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','% of Events','netplots/Distribution'),
-        "DistributionL": Hist(50,(0,1),'Signal (Red) and Background (Blue) testing (..) and training samples','% of Events','netplots/LogDistribution'),
+        "Distribution": Hist(50,(0,1),'signal (Red) and background (Blue) testing (..) and training samples','% of Events','netplots/Distribution'),
+        "DistributionL": Hist(50,(0,1),'signal (Red) and background (Blue) testing (..) and training samples','% of Events','netplots/LogDistribution'),
         "DistStr":  Hist(50,(0,1)),
         "DistSte":  Hist(50,(0,1)),
         "DistBtr":  Hist(50,(0,1)),
@@ -213,7 +217,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 "WeightSte":Hist(40,(0,5)),
                 "WeightBtr":Hist(40,(0,5)),
                 "WeightBte":Hist(40,(0,5)),
-                "Weights": Hist(40,(0,5),'Signal (Red) and Background (Blue) testing (..) and training postweight values','# of weights','netplots/Weights')})
+                "Weights": Hist(40,(0,5),'signal (Red) and background (Blue) testing (..) and training postweight values','# of weights','netplots/Weights')})
     
     pplots = {
         "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet in all (red), passing (blue), and failing (black) events','% Distribution','netplots/ppt'),
@@ -259,6 +263,23 @@ def ana(sigfiles,bgfiles,isLHE=False):
             tdict.update({fix+plot:Hist(size,bounds)})
     vplots.update(tdict)
     del tdict
+    
+    if (dataflag * dataflag):
+        if dataflag:
+            cutword = 'signal'
+        else:
+            cutword = 'background'
+        def dataswap(plots):
+            for key in plots:
+                label = plots[key].xlabel.split(cutword)
+                for i in range(1,len(label)):
+                    label.insert(2*i-1,'data')
+                plots[key].xlabel = ''.join(label)
+            return plots
+        pplots = dataswap(pplots)
+        vplots = dataswap(vplots)
+        plots  = dataswap(plots )
+                
     
     if isLHE:
         lheplots = {}
@@ -333,44 +354,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
         sigf = uproot.open(sigfiles[fnum])
         sigevents = sigf.get('Events')
         
-
-
-        pdgida  = sigevents.array('GenPart_pdgId')
-        paridxa = sigevents.array('GenPart_genPartIdxMother')
-        parida  = pdgida[paridxa] 
-
-        bs = PhysObj('bs')
-
-        ## Removes all particles that do not have A parents 
-        ## from the GenPart arrays, then removes all particles 
-        ## that are not bs after resizing the pdgid array to be a valid mask
-        
-        bs.oeta = pd.DataFrame(sigevents.array('GenPart_eta')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
-        bs.ophi = pd.DataFrame(sigevents.array('GenPart_phi')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
-        bs.opt  = pd.DataFrame(sigevents.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
-        
-        ## Test b order corresponds to As
-        testbs = pd.DataFrame(sigevents.array('GenPart_genPartIdxMother')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
-        ## The first term checks b4 has greater idx than b1, the last two check that the bs are paired
-        if ((testbs[4]-testbs[1]).min() <= 0) or ((abs(testbs[2]-testbs[1]) + abs(testbs[4])-testbs[3]).min() != 0):
-            print('b to A ordering violated - time to do it the hard way')
-            sys.exit()
-        
-        As = PhysObj('As')
-        
-        As.oeta = pd.DataFrame(sigevents.array('GenPart_eta', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
-        As.ophi = pd.DataFrame(sigevents.array('GenPart_phi', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
-        As.opt =  pd.DataFrame(sigevents.array('GenPart_pt' , executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
-        As.omass =pd.DataFrame(sigevents.array('GenPart_mass', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
-        
-        higgs = PhysObj('higgs')
-        
-        higgs.eta = pd.DataFrame(sigevents.array('GenPart_eta', executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
-        higgs.phi = pd.DataFrame(sigevents.array('GenPart_phi', executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
-        higgs.pt =  pd.DataFrame(sigevents.array('GenPart_pt' , executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
-        
-        
-        def loadjets(jets, events,wname='empty'):
+        def loadjets(jets, events,wname=''):
             jets.eta= pd.DataFrame(events.array('FatJet_eta', executor=executor)).rename(columns=inc)
             jets.phi= pd.DataFrame(events.array('FatJet_phi', executor=executor)).rename(columns=inc)
             jets.pt = pd.DataFrame(events.array('FatJet_pt' , executor=executor)).rename(columns=inc)
@@ -382,85 +366,128 @@ def ana(sigfiles,bgfiles,isLHE=False):
             jets.H4qvs = pd.DataFrame(events.array('FatJet_deepTagMD_H4qvsQCD', executor=executor)).rename(columns=inc)
             jets.event = pd.DataFrame(events.array('event', executor=executor)).rename(columns=inc)
             jets.extweight = jets.event / jets.event
-            if POSTWEIGHT:
+            if POSTWEIGHT and wname is not '':
                 weights = pickle.load(open('weights/'+wname+'-'+fstrip(DATANAME)+'.p',"rb" ))
                 for prop in ['genweights','PUweights','normweights']:
                     #print('jets.extweight[1]')#,jets.extweight[1])    
                     jets.extweight[1] = jets.extweight[1] * weights[prop][1]
+            else:
+                jets.extweight = jets.event / jets.event
             for j in range(1,jets.pt.shape[1]):
                 jets.event[j+1] = jets.event[1]
                 if POSTWEIGHT:
                     jets.extweight[j+1] = jets.extweight[1]
             return jets
                 
-        sigjets = loadjets(PhysObj('sigjets'),sigevents,fstrip(sigfiles[fnum]))
-            
-        slimjets = PhysObj('slimjets')
-        slimjets.eta= pd.DataFrame(sigevents.array('Jet_eta', executor=executor)).rename(columns=inc)
-        slimjets.phi= pd.DataFrame(sigevents.array('Jet_phi', executor=executor)).rename(columns=inc)
-        slimjets.pt = pd.DataFrame(sigevents.array('Jet_pt' , executor=executor)).rename(columns=inc)
-        slimjets.mass=pd.DataFrame(sigevents.array('Jet_mass', executor=executor)).rename(columns=inc)
-        #sigjets.CSVV2 = pd.DataFrame(sigevents.array('FatJet_btagCSVV2')).rename(columns=inc)
-        slimjets.DeepB = pd.DataFrame(sigevents.array('Jet_btagDeepB', executor=executor)).rename(columns=inc)
-        #sigjets.DDBvL = pd.DataFrame(sigevents.array('FatJet_btagDDBvL')).rename(columns=inc)
-        #sigjets.msoft = pd.DataFrame(sigevents.array('FatJet_msoftdrop')).rename(columns=inc)
-        slimjets.DeepFB= pd.DataFrame(sigevents.array('Jet_btagDeepFlavB', executor=executor)).rename(columns=inc)
-        slimjets.puid = pd.DataFrame(sigevents.array('Jet_puId', executor=executor)).rename(columns=inc)
-        
+        if dataflag:
+            sigjets = loadjets(PhysObj('sigjets'),sigevents)
+        else:
+            sigjets = loadjets(PhysObj('sigjets'),sigevents,fstrip(sigfiles[fnum]))
         
         if isLHE:
             bgjets = [PhysObj('300'),PhysObj('500'),PhysObj('700'),PhysObj('1000'),PhysObj('1500'),PhysObj('2000'),PhysObj('inf')]
             for i in range(nlhe):
                 bgjets[i] = loadjets(bgjets[i],bgevents[i],fstrip(bgfiles[(fnum*nlhe)+i]))                    
         else:
-            bgjets = loadjets(PhysObj('bgjets'),bgevents,fstrip(bgfiles[fnum]))
+            if dataflag is -1:
+                bgjets = loadjets(PhysObj('bgjets'),bgevents)
+            else:
+                bgjets = loadjets(PhysObj('bgjets'),bgevents,fstrip(bgfiles[fnum]))
 
-        print('Processing ' + str(len(bs.oeta)) + ' events')
+        print('Processing ' + str(len(sigjets.eta)) + 'signal events')
+        
+        if not dataflag:
+            pdgida  = sigevents.array('GenPart_pdgId')
+            paridxa = sigevents.array('GenPart_genPartIdxMother')
+            parida  = pdgida[paridxa] 
+            
+            bs = PhysObj('bs')
+            
+            ## Removes all particles that do not have A parents 
+            ## from the GenPart arrays, then removes all particles 
+            ## that are not bs after resizing the pdgid array to be a valid mask
+            
+            bs.oeta = pd.DataFrame(sigevents.array('GenPart_eta')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+            bs.ophi = pd.DataFrame(sigevents.array('GenPart_phi')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+            bs.opt  = pd.DataFrame(sigevents.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+            
+            ## Test b order corresponds to As
+            testbs = pd.DataFrame(sigevents.array('GenPart_genPartIdxMother')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+            ## The first term checks b4 has greater idx than b1, the last two check that the bs are paired
+            if ((testbs[4]-testbs[1]).min() <= 0) or ((abs(testbs[2]-testbs[1]) + abs(testbs[4])-testbs[3]).min() != 0):
+                print('b to A ordering violated - time to do it the hard way')
+                sys.exit()
+        
+            As = PhysObj('As')    
+            As.oeta = pd.DataFrame(sigevents.array('GenPart_eta', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+            As.ophi = pd.DataFrame(sigevents.array('GenPart_phi', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+            As.opt =  pd.DataFrame(sigevents.array('GenPart_pt' , executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+            As.omass =pd.DataFrame(sigevents.array('GenPart_mass', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+            
+            higgs = PhysObj('higgs')    
+            higgs.eta = pd.DataFrame(sigevents.array('GenPart_eta', executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
+            higgs.phi = pd.DataFrame(sigevents.array('GenPart_phi', executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
+            higgs.pt =  pd.DataFrame(sigevents.array('GenPart_pt' , executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
+            
+            slimjets = PhysObj('slimjets')
+            slimjets.eta= pd.DataFrame(sigevents.array('Jet_eta', executor=executor)).rename(columns=inc)
+            slimjets.phi= pd.DataFrame(sigevents.array('Jet_phi', executor=executor)).rename(columns=inc)
+            slimjets.pt = pd.DataFrame(sigevents.array('Jet_pt' , executor=executor)).rename(columns=inc)
+            slimjets.mass=pd.DataFrame(sigevents.array('Jet_mass', executor=executor)).rename(columns=inc)
+            #sigjets.CSVV2 = pd.DataFrame(sigevents.array('FatJet_btagCSVV2')).rename(columns=inc)
+            slimjets.DeepB = pd.DataFrame(sigevents.array('Jet_btagDeepB', executor=executor)).rename(columns=inc)
+            #sigjets.DDBvL = pd.DataFrame(sigevents.array('FatJet_btagDDBvL')).rename(columns=inc)
+            #sigjets.msoft = pd.DataFrame(sigevents.array('FatJet_msoftdrop')).rename(columns=inc)
+            slimjets.DeepFB= pd.DataFrame(sigevents.array('Jet_btagDeepFlavB', executor=executor)).rename(columns=inc)
+            slimjets.puid = pd.DataFrame(sigevents.array('Jet_puId', executor=executor)).rename(columns=inc)
+        
 
-        ## Figure out how many bs and jets there are
-        nb = bs.oeta.shape[1]
-        njet= sigjets.eta.shape[1]
-        #nsjet=slimjets.eta.shape[1]
-        na = As.oeta.shape[1]
-        if na != 2:
-            print("More than two As per event, found "+str(na)+", halting")
-            sys.exit()
+            ## Figure out how many bs and jets there are
+            nb = bs.oeta.shape[1]
+            njet= sigjets.eta.shape[1]
+            #nsjet=slimjets.eta.shape[1]
+            na = As.oeta.shape[1]
+            if na != 2:
+                print("More than two As per event, found "+str(na)+", halting")
+                sys.exit()
             
-        ## Create sorted versions of A values by pt
-        for prop in ['eta','phi','pt','mass']:
-            As[prop] = pd.DataFrame()
-            for i in range(1,3):
-                As[prop][i] = As['o'+prop][As.opt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
-            ## Clean up original ordered dataframes; we don't really need them
-            #del As['o'+prop]
+            ## Create sorted versions of A values by pt
+            for prop in ['eta','phi','pt','mass']:
+                As[prop] = pd.DataFrame()
+                for i in range(1,3):
+                    As[prop][i] = As['o'+prop][As.opt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+                ## Clean up original ordered dataframes; we don't really need them
+                #del As['o'+prop]
             
-        ## Reorder out b dataframes to match sorted A parents
-        tframe = pd.DataFrame()
-        tframe[1] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[1]
-        tframe[2] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[1]
-        tframe[3] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[2]
-        tframe[4] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[2]
-        for prop in ['eta','phi','pt']:
-            bs[prop] = pd.DataFrame()
-            bs[prop][1] = bs['o'+prop][tframe][1].dropna().append(bs['o'+prop][tframe][3].dropna()).sort_index()
-            bs[prop][2] = bs['o'+prop][tframe][2].dropna().append(bs['o'+prop][tframe][4].dropna()).sort_index()
-            bs[prop][3] = bs['o'+prop][~tframe][1].dropna().append(bs['o'+prop][~tframe][3].dropna()).sort_index()
-            bs[prop][4] = bs['o'+prop][~tframe][2].dropna().append(bs['o'+prop][~tframe][4].dropna()).sort_index()
-            ## Clean up original ordered dataframes; we don't really need them.
-            #del bs['o'+prop]
+            ## Reorder out b dataframes to match sorted A parents
+            tframe = pd.DataFrame()
+            tframe[1] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[1]
+            tframe[2] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[1]
+            tframe[3] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[2]
+            tframe[4] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[2]
+            for prop in ['eta','phi','pt']:
+                bs[prop] = pd.DataFrame()
+                bs[prop][1] = bs['o'+prop][tframe][1].dropna().append(bs['o'+prop][tframe][3].dropna()).sort_index()
+                bs[prop][2] = bs['o'+prop][tframe][2].dropna().append(bs['o'+prop][tframe][4].dropna()).sort_index()
+                bs[prop][3] = bs['o'+prop][~tframe][1].dropna().append(bs['o'+prop][~tframe][3].dropna()).sort_index()
+                bs[prop][4] = bs['o'+prop][~tframe][2].dropna().append(bs['o'+prop][~tframe][4].dropna()).sort_index()
+                ## Clean up original ordered dataframes; we don't really need them.
+                #del bs['o'+prop]
             
-#        ## Sort our b dataframes in descending order of pt
-#        for prop in ['spt','seta','sphi']:
-#            bs[prop] = pd.DataFrame()
-#        #bs.spt, bs.seta, bs.sphi = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-#            for i in range(1,nb+1):
-#                bs[prop][i] = bs[prop[1:]][bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
-#            #bs.seta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
-#            #bs.sphi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+#           ## Sort our b dataframes in descending order of pt
+#           for prop in ['spt','seta','sphi']:
+#               bs[prop] = pd.DataFrame()
+#           #bs.spt, bs.seta, bs.sphi = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+#               for i in range(1,nb+1):
+#                   bs[prop][i] = bs[prop[1:]][bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+#               #bs.seta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
+#               #bs.sphi[i] = bs.phi[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
             
-#        plots['genAmass'].dfill(As.mass)
+#           plots['genAmass'].dfill(As.mass)
 
-        ev = Event(bs,sigjets,As,higgs)
+            ev = Event(bs,sigjets,As,higgs)
+        else:
+            ev = Event(sigjets)
         
         if isLHE:
             for jets in bgjets+[sigjets]:
@@ -481,61 +508,63 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 #
                 jets.cut(jets.mass > 90)
 
-        bs.cut(bs.pt>5)
-        bs.cut(abs(bs.eta)<2.4)
-        ev.sync()
+        if not dataflag:
+            bs.cut(bs.pt>5)
+            bs.cut(abs(bs.eta)<2.4)
+            ev.sync()
         
-        slimjets.cut(slimjets.DeepB > 0.1241)
-        slimjets.cut(slimjets.DeepFB > 0.277)
-        slimjets.cut(slimjets.puid > 0)
-        slimjets.trimTo(jets.eta)
+            slimjets.cut(slimjets.DeepB > 0.1241)
+            slimjets.cut(slimjets.DeepFB > 0.277)
+            slimjets.cut(slimjets.puid > 0)
+            slimjets.trimTo(jets.eta)
         
         ##############################
         # Processing and Calculation #
         ##############################
 
-        ## Create our dR dataframe by populating its first column and naming it accordingly
-        jbdr2 = pd.DataFrame(np.power(sigjets.eta[1]-bs.eta[1],2) + np.power(sigjets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
-        sjbdr2= pd.DataFrame(np.power(slimjets.eta[1]-bs.eta[1],2) + np.power(slimjets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
-        ## Loop over jet x b combinations
-        jbstr = []
-        for j in range(1,njet+1):
-            for b in range(1,nb+1):
-                ## Make our column name
-                jbstr.append("Jet "+str(j)+" b "+str(b))
-                if (j+b==2):
-                    continue
-                ## Compute and store the dr of the given b and jet for every event at once
-                jbdr2[jbstr[-1]] = pd.DataFrame(np.power(sigjets.eta[j]-bs.eta[b],2) + np.power(sigjets.phi[j]-bs.phi[b],2))
-                sjbdr2[jbstr[-1]]= pd.DataFrame(np.power(slimjets.eta[j]-bs.eta[b],2) + np.power(slimjets.phi[j]-bs.phi[b],2))
+        if not dataflag:
+            ## Create our dR dataframe by populating its first column and naming it accordingly
+            jbdr2 = pd.DataFrame(np.power(sigjets.eta[1]-bs.eta[1],2) + np.power(sigjets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
+            sjbdr2= pd.DataFrame(np.power(slimjets.eta[1]-bs.eta[1],2) + np.power(slimjets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
+            ## Loop over jet x b combinations
+            jbstr = []
+            for j in range(1,njet+1):
+                for b in range(1,nb+1):
+                    ## Make our column name
+                    jbstr.append("Jet "+str(j)+" b "+str(b))
+                    if (j+b==2):
+                        continue
+                    ## Compute and store the dr of the given b and jet for every event at once
+                    jbdr2[jbstr[-1]] = pd.DataFrame(np.power(sigjets.eta[j]-bs.eta[b],2) + np.power(sigjets.phi[j]-bs.phi[b],2))
+                    sjbdr2[jbstr[-1]]= pd.DataFrame(np.power(slimjets.eta[j]-bs.eta[b],2) + np.power(slimjets.phi[j]-bs.phi[b],2))
         
-        ## Create a copy array to collapse in jets instead of bs
-        blist = []
-        sblist = []
-        for b in range(nb):
-            blist.append(np.sqrt(jbdr2.filter(like='b '+str(b+1))))
-            blist[b] = blist[b][blist[b].rank(axis=1,method='first') == 1]
-            blist[b] = blist[b].rename(columns=lambda x:int(x[4:6]))
-            sblist.append(np.sqrt(sjbdr2.filter(like='b '+str(b+1))))
-            sblist[b] = sblist[b][sblist[b].rank(axis=1,method='first') == 1]
-            sblist[b] = sblist[b].rename(columns=lambda x:int(x[4:6]))
+            ## Create a copy array to collapse in jets instead of bs
+            blist = []
+            sblist = []
+            for b in range(nb):
+                blist.append(np.sqrt(jbdr2.filter(like='b '+str(b+1))))
+                blist[b] = blist[b][blist[b].rank(axis=1,method='first') == 1]
+                blist[b] = blist[b].rename(columns=lambda x:int(x[4:6]))
+                sblist.append(np.sqrt(sjbdr2.filter(like='b '+str(b+1))))
+                sblist[b] = sblist[b][sblist[b].rank(axis=1,method='first') == 1]
+                sblist[b] = sblist[b].rename(columns=lambda x:int(x[4:6]))
         
-        ## Trim resolved jet objects        
-#        if resjets==3:
-#            for i in range(nb):
-#                for j in range(nb):
-#                    if i != j:
-#                        blist[i] = blist[i][np.logical_not(blist[i] > blist[j])]
-#                        blist[i] = blist[i][blist[i]<0.4]
+            ## Trim resolved jet objects        
+#           if resjets==3:
+#               for i in range(nb):
+#                   for j in range(nb):
+#                       if i != j:
+#                           blist[i] = blist[i][np.logical_not(blist[i] > blist[j])]
+#                           blist[i] = blist[i][blist[i]<0.4]
         
-        ## Cut our events to only events with 3-4 bs in one fatjet of dR<0.8
-        fjets = blist[0][blist[0]<0.8].fillna(0)/blist[0][blist[0]<0.8].fillna(0)
-        for i in range(1,4):
-            fjets = fjets + blist[i][blist[i]<0.8].fillna(0)/blist[i][blist[i]<0.8].fillna(0)
-        fjets = fjets.max(axis=1)
-        fjets = fjets[fjets==4].dropna()
-        sigjets.trimTo(fjets)
-        ev.sync()
+            ## Cut our events to only events with 3-4 bs in one fatjet of dR<0.8
+            fjets = blist[0][blist[0]<0.8].fillna(0)/blist[0][blist[0]<0.8].fillna(0)
+            for i in range(1,4):
+                fjets = fjets + blist[i][blist[i]<0.8].fillna(0)/blist[i][blist[i]<0.8].fillna(0)
+            fjets = fjets.max(axis=1)
+            fjets = fjets[fjets==4].dropna()
+            sigjets.trimTo(fjets)
+            ev.sync()
         
 
         
@@ -622,14 +651,14 @@ def ana(sigfiles,bgfiles,isLHE=False):
             tutor(bgjetframe,sigjetframe)
             sys.exit()
             
-        if not isLHE:
-            X_test = pd.concat([bgjetframe.drop(bgtrnframe.index), sigjetframe.drop(sigtrnframe.index)],ignore_index=True)
-            X_train = pd.concat([bgtrnframe,sigtrnframe],ignore_index=True)
-            passnum = 0.6        
-        else:
-            X_test = pd.concat([bgjetframe.drop(bgtrnframe.index),sigjetframe.drop(sigtrnframe.index)])
-            X_train = pd.concat([bgtrnframe,sigtrnframe])
-            passnum = 0.9
+        #if not isLHE:
+        #    X_test = pd.concat([bgjetframe.drop(bgtrnframe.index), sigjetframe.drop(sigtrnframe.index)])#,ignore_index=True)
+        #    X_train = pd.concat([bgtrnframe,sigtrnframe])#,ignore_index=True)
+        #    passnum = 0.9       
+        #else:
+        X_test = pd.concat([bgjetframe.drop(bgtrnframe.index),sigjetframe.drop(sigtrnframe.index)])
+        X_train = pd.concat([bgtrnframe,sigtrnframe])
+        passnum = 0.9
             
         if POSTWEIGHT:
             for plot in plots:
@@ -664,11 +693,11 @@ def ana(sigfiles,bgfiles,isLHE=False):
             history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=VERBOSE)
 
             
-        #if not LOADMODEL:
-        rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
-        trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
-        test_loss, test_acc = model.evaluate(X_test, Y_test)
-        print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
+        if not LOADMODEL:
+            rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
+            trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
+            test_loss, test_acc = model.evaluate(X_test, Y_test)
+            print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
     
         ##################################
         # Analyzing and Plotting Outputs #
@@ -763,10 +792,12 @@ def ana(sigfiles,bgfiles,isLHE=False):
             else:
                 plt.savefig('netplots/ROC_'+str(fnum))
 
-    for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte'],
-              plots['WeightStr'],plots['WeightSte'],plots['WeightBtr'],plots['WeightBte']]:
-        #p.norm(sum(p[0]))
+    for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
         p[0] = p[0]/sum(p[0])    
+    if POSTWEIGHT:
+        for p in [plots['WeightStr'],plots['WeightSte'],plots['WeightBtr'],plots['WeightBte']]:
+            p[0] = p[0]/sum(p[0])    
+            
     plt.clf()
     plots['DistStr'].make(color='red',linestyle='-',htype='step')
     plots['DistBtr'].make(color='blue',linestyle='-',htype='step')
@@ -842,6 +873,7 @@ def main():
         nrgs = len(sys.argv)
         sigfiles = []
         bgfiles = []
+        datafiles = []
         isLHE=False
         ## Check for file sources
         for i in range(nrgs):
@@ -851,6 +883,8 @@ def main():
                     fileptr = sigfiles
                 elif 'b' in arg:
                     fileptr = bgfiles
+                elif 'd' in arg:
+                    fileptr = datafiles
                 else:
                     dialogue()
                 for j in range(i+1,nrgs):
@@ -864,6 +898,8 @@ def main():
                     fileptr = sigfiles
                 elif 'b' in arg:
                     fileptr = bgfiles
+                elif 'd' in arg:
+                    fileptr = datafiles
                 else:
                     dialogue()
                 for j in range(i+1,nrgs):
@@ -876,8 +912,17 @@ def main():
                         i = j
             elif '-LHE' in arg:
                 isLHE = True
-                
-        ana(sigfiles,bgfiles,isLHE)
+        if not len(datafiles):
+            dataflag = False
+        elif len(sigfiles) and not len(bgfiles):
+            bgfiles = datafiles
+            dataflag = -1
+        elif len(bgfiles) and not len(sigfiles):
+            sigfiles = datafiles
+            dataflag = True
+        else: dialogue()
+        
+        ana(sigfiles,bgfiles,isLHE,dataflag)
 
     else:
         dialogue()
@@ -890,6 +935,7 @@ def dialogue():
     print("s      Marks the following file(s) as signal")
     print("b      Marks the following file(s) as background")
     print("-LHE   Indicates background files are split by LHE, and should be merged")
+    print("You can also substitute data for either signal or background by using 'd' instead of 's' or 'b'")
     sys.exit(0)
     
 if __name__ == "__main__":

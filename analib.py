@@ -58,13 +58,19 @@ class Hist(object):
         return s
 
     ## Divides the stored histogram by another, and either changes itself or returns a changed object
-    def divideby(s,inplot,split=False):
+    ## Enabling trimnoise attempts to cut out the weird floating point errors you sometimes get when a number isn't exactly 0
+    def divideby(s,inplot,split=False,trimnoise=False):
         if (len(inplot[0]) != len(s.hs[0])) or (len(inplot[1]) != len(s.hs[1])):
             raise Exception('Mismatch between passed and stored histogram dimensions')
         if split:
             s = cp.deepcopy(s)
+        if trimnoise:
+            s.hs[0][s.hs[0]     < 0.00001] = 0
+            inplot[0][inplot[0] < 0.00001] = 0
         s.hs[0] = np.divide(s.hs[0],inplot[0], where=inplot[0]!=0)
         ## Empty bins should have a weight of 0
+        if trimnoise:
+            s.hs[0][s.hs[0]     < 0.00001] = 0
         s.hs[0][np.isnan(s.hs[0])] = 0
         return s
 
