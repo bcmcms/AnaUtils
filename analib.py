@@ -59,18 +59,16 @@ class Hist(object):
 
     ## Divides the stored histogram by another, and either changes itself or returns a changed object
     ## Enabling trimnoise attempts to cut out the weird floating point errors you sometimes get when a number isn't exactly 0
-    def divideby(s,inplot,split=False,trimnoise=False):
+    def divideby(s,inplot,split=False,trimnoise=0):
         if (len(inplot[0]) != len(s.hs[0])) or (len(inplot[1]) != len(s.hs[1])):
             raise Exception('Mismatch between passed and stored histogram dimensions')
         if split:
             s = cp.deepcopy(s)
         if trimnoise:
-            s.hs[0][s.hs[0]     < 0.00001] = 0
-            inplot[0][inplot[0] < 0.00001] = 0
+            s.hs[0][s.hs[0]<trimnoise]=np.nan
+            inplot[0][inplot[0]<trimnoise]=np.nan
         s.hs[0] = np.divide(s.hs[0],inplot[0], where=inplot[0]!=0)
         ## Empty bins should have a weight of 0
-        if trimnoise:
-            s.hs[0][s.hs[0]     < 0.00001] = 0
         s.hs[0][np.isnan(s.hs[0])] = 0
         return s
 
@@ -86,10 +84,10 @@ class Hist(object):
         #print(s.hs)
         return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
 
-    def plot(s,logv=False,ylim=False,same=False,htype='bar'):
+    def plot(s,ylim=False,same=False,**args):
         if not same:
             plt.clf()
-        s.make(logv,htype)
+        s.make(**args)
         if ylim:
             plt.ylim(ylim)
         if s.xlabel != '':
@@ -160,8 +158,8 @@ class Hist2d(object):
         out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth)
         return out    
 
-    def plot(s,logv=False,text=False,edgecolor='face',linewidth=1):
-        s.make(edgecolor,linewidth)
+    def plot(s,logv=False,text=False,**args):
+        s.make(**args)
         #print(s.hs[0])
         #print(s.hs[1])
         #print(s.hs[2])

@@ -40,7 +40,7 @@ epochs = 50
 lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401]
 nlhe = len(lheweights)
 ##Controls whether a network is trained up or loaded from disc
-LOADMODEL = False
+#LOADMODEL = False
 ##Switches tutoring mode on or off
 TUTOR = True
 TUTOR = False
@@ -154,8 +154,9 @@ def tutor(bgjetframe,sigjetframe):
 #%%
 
 def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
+    LOADMODEL = False
     ## The dataflag controls which file list if any has been replaced by data
-    if dataflag is not False:
+    if dataflag:
         LOADMODEL = True
     
     #%%################
@@ -264,8 +265,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
     vplots.update(tdict)
     del tdict
     
-    if (dataflag * dataflag):
-        if dataflag:
+    if (dataflag):
+        if dataflag is True:
             cutword = 'signal'
         else:
             cutword = 'background'
@@ -379,7 +380,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
                     jets.extweight[j+1] = jets.extweight[1]
             return jets
                 
-        if dataflag:
+        if dataflag is True:
             sigjets = loadjets(PhysObj('sigjets'),sigevents)
         else:
             sigjets = loadjets(PhysObj('sigjets'),sigevents,fstrip(sigfiles[fnum]))
@@ -912,6 +913,9 @@ def main():
                         i = j
             elif '-LHE' in arg:
                 isLHE = True
+        print('-')
+        print('sigfiles',sigfiles,'datafiles',datafiles)
+        print('-')
         if not len(datafiles):
             dataflag = False
         elif len(sigfiles) and not len(bgfiles):
@@ -934,8 +938,8 @@ def dialogue():
     print("-l     Specifies a list containing all files to run over")
     print("s      Marks the following file(s) as signal")
     print("b      Marks the following file(s) as background")
+    print("d      Marks the following file(s) as data - used to substitute 's' or 'd' as only 2 input types are expected")
     print("-LHE   Indicates background files are split by LHE, and should be merged")
-    print("You can also substitute data for either signal or background by using 'd' instead of 's' or 'b'")
     sys.exit(0)
     
 if __name__ == "__main__":
