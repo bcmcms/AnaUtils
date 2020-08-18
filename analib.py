@@ -84,7 +84,6 @@ class Hist(object):
 
     ## Creates and returns a pyplot-compatible histogram object
     def make(s,logv=False,htype='bar',color=None,linestyle='solid'):
-<<<<<<< HEAD
         return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],
                         log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=2)
         #return hep.histplot(s.hs[0],s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
@@ -100,15 +99,6 @@ class Hist(object):
         if legend:
             plt.legend(legend,loc=0)
         
-=======
-        #print(s.hs)
-        return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
-
-    def plot(s,ylim=False,same=False,**args):
-        if not same:
-            plt.clf()
-        s.make(**args)
->>>>>>> b9e4c7538b8af6548a815072a32120f049fac7de
         if ylim:
             plt.ylim(ylim)
         if s.xlabel != '':
