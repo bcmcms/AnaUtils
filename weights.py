@@ -34,6 +34,14 @@ executor = concurrent.futures.ThreadPoolExecutor()
 # normevts = x-sec * lumi for signal, or # events for bg #
         
     
+def debugsearch(hist,vhist,dhist):
+    for idx in range(len(hist[0])):
+        if hist[0][idx] > 5:
+            print(vhist.title)
+            print('ratio:',hist[0][idx])
+            print('value:',vhist[0][idx])
+            print('data:',dhist[0][idx])
+
 def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents='',bgevents='',dataevents=''):
     #%%
     #
@@ -51,26 +59,31 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
                     bgevents.append(uproot.open(LHEBGfiles[i]).get('Events'))
                 dataevents = uproot.open(dfile).get('Events')
             
-            sigPU = Hist(200,(-0.5,199.5),'event pileup','% of events','weightplots/sigPU','Signal Pileup')
-            dataPU= Hist(200,(-0.5,199.5),'event pileup','% of events','weightplots/dataPU','Data Pileup')
+            sigPU = Hist(200,(-0.5,199.5),'event pileup','fraction of events','weightplots/sigPU','Signal Pileup')
+            dataPU= Hist(200,(-0.5,199.5),'event pileup','fraction of events','weightplots/dataPU','Data Pileup')
+            compPU= Hist(200,(-0.5,199.5),'normalized signal (red), data (black), and weighted signal (blue)','bin fraction','weightplots/compPU')
                 
             sigPU.dfill( pd.DataFrame(sigevents.array( 'PV_npvs')))
             dataPU.dfill(pd.DataFrame(dataevents.array('PV_npvs')))
+            
             
             sigPU[0] = sigPU[0] / sum(sigPU[0])
             dataPU[0] = dataPU[0] / sum(dataPU[0])
             
             bgPU = []
+            bgesum = 0
             for i in range(nlhe):
-                bgPU.append(Hist(200,(-0.5,199.5),'event pileup','% of events','weightplots/bgPU_'+str(i),'Background #'+str(i)+' Pileup'))
+                bgPU.append(Hist(200,(-0.5,199.5),'event pileup','fraction of events','weightplots/bgPU_'+str(i),'Background #'+str(i)+' Pileup'))
                 bgPU[i].dfill(pd.DataFrame(bgevents[i].array('PV_npvs')))
                 bgPU[i][0] = bgPU[i][0] / sum(bgPU[i][0])
+                bgesum = bgesum + (bgevents[i].array('event').shape[0] * bgfracs[i])
+                print(bgevents[i].array('event').shape[0],bgfracs[i],bgesum)
                 
             sigweights = {
                     'genweights': pd.DataFrame(sigevents.array('Generator_weight')).rename(columns=inc),
                     # x-sec * lumi / nEvents
                     'floatNorm': 43.92 * 60000 / sigevents.array('Jet_eta').shape[0],
-                    'PUhist': dataPU.divideby(sigPU,split=True,trimnoise=True),
+                    'PUhist': dataPU.divideby(sigPU,split=True,trimnoise=.00001),
                     'events': pd.DataFrame(sigevents.array('event')).rename(columns=inc),
                     }
             sigweights.update({'PUweights': pd.DataFrame(np.array(sigweights['PUhist'][0])[sigevents.array('PV_npvs')]).rename(columns=inc)})
@@ -78,9 +91,28 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
             tPU = sigweights['PUhist']
             tPU.fname = "weightplots/sigDdataPU"
             tPU.title = 'Data / Signal Pileup'
+            tPU.ylabel = 'per-bin event weighting'
             tPU.plot()
             sigPU.plot()
             dataPU.plot()
+            
+            compPU.fill(sigevents.array( 'PV_npvs'),weights=sigweights['PUweights'][1])
+            compPU[0] = compPU[0]/sum(compPU[0])
+            plt.clf()
+            sigPU.make(color='red'  ,linestyle='-',htype='step')
+            dataPU.make(color='black',linestyle='--',htype='step')
+            compPU.plot(same=True,color='blue' ,linestyle=':',htype='step')
+            
+            ratioPUs=[Hist(200,(-0.5,199.5),'event pileup before (red) and after (black) weighting','','weightplots/ratioPU')]
+            ratioPUs.append(cp.deepcopy(ratioPUs[0]))
+            ratioPUs[0].fill(sigevents.array( 'PV_npvs'))
+            rawint = ratioPUs[0][0].sum()
+            ratioPUs[1].fill(sigevents.array( 'PV_npvs'),weights=sigweights['PUweights'][1])
+            wgtint = round(ratioPUs[1][0].sum())
+            ratioPUs[1].title='unweighted area '+str(rawint)+', weighted area '+str(wgtint)
+            plt.clf()
+            ratioPUs[0].make(color='red'  ,linestyle='-',htype='step')
+            ratioPUs[1].plot(same=True,color='black',linestyle='--',htype='step')
             
             bgweights = []
             for i in range(nlhe):
@@ -88,22 +120,30 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
                         'genweights': pd.DataFrame(bgevents[i].array('Generator_weight')).rename(columns=inc),
                         # data events / (bg events * bg lhe weight)
                         'floatNorm': dataevents.array('Jet_eta').shape[0]/(dataevents.array('Jet_eta').shape[0]),#*bgfracs[i]),
-                        'PUhist': dataPU.divideby(bgPU[i],split=True,trimnoise=True),   
+                        'PUhist': dataPU.divideby(bgPU[i],split=True,trimnoise=.00001),   
                         'events': pd.DataFrame(bgevents[i].array('event')).rename(columns=inc)
                         })
                 bgweights[i].update({'PUweights': pd.DataFrame(np.array(bgweights[i]['PUhist'][0])[bgevents[i].array( 'PV_npvs')]).rename(columns=inc)})
                 bgweights[i].update({'normweights': bgweights[i]['floatNorm']*(bgweights[i]['genweights']/bgweights[i]['genweights'])})
-                bgname = 'weights/'+fstrip(LHEBGfiles[i])+"-"+fstrip(dfile)+".p"
-                print('Writing to',bgname)
-                pickle.dump(bgweights[i],open(bgname, "wb"))
+                bgname = 'weights/'+fstrip(LHEBGfiles[i])+"-"+fstrip(dfile)
+                print('Writing to',bgname+".p")
+                pickle.dump(bgweights[i],open(bgname+'.p', "wb"))
                 tPU = bgweights[i]['PUhist']
                 tPU.fname = "weightplots/bgDdataPU_"+str(i)
                 tPU.title = 'Data / Background slice '+str(i)+' Pileup'
+                tPU.ylabel = 'per-bin event weighting'
                 tPU.plot()
                 bgPU[i].plot()
-            sgname = 'weights/'+fstrip(sfile)+"-"+fstrip(dfile)+".p"
-            print('Writing to',sgname)
-            pickle.dump(sigweights,open(sgname, "wb"))
+                np.savetxt(bgname+'.txt',bgweights[i]['PUhist'][0])
+                #with open(bgname+".txt",'w') as bfile:
+                #    bfile.write(bgweights[i]['PUhist'][0].astype(str))
+            sgname = 'weights/'+fstrip(sfile)+"-"+fstrip(dfile)
+            print('Writing to',sgname+".p")
+            pickle.dump(sigweights,open(sgname+'.p', "wb"))
+            np.savetxt(sgname+'.txt',sigweights['PUhist'][0])
+            #with open(sgname+".txt",'w') as sfile:
+            #    sfile.write(sigweights['PUhist'][0].astype(str))
+            #sfile.close()
             return sigweights, bgweights
                 
 ## Define 'main' function as primary executable

@@ -19,6 +19,8 @@ import pandas as pd
 import copy as cp
 from munch import DefaultMunch
 
+import mplhep as hep
+
 class Hist(object):
     def __init__(s,size,bounds,xlabel='',ylabel='',fname='',title=''):
         s.size = size
@@ -28,6 +30,7 @@ class Hist(object):
         s.ylabel = ylabel
         s.title = title
         s.fname = fname
+        s.fig = ''
 
     def __getitem__(s,i):
         if (i > 1) or (i < -2):
@@ -59,18 +62,16 @@ class Hist(object):
 
     ## Divides the stored histogram by another, and either changes itself or returns a changed object
     ## Enabling trimnoise attempts to cut out the weird floating point errors you sometimes get when a number isn't exactly 0
-    def divideby(s,inplot,split=False,trimnoise=False):
+    def divideby(s,inplot,split=False,trimnoise=0):
         if (len(inplot[0]) != len(s.hs[0])) or (len(inplot[1]) != len(s.hs[1])):
             raise Exception('Mismatch between passed and stored histogram dimensions')
         if split:
             s = cp.deepcopy(s)
         if trimnoise:
-            s.hs[0][s.hs[0]     < 0.00001] = 0
-            inplot[0][inplot[0] < 0.00001] = 0
+            s.hs[0][s.hs[0]<trimnoise]=np.nan
+            inplot[0][inplot[0]<trimnoise]=np.nan
         s.hs[0] = np.divide(s.hs[0],inplot[0], where=inplot[0]!=0)
         ## Empty bins should have a weight of 0
-        if trimnoise:
-            s.hs[0][s.hs[0]     < 0.00001] = 0
         s.hs[0][np.isnan(s.hs[0])] = 0
         return s
 
@@ -83,23 +84,33 @@ class Hist(object):
 
     ## Creates and returns a pyplot-compatible histogram object
     def make(s,logv=False,htype='bar',color=None,linestyle='solid'):
-        #print(s.hs)
-        return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
-
-    def plot(s,logv=False,ylim=False,same=False,htype='bar'):
+        return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],
+                        log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=2)
+        #return hep.histplot(s.hs[0],s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
+    def plot(s,ylim=False,same=False,legend=False,**args):
         if not same:
             plt.clf()
-        s.make(logv,htype)
+        s.make(**args)
+        
+        hep.cms.label(loc=0,year='2018')
+        fig = plt.gcf()
+        fig.set_size_inches(10.0, 6.0)
+        plt.grid(True)
+        if legend:
+            plt.legend(legend,loc=0)
+        
         if ylim:
             plt.ylim(ylim)
         if s.xlabel != '':
-            plt.xlabel(s.xlabel)
+            plt.xlabel(s.xlabel,fontsize=14)
         if s.ylabel != '':
-            plt.ylabel(s.ylabel)
-        if s.title != '':
-            plt.title(s.title)
+            plt.ylabel(s.ylabel,fontsize=18)
+        #if s.title != '':
+            #plt.title(s.title)
         if s.fname != '':
             plt.savefig(s.fname)
+        plt.close(s.fig)
+       
             
     def stackplot(s,phist,ylim=False):
         plt.clf()
@@ -114,7 +125,59 @@ class Hist(object):
         if s.title != '':
             plt.title(s.title)
         if s.fname != '':
-            plt.savefig(s.fname+'_v')
+            plt.savefig(s.fname+'_v')      
+            
+#    def bplt(self):
+#        #if self.fig is not '':
+#        #    self.fig, (self.ax, self.ax2) = plt.subplots(2,1, sharex=True, gridspec_kw={'height_ratios':[3,1]})
+#        #    self.fig.subplots_adjust(hspace=0)
+#        #else:
+#        #self.fig, self.ax = plt.subplots()
+#        plt.subplots_adjust(
+#            top=0.88,
+#            bottom=0.11,
+#            left=0.11,
+#            right=0.88,
+#            hspace=0.2,
+#            wspace=0.2
+#        )
+#        
+#    def mplt(self):
+#        #self.bplt()
+#        n_, bins_, patches_ = plt.hist(
+#            self.hs[1][:-1],
+#            self.size,
+#            self.bounds,
+#            #stacked=True,# fill=True,
+#            #range=range_,
+#            histtype='step',#'stepfilled',
+#            #density=False,
+#            #linewidth=0,
+#            weights=self.hs[0],
+#            color   = self.color,
+#            label   = self.ylabel
+#        )
+#
+#        #self.eplt
+#        
+#    def eplt(self):
+#        self.fontsize = 12
+#        self.lumi = 58.9 #2018
+#        #self.ax.xaxis.set_minor_locator(AutoMinorLocator())
+#        #self.ax.yaxis.set_minor_locator(AutoMinorLocator())
+#        plt.tick_params(which='both', direction='in', top=True, right=True)
+#        plt.text(0.105,0.89, r"$\bf{CMS}$ $Simulation$", fontsize = self.fontsize)
+#        plt.text(0.635,0.89, f'{self.lumi}'+r' fb$^{-1}$ (13 TeV)',  fontsize = self.fontsize)
+#        #plt.xlabel(self.xlabel, fontsize = self.fontsize)
+#        #self.ax.set_ylabel(f"{'%' if self.doNorm else 'Events'} / {(self.bin_w[0].round(2) if len(set(self.bin_w)) == 1 else 'bin')}")#fontsize = self.fontsize)
+#        #plt.xlim(self.bin_range)
+#        #if self.doLog: self.ax.set_yscale('log')
+#        plt.grid(True)
+#        #plt.setp(patches_, linewidth=0)
+#        plt.legend(framealpha = 0, ncol=2, fontsize='xx-small')
+#        #if self.doSave: plt.savefig(f'{self.saveDir}{self.xlabel}_.pdf', dpi = 300)
+#        #if self.doShow: plt.show()
+#        #plt.close(self.fig)
 
 
 class Hist2d(object):
@@ -160,8 +223,8 @@ class Hist2d(object):
         out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth)
         return out    
 
-    def plot(s,logv=False,text=False,edgecolor='face',linewidth=1):
-        s.make(edgecolor,linewidth)
+    def plot(s,logv=False,text=False,**args):
+        s.make(**args)
         #print(s.hs[0])
         #print(s.hs[1])
         #print(s.hs[2])

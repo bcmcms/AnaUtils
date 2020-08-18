@@ -6,15 +6,9 @@
 ### Run without arguments for a list of flags and options            ###
 ########################################################################
 
-#import ROOT as R
-#R.gROOT.SetBatch(True)  ## Don't display histograms or canvases when drawn
-
-#import os
-#import subprocess
 import sys
 import uproot
 import numpy as np
-import math
 import matplotlib.pyplot as plt
 import pandas as pd
 #import itertools as it
@@ -31,6 +25,13 @@ from tensorflow import keras
 #from tensorflow.python.keras import backend as BE
 from keras import backend as K
 
+import mplhep as hep
+plt.style.use([hep.style.ROOT,hep.style.CMS]) # For now ROOT defaults to CMS
+plt.style.use({'legend.frameon':True,'legend.fontsize':14,'legend.edgecolor':'black'})
+#plt.style.use({"font.size": 14})
+#plt.style.use(hep.cms.style.ROOT)
+
+
 import concurrent.futures
 executor = concurrent.futures.ThreadPoolExecutor()
 
@@ -40,7 +41,7 @@ epochs = 50
 lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401]
 nlhe = len(lheweights)
 ##Controls whether a network is trained up or loaded from disc
-LOADMODEL = False
+#LOADMODEL = False
 ##Switches tutoring mode on or off
 TUTOR = True
 TUTOR = False
@@ -154,8 +155,13 @@ def tutor(bgjetframe,sigjetframe):
 #%%
 
 def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
+    
+    #f, ax = plt.subplots()
+    #ax = hep.cms.cmslabel(data=False, paper=False, year='2018', ax=ax)
+    
+    LOADMODEL = False
     ## The dataflag controls which file list if any has been replaced by data
-    if dataflag is not False:
+    if dataflag:
         LOADMODEL = True
     
     #%%################
@@ -166,6 +172,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
     #tf.random.set_random_seed(2)
     #tf.compat.v1.set_random_seed(2)
     #np.random.seed(2)
+    
+    #fig = plt.figure(figsize=(10.0,6.0))
     
     l1 = 8
     l2 = 8
@@ -202,14 +210,14 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
     Aid = 36
     ## Make a dictionary of histogram objects
     plots = {
-        "Distribution": Hist(50,(0,1),'signal (Red) and background (Blue) testing (..) and training samples','% of Events','netplots/Distribution'),
-        "DistributionL": Hist(50,(0,1),'signal (Red) and background (Blue) testing (..) and training samples','% of Events','netplots/LogDistribution'),
+        "Distribution": Hist(50,(0,1),'Confidence','Fraction of Events','netplots/Distribution'),
+        "DistributionL": Hist(50,(0,1),'Confidence','Fraction of Events','netplots/LogDistribution'),
         "DistStr":  Hist(50,(0,1)),
         "DistSte":  Hist(50,(0,1)),
         "DistBtr":  Hist(50,(0,1)),
         "DistBte":  Hist(50,(0,1)),
-        "LossvEpoch":   Hist(epochs,(0.5,epochs+.5),'Epoch Number','Loss','netplots/LossvEpoch'),
-        "AccvEpoch":Hist(epochs,(0.5,epochs+.5),'Epoch Number','Accuracy','netplots/AccvEpoch'),
+        "LossvEpoch":   Hist(epochs,(0.5,epochs+.5),'Epoch Number','Loss','otherplots/LossvEpoch'),
+        "AccvEpoch":Hist(epochs,(0.5,epochs+.5),'Epoch Number','Accuracy','otherplots/AccvEpoch'),
     }
     if POSTWEIGHT:
         plots.update({
@@ -217,18 +225,18 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
                 "WeightSte":Hist(40,(0,5)),
                 "WeightBtr":Hist(40,(0,5)),
                 "WeightBte":Hist(40,(0,5)),
-                "Weights": Hist(40,(0,5),'signal (Red) and background (Blue) testing (..) and training postweight values','# of weights','netplots/Weights')})
+                "Weights": Hist(40,(0,5),'postweight values','# of weights','netplots/Weights')})
     
     pplots = {
-        "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet in all (red), passing (blue), and failing (black) events','% Distribution','netplots/ppt'),
-        "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet in all (red), passing (blue), and failing (black) events','% Distribution','netplots/peta'),
-        "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet in all (red), passing (blue), and failing (black) events','% Distribution','netplots/pphi'),
-        "mass":     Hist(50 ,(0,200)    ,'mass for highest pT jet in all (red), passing (blue), and failing (black) events','% Distribution','netplots/pmass'),
-        "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet in all (red), passing signal (blue), and signal (black) events','% Distribution','netplots/pCSVV2'),
-        "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet in all (red), passing (blue), and failing (black) events','% Distribution','netplots/pDeepB'),
-        "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet in all (red), passing (blue), and failing  (black) events','% Distribution','netplots/pmsoft'),
-        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet in all (red), passing (blue), and failing (black) events','% Distribution','netplots/pDDBvL'),
-        "H4qvs":    Hist(24 ,(-10,2)    ,'H4qvs for highest pT jet in all (red), passing (blue), and failing (black) events','% Distribution','netplots/pH4qvs'),
+        "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet','Fractional Distribution','netplots/ppt'),
+        "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet','Fractional Distribution','netplots/peta'),
+        "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet','Fractional Distribution','netplots/pphi'),
+        "mass":     Hist(50 ,(0,200)    ,'mass for highest pT jet','Fractional Distribution','netplots/pmass'),
+        "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet in all (red), passing signal (blue), and signal (black) events','Fractional Distribution','netplots/pCSVV2'),
+        "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet','Fractional Distribution','netplots/pDeepB'),
+        "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet in all (red), passing (blue), and failing  (black) events','Fractional Distribution','netplots/pmsoft'),
+        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet','Fractional Distribution','netplots/pDDBvL'),
+        "H4qvs":    Hist(24 ,(-10,2)    ,'H4qvs for highest pT jet','Fractional Distribution','netplots/pH4qvs'),
         }
     prefix = ['SG','SPS','SFL','BG','BPS','BFL']
     tdict = {}
@@ -243,15 +251,15 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
     del tdict
     
     vplots = {
-        "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/pt'),
-        "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/eta'),
-        "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/phi'),
-        "mass":     Hist(50 ,(0,200)    ,'mass for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/mass'),
-        "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/CSVV2'),
-        "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/DeepB'),
-        "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/msoft'),
-        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/DDBvL'),
-        "H4qvs":    Hist(20 ,(0,1)    ,'H4qvs for highest pT jet in all signal (red), background (blue), raw distributed (black) events','% Distribution','netplots/H4qvs')
+        "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet','Fractional Distribution','netplots/pt'),
+        "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet','Fractional Distribution','netplots/eta'),
+        "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet','Fractional Distribution','netplots/phi'),
+        "mass":     Hist(50 ,(0,200)    ,'mass for highest pT jet','Fractional Distribution','netplots/mass'),
+        "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet','Fractional Distribution','netplots/CSVV2'),
+        "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet','Fractional Distribution','netplots/DeepB'),
+        "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet','Fractional Distribution','netplots/msoft'),
+        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet','Fractional Distribution','netplots/DDBvL'),
+        "H4qvs":    Hist(20 ,(0,1)    ,'H4qvs for highest pT jet','Fractional Distribution','netplots/H4qvs')
         #"LHEHT":    Hist(400,(0,4000)   ,'LHE_HT for highest pT jet in passing signal (red), BG (blue), and raw BG (black) events','% Distribution','netplots/LHE_HT'),
     }
     tdict = {}
@@ -264,8 +272,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
     vplots.update(tdict)
     del tdict
     
-    if (dataflag * dataflag):
-        if dataflag:
+    if (dataflag):
+        if dataflag is True:
             cutword = 'signal'
         else:
             cutword = 'background'
@@ -284,22 +292,25 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
     if isLHE:
         lheplots = {}
         for i in range(nlhe):
-            lheplots.update({'dist'+str(i):Hist(50,(0,1),'Normalized MC background classifcation','% of Events','netplots/LHEdist_'+str(i)),})
+            lheplots.update({'dist'+str(i):Hist(50,(0,1),'Normalized MC background classifcation','Fraction of Events','otherplots/LHEdist_'+str(i)),})
             lheplots['dist'+str(i)].title = 'Distrubution for LHE segment '+str(i)
 #    for plot in plots:
 #        plots[plot].title = files[0]
             
 
-    if LOADMODEL or POSTWEIGHT:
-        if isLHE:
-            for key in lheplots:
-                lheplots[key].fname = 'S'+lheplots[key].fname
+    if LOADMODEL:
+        if dataflag == 1:
+            pf = 'D'
+        elif dataflag == -1:
+            pf = 'C'
+        else:
+            pf = 'S'
         for key in vplots:
-            vplots[key].fname = 'S'+vplots[key].fname
+            vplots[key].fname = pf+vplots[key].fname
         for key in pplots:
-            pplots[key].fname = 'S'+pplots[key].fname
-        for key in plots:
-            plots[key].fname = 'S'+plots[key].fname
+            pplots[key].fname = pf+pplots[key].fname
+        for key in ['Distribution','DistributionL']:
+            plots[key].fname = pf+plots[key].fname
 
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
@@ -379,7 +390,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
                     jets.extweight[j+1] = jets.extweight[1]
             return jets
                 
-        if dataflag:
+        if dataflag is True:
             sigjets = loadjets(PhysObj('sigjets'),sigevents)
         else:
             sigjets = loadjets(PhysObj('sigjets'),sigevents,fstrip(sigfiles[fnum]))
@@ -394,7 +405,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             else:
                 bgjets = loadjets(PhysObj('bgjets'),bgevents,fstrip(bgfiles[fnum]))
 
-        print('Processing ' + str(len(sigjets.eta)) + 'signal events')
+        print('Processing ' + str(len(sigjets.eta)) + ' signal events')
         
         if not dataflag:
             pdgida  = sigevents.array('GenPart_pdgId')
@@ -682,8 +693,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             X_test = scaler.transform(X_test)
     
         if LOADMODEL:
-            model = keras.models.load_model('weighted.hdf5', compile=False) 
-            scaler = pickle.load( open("weightedscaler.p", "rb" ) )
+            model = keras.models.load_model('archive/weighted.hdf5', compile=False) 
+            scaler = pickle.load( open("archive/weightedscaler.p", "rb" ) )
             ##
             #print(scaler.transform(bgpieces[1].drop('val',axis=1)))
             ##
@@ -798,19 +809,21 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         for p in [plots['WeightStr'],plots['WeightSte'],plots['WeightBtr'],plots['WeightBte']]:
             p[0] = p[0]/sum(p[0])    
             
+    leg = ['Signal (training)','Background (training)','Signal (testing)', 'Background(testing)']
+            
     plt.clf()
     plots['DistStr'].make(color='red',linestyle='-',htype='step')
     plots['DistBtr'].make(color='blue',linestyle='-',htype='step')
     plots['DistSte'].make(color='red',linestyle=':',htype='step')
     plots['DistBte'].make(color='blue',linestyle=':',htype='step')
-    plots['Distribution'].plot(same=True)
+    plots['Distribution'].plot(same=True,legend=leg)
     
     plt.clf()
     plots['DistStr'].make(color='red',linestyle='-',htype='step',logv=True)
     plots['DistBtr'].make(color='blue',linestyle='-',htype='step',logv=True)
     plots['DistSte'].make(color='red',linestyle=':',htype='step',logv=True)
     plots['DistBte'].make(color='blue',linestyle=':',htype='step',logv=True)
-    plots['DistributionL'].plot(same=True,logv=True)
+    plots['DistributionL'].plot(same=True,logv=True,legend=leg)
     
     if POSTWEIGHT:
         plt.clf()
@@ -818,11 +831,11 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         plots['WeightBtr'].make(color='blue',linestyle='-',htype='step')
         plots['WeightSte'].make(color='red',linestyle=':',htype='step')
         plots['WeightBte'].make(color='blue',linestyle=':',htype='step')
-        plots['Weights'].plot(same=True)
+        plots['Weights'].plot(same=True,legend=leg)
         
     for col in netvars:
         for plot in vplots:
-            vplots[plot][0] = vplots[plot][0]/(sum(abs(vplots[plot][0])))
+            vplots[plot][0] = vplots[plot][0]/(sum(abs(vplots[plot][0]+.0001)))
         for plot in pplots:
             pplots[plot][0] = pplots[plot][0]/(sum(abs(pplots[plot][0]+.0001)))
 
@@ -830,29 +843,33 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         for i in range(nlhe):
             lheplots['dist'+str(i)][0] = lheplots['dist'+str(i)][0]/sum(lheplots['dist'+str(i)][0])
             lheplots['dist'+str(i)].plot(htype='step')#,logv=True)
-            
+       
+    
     for col in netvars:
         plt.clf()
         vplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
-        vplots['RW'+col].make(color='black',linestyle='--',htype='step')
+        #vplots['RW'+col].make(color='black',linestyle='--',htype='step')
         vplots['BG'+col].make(color='blue' ,linestyle=':',htype='step')
         if POSTWEIGHT:
             vplots[col].title = 'With post-weighted network training'
         else:
             vplots[col].title = 'With weighted network training'
-        vplots[col].plot(same=True)
+        vplots[col].plot(same=True,legend=['Signal','Background'])
         plt.clf()
         pplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
         pplots['SFL'+col].make(color='black',linestyle='--',htype='step')
         pplots['SPS'+col].make(color='blue' ,linestyle=':',htype='step')
-        pplots[col].title = 'For SG rated above '+str(passnum)
-        pplots[col].plot(same=True)
+        if dataflag == 1:
+            pplots[col].title = 'For DT rated above '+str(passnum)
+        else:
+            pplots[col].title = 'For SG rated above '+str(passnum)
+        pplots[col].plot(same=True,legend=['All Signal','Failing Signal','Passing Signal'])
         plt.clf()
         pplots['BG'+col].make(color='red'  ,linestyle='-',htype='step')
         pplots['BFL'+col].make(color='black',linestyle='--',htype='step')
         pplots['BPS'+col].make(color='blue' ,linestyle=':',htype='step')
         pplots['B'+col].title = 'For BG rated above '+str(passnum)
-        pplots['B'+col].plot(same=True)
+        pplots['B'+col].plot(same=True,legend=['All Background','Failing Background','Passing Background'])
         
     #if POSTWEIGHT:
     #model.save('postweighted.hdf5')
@@ -934,8 +951,8 @@ def dialogue():
     print("-l     Specifies a list containing all files to run over")
     print("s      Marks the following file(s) as signal")
     print("b      Marks the following file(s) as background")
+    print("d      Marks the following file(s) as data - used to substitute 's' or 'd' as only 2 input types are expected")
     print("-LHE   Indicates background files are split by LHE, and should be merged")
-    print("You can also substitute data for either signal or background by using 'd' instead of 's' or 'b'")
     sys.exit(0)
     
 if __name__ == "__main__":
