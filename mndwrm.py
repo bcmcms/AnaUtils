@@ -155,10 +155,13 @@ def tutor(bgjetframe,sigjetframe):
 #%%
 
 def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
+<<<<<<< HEAD
     
     #f, ax = plt.subplots()
     #ax = hep.cms.cmslabel(data=False, paper=False, year='2018', ax=ax)
     
+=======
+>>>>>>> b9e4c7538b8af6548a815072a32120f049fac7de
     LOADMODEL = False
     ## The dataflag controls which file list if any has been replaced by data
     if dataflag:
@@ -929,6 +932,9 @@ def main():
                         i = j
             elif '-LHE' in arg:
                 isLHE = True
+        print('-')
+        print('sigfiles',sigfiles,'datafiles',datafiles)
+        print('-')
         if not len(datafiles):
             dataflag = False
         elif len(sigfiles) and not len(bgfiles):
