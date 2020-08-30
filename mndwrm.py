@@ -27,7 +27,7 @@ from keras import backend as K
 
 import mplhep as hep
 plt.style.use([hep.style.ROOT,hep.style.CMS]) # For now ROOT defaults to CMS
-plt.style.use({'legend.frameon':True,'legend.fontsize':14,'legend.edgecolor':'black'})
+plt.style.use({'legend.frameon':True,'legend.fontsize':14,'legend.edgecolor':'black','hatch.linewidth':1.0})
 #plt.style.use({"font.size": 14})
 #plt.style.use(hep.cms.style.ROOT)
 
@@ -41,16 +41,15 @@ epochs = 50
 lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401]
 nlhe = len(lheweights)
 ##Controls whether a network is trained up or loaded from disc
-#LOADMODEL = False
+LOADMODEL = True
 ##Switches tutoring mode on or off
-TUTOR = True
 TUTOR = False
 ##Switches whether training statistics are reported or suppressed (for easier to read debugging)
 VERBOSE=False
 ##Switches whether weights are loaded and applied to the post-training statistics,
 ##and what data file they expect to be associated with
 POSTWEIGHT = True
-DATANAME = 'Parked.root'
+DATANAME = '2018D_Parked_promptD-v1_200218_214714_0000_Skim_nFat1_doubB_0p8_deepB_Med_massH_70_msoft_70_183M.root'
 
 evtlist = [35899001,24910172,106249475,126514437,43203653,27186346,17599588,64962950,61283040,54831588]
 
@@ -155,11 +154,24 @@ def tutor(bgjetframe,sigjetframe):
 #%%
 
 def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
-    LOADMODEL = False
+    global LOADMODEL
+    plargs = {'Data':  {'color':'black','htype':'step'},
+              'Background':   {'color':'red','htype':'step'},
+              'Signal':{'color':'blue','htype':'step'}
+              }
+    Skey = 'Signal'
+    Bkey = 'Background'
     ## The dataflag controls which file list if any has been replaced by data
     if dataflag:
         LOADMODEL = True
-    
+        if dataflag == True:
+            plargs['Data'].update({'htype':'err'})
+            plargs['Background'].update( {'htype':'bar'})
+            Skey = 'Data'
+            Bkey = 'Background'
+        else:
+            Skey = 'Signal'
+            Bkey = 'Data'
     #%%################
     # Plots and Setup #
     ###################
@@ -269,7 +281,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
     del tdict
     
     if (dataflag):
-        if dataflag is True:
+        if dataflag == True:
             cutword = 'signal'
         else:
             cutword = 'background'
@@ -373,7 +385,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             jets.H4qvs = pd.DataFrame(events.array('FatJet_deepTagMD_H4qvsQCD', executor=executor)).rename(columns=inc)
             jets.event = pd.DataFrame(events.array('event', executor=executor)).rename(columns=inc)
             jets.extweight = jets.event / jets.event
-            if POSTWEIGHT and wname is not '':
+            if wname != '':
                 weights = pickle.load(open('weights/'+wname+'-'+fstrip(DATANAME)+'.p',"rb" ))
                 for prop in ['genweights','PUweights','normweights']:
                     #print('jets.extweight[1]')#,jets.extweight[1])    
@@ -382,11 +394,14 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
                 jets.extweight = jets.event / jets.event
             for j in range(1,jets.pt.shape[1]):
                 jets.event[j+1] = jets.event[1]
-                if POSTWEIGHT:
-                    jets.extweight[j+1] = jets.extweight[1]
+                #if POSTWEIGHT:
+                jets.extweight[j+1] = jets.extweight[1]
             return jets
-                
-        if dataflag is True:
+        
+        global DATANAME        
+        
+        if dataflag == True:
+            DATANAME = sigfiles[fnum]
             sigjets = loadjets(PhysObj('sigjets'),sigevents)
         else:
             sigjets = loadjets(PhysObj('sigjets'),sigevents,fstrip(sigfiles[fnum]))
@@ -396,12 +411,13 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             for i in range(nlhe):
                 bgjets[i] = loadjets(bgjets[i],bgevents[i],fstrip(bgfiles[(fnum*nlhe)+i]))                    
         else:
-            if dataflag is -1:
+            if dataflag == -1:
+                DATANAME = bgfiles[fnum]
                 bgjets = loadjets(PhysObj('bgjets'),bgevents)
             else:
                 bgjets = loadjets(PhysObj('bgjets'),bgevents,fstrip(bgfiles[fnum]))
 
-        print('Processing ' + str(len(sigjets.eta)) + ' signal events')
+        print(f"Processing {str(len(sigjets.eta))} {Skey} events")
         
         if not dataflag:
             pdgida  = sigevents.array('GenPart_pdgId')
@@ -584,48 +600,29 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         if isLHE:
             bgpieces = []
             wtpieces = []
-            #if TRWEIGHT:
-            #    filefix = 'w'
-            #else:
-            #    filefix = 'u'
             
             for i in range(nlhe):
                 tempframe = pd.DataFrame()
                 twgtframe = pd.DataFrame()
                 for prop in netvars+extvars:
-                    tempframe[prop] = bgjets[i][prop][bgjets[i]['pt'].rank(axis=1,method='first') == 1].max(axis=1)
-                tempframe['eta'] = abs(tempframe['eta'])
-                ## controls event-number cutting
-                #tempframe = tempframe[tempframe['event'].isin(evtlist)] 
-                #tempframe = tempframe.drop(extvars,axis=1)
-                ##
-                twgtframe = tempframe.sample(frac=lheweights[i],random_state=6)
-                tempframe['val'] = 0
+                    twgtframe[prop] = bgjets[i][prop][bgjets[i]['pt'].rank(axis=1,method='first') == 1].max(axis=1)
+                twgtframe['eta'] = abs(twgtframe['eta'])
                 twgtframe['val'] = 0
+                tempframe = twgtframe.sample(frac=lheweights[i],random_state=6)
+                twgtframe['extweight'] = twgtframe['extweight'] * lheweights[i]
                 bgpieces.append(tempframe)
                 #pickle.dump(tempframe, open(filefix+str(i)+"piece.p", "wb"))
                 wtpieces.append(twgtframe)
-            bgjetframe = pd.concat(wtpieces,ignore_index=True)
-            bgrawframe = pd.concat(bgpieces,ignore_index=True)
+            bgjetframe = pd.concat(bgpieces,ignore_index=True)
+            bgrawframe = pd.concat(wtpieces,ignore_index=True)
             bgjetframe = bgjetframe.dropna()
             bgrawframe = bgrawframe.dropna()
-            #if TRWEIGHT:
-                #bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
             bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
-            #else:
-            #    bgtestframe = bgjetframe[bgjetframe['event']%2 == 0]
-            #    #bgtestframe = bgjetframe.sample(frac=0.3,random_state=6)
-            #    bgtrnframe = bgrawframe.drop(bgtestframe.index)
         else:
             for prop in netvars + extvars:
                 bgjetframe[prop] = bgjets[prop][bgjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
             bgjetframe['eta'] = abs(bgjetframe['eta'])
-            ##
-            #bgjetframe = bgjetframe[bgjets['event'].isin(evtlist)]
-            ##
-            #bgjetframe = bgjetframe.drop(extvars,axis=1)
             bgjetframe['val'] = 0
-            #bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
             bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
         
         nbg = bgtrnframe.shape[0]
@@ -635,19 +632,12 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
         sigjetframe['eta'] = abs(sigjetframe['eta'])
         sigjetframe['val'] = 1
-        ##
-        #sigjetframe = sigjetframe[sigjets['event'].isin([0])]
-        ##
-        #sigtrnframe = sigjetframe.sample(frac=0.7,random_state=6)
         sigtrnframe = sigjetframe[sigjetframe['event']%2 == 0]
         nsig = sigtrnframe.shape[0]
         
         
-        print('Signal cut to ',sigjetframe.shape[0], ' events')
-        #if not TRWEIGHT and isLHE:
-            #print('Background has ',bgtrnframe.shape[0]+bgrawframe.shape[0],' events')
-        #else:
-        print('Background has ',bgjetframe.shape[0],' events')
+        print(f"{Skey} cut to {sigjetframe.shape[0]} events")
+        print(f"{Bkey} has {bgjetframe.shape[0]} intended events")
             
         extvars = extvars + ['val']
         #######################
@@ -663,72 +653,80 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         #    X_train = pd.concat([bgtrnframe,sigtrnframe])#,ignore_index=True)
         #    passnum = 0.9       
         #else:
-        X_test = pd.concat([bgjetframe.drop(bgtrnframe.index),sigjetframe.drop(sigtrnframe.index)])
-        X_train = pd.concat([bgtrnframe,sigtrnframe])
-        passnum = 0.9
-            
-        if POSTWEIGHT:
-            for plot in plots:
-                plots[plot].title = 'Post-Weighted Training'
-                W_test = X_test['extweight']
-                W_train = X_train['extweight']
-        else:
-            for plot in plots:
-                plots[plot].title = 'Weighted Training'  
-                
-        Y_test = X_test['val']
-        #X_test = X_test.drop('val',axis=1)
-        Y_train= X_train['val']
-        #X_train = X_train.drop('val',axis=1)
-        
-        X_test = X_test.drop(extvars,axis=1)
-        X_train = X_train.drop(extvars,axis=1)
-
-        if not LOADMODEL:
-            X_train = scaler.fit_transform(X_train)
-            X_test = scaler.transform(X_test)
-    
         if LOADMODEL:
+            if isLHE:
+                bgjetframe=bgrawframe
+            ## Normalize event number between QCD and data samples
+            if dataflag == True:
+                bgjetframe['extweight'] = bgjetframe['extweight'] * np.sum(sigjetframe['extweight'])/np.sum(bgjetframe['extweight'])
+                
+            X_inputs = pd.concat([bgjetframe,sigjetframe])
+            W_inputs = X_inputs['extweight']
+            Y_inputs = X_inputs['val']
+            X_inputs = X_inputs.drop(extvars,axis=1)
             model = keras.models.load_model('archive/weighted.hdf5', compile=False) 
             scaler = pickle.load( open("archive/weightedscaler.p", "rb" ) )
             ##
             #print(scaler.transform(bgpieces[1].drop('val',axis=1)))
             ##
-            X_test = scaler.transform(X_test)
-            X_train = scaler.transform(X_train)
+            X_inputs = scaler.transform(X_inputs)
         else:
+            X_test = pd.concat([bgjetframe.drop(bgtrnframe.index),sigjetframe.drop(sigtrnframe.index)])
+            X_train = pd.concat([bgtrnframe,sigtrnframe])
+            #for plot in plots:
+            #plots[plot].title = 'Post-Weighted Training'
+            W_test = X_test['extweight']
+            W_train = X_train['extweight']
+                
+            Y_test = X_test['val']
+            Y_train= X_train['val']
+        
+            X_test = X_test.drop(extvars,axis=1)
+            X_train = X_train.drop(extvars,axis=1)
+
+            X_train = scaler.fit_transform(X_train)
+            X_test = scaler.transform(X_test)
+            
             history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=VERBOSE)
 
-            
-        if not LOADMODEL:
             rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
             trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
             test_loss, test_acc = model.evaluate(X_test, Y_test)
             print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
     
+        passnum = 0.9
         ##################################
         # Analyzing and Plotting Outputs #
         ##################################
         
-        diststr = model.predict(X_train[Y_train==1])
-        distste = model.predict(X_test[Y_test==1])
-        distbtr = model.predict(X_train[Y_train==0])
-        distbte = model.predict(X_test[Y_test==0])
-        diststt = model.predict(scaler.transform(sigjetframe.drop(extvars,axis=1)))
-        distbtt = model.predict(scaler.transform(bgjetframe.drop(extvars,axis=1)))
+        if LOADMODEL:
+            diststt = model.predict(X_inputs[Y_inputs==1])
+            distbtt  = model.predict(X_inputs[Y_inputs==0])
+        else:
+            diststr = model.predict(X_train[Y_train==1])
+            distste = model.predict(X_test[Y_test==1])
+            distbtr = model.predict(X_train[Y_train==0])
+            distbte = model.predict(X_test[Y_test==0])
+            diststt = model.predict(scaler.transform(sigjetframe.drop(extvars,axis=1)))
+            distbtt = model.predict(scaler.transform(bgjetframe.drop(extvars,axis=1)))
         
         if isLHE:
             for i in range(nlhe):
-                piece = bgpieces[i].drop(extvars,axis=1)
+                piece = wtpieces[i].drop(extvars,axis=1)
                 piece = piece.reset_index(drop=True)
                 piece = scaler.transform(piece)
                 lhedist = model.predict(piece)
-                if POSTWEIGHT:
-                    lheplots['dist'+str(i)].fill(lhedist,bgpieces[i]['extweight'])
-                else:
-                    lheplots['dist'+str(i)].fill(lhedist)
-                
-        if not LOADMODEL:
+                #if POSTWEIGHT:
+                lheplots['dist'+str(i)].fill(lhedist,wtpieces[i]['extweight'])
+                #else:
+                #    lheplots['dist'+str(i)].fill(lhedist)
+        
+        if LOADMODEL:
+            plots['DistSte'].fill(diststt,W_inputs[Y_inputs==1])
+            plots['DistBte'].fill(distbtt,W_inputs[Y_inputs==0])
+            plots['WeightSte'].fill(W_inputs[Y_inputs==1])
+            plots['WeightBte'].fill(W_inputs[Y_inputs==0])
+        else:
             hist = pd.DataFrame(history.history)
             #for h in history:
                 #hist = pd.concat([hist,pd.DataFrame(h.history)],ignore_index=True)
@@ -745,7 +743,6 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             plots['LossvEpoch'].plot()
             plots['AccvEpoch'].plot()
                 
-        if POSTWEIGHT:
             plots['DistStr'].fill(diststr,W_train[Y_train==1])
             plots['DistSte'].fill(distste,W_test[Y_test==1])
             plots['DistBtr'].fill(distbtr,W_train[Y_train==0])
@@ -754,38 +751,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             plots['WeightSte'].fill(W_test[Y_test==1])
             plots['WeightBtr'].fill(W_train[Y_train==0])
             plots['WeightBte'].fill(W_test[Y_test==0])
-            plt.clf()
             
-        else:
-            plots['DistStr'].fill(diststr)
-            plots['DistSte'].fill(distste)
-            plots['DistBtr'].fill(distbtr)
-            plots['DistBte'].fill(distbte)
-            plt.clf()
-            
-        for col in netvars:
-            if POSTWEIGHT:
-                vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
-                vplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
-
-                pplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
-                pplots['SPS'+col].fill(sigjetframe[diststt > passnum].reset_index(drop=True)[col],sigjetframe[diststt > passnum].reset_index(drop=True)['extweight'])
-                pplots['SFL'+col].fill(sigjetframe[diststt <= passnum].reset_index(drop=True)[col],sigjetframe[diststt <= passnum].reset_index(drop=True)['extweight'])
-                pplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
-                pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col],bgjetframe[distbtt > passnum].reset_index(drop=True)['extweight'])
-                pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col],bgjetframe[distbtt <= passnum].reset_index(drop=True)['extweight'])
-            else:
-                vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col])
-                vplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col])
-                
-                pplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col])
-                pplots['SPS'+col].fill(sigjetframe[diststt > passnum].reset_index(drop=True)[col])
-                pplots['SFL'+col].fill(sigjetframe[diststt <= passnum].reset_index(drop=True)[col])
-                pplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col])
-                pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col])
-                pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col])
-
-        if not LOADMODEL:
             plt.clf()
             plt.plot([0,1],[0,1],'k--')
             plt.plot(rocx,rocy,'red')
@@ -794,78 +760,113 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             plt.ylabel('True Positive Rate')
             plt.legend(['y=x','Validation','Training'])
             plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
-            if POSTWEIGHT:
-                plt.savefig('Snetplots/ROC_'+str(fnum))
-            else:
-                plt.savefig('netplots/ROC_'+str(fnum))
+            plt.savefig(plots['Distribution'].fname)
+            
+        #else:
+        #    plots['DistStr'].fill(diststr)
+        #    plots['DistSte'].fill(distste)
+        #    plots['DistBtr'].fill(distbtr)
+        #    plots['DistBte'].fill(distbte)
+        #    plt.clf()
+            
+        for col in netvars:
+            vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
+            vplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
 
-    for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
-        p[0] = p[0]/sum(p[0])    
-    if POSTWEIGHT:
-        for p in [plots['WeightStr'],plots['WeightSte'],plots['WeightBtr'],plots['WeightBte']]:
-            p[0] = p[0]/sum(p[0])    
+            pplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
+            pplots['SPS'+col].fill(sigjetframe[diststt > passnum].reset_index(drop=True)[col],sigjetframe[diststt > passnum].reset_index(drop=True)['extweight'])
+            pplots['SFL'+col].fill(sigjetframe[diststt <= passnum].reset_index(drop=True)[col],sigjetframe[diststt <= passnum].reset_index(drop=True)['extweight'])
+            pplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
+            pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col],bgjetframe[distbtt > passnum].reset_index(drop=True)['extweight'])
+            pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col],bgjetframe[distbtt <= passnum].reset_index(drop=True)['extweight'])
+
+        
+
+    for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte'],
+              plots['WeightStr'],plots['WeightSte'],plots['WeightBtr'],plots['WeightBte']]:
+        if sum(p[0]) != 0:
+            p.ndivide(sum(p[0]))
+        
+    if LOADMODEL:
+        if dataflag==False:
+            leg = ['Signal','Background']
+        elif dataflag==True:
+            leg = ['Data','Background']
+        else:
+            leg = ['Signal','Data']
             
-    leg = ['Signal (training)','Background (training)','Signal (testing)', 'Background(testing)']
+        plt.clf()
+        plots['DistSte'].make(linestyle='-',**plargs[Skey])
+        plots['DistBte'].make(linestyle=':',**plargs[Bkey])
+        plots['Distribution'].plot(same=True,legend=leg)
+        plt.clf()
+        plots['DistSte'].make(linestyle='-',logv=True,**plargs[Skey])
+        plots['DistBte'].make(linestyle=':',logv=True,**plargs[Bkey])
+        plots['DistributionL'].plot(same=True,logv=True,legend=leg)
+    else:
+        leg = ['Signal (training)','Background (training)','Signal (testing)', 'Background(testing)']
             
-    plt.clf()
-    plots['DistStr'].make(color='red',linestyle='-',htype='step')
-    plots['DistBtr'].make(color='blue',linestyle='-',htype='step')
-    plots['DistSte'].make(color='red',linestyle=':',htype='step')
-    plots['DistBte'].make(color='blue',linestyle=':',htype='step')
-    plots['Distribution'].plot(same=True,legend=leg)
+        plt.clf()
+        plots['DistStr'].make(linestyle='-',**plargs[Skey])
+        plots['DistBtr'].make(linestyle='-',**plargs[Bkey])
+        plots['DistSte'].make(linestyle=':',**plargs[Skey])
+        plots['DistBte'].make(linestyle=':',**plargs[Bkey])
+        plots['Distribution'].plot(same=True,legend=leg)
     
-    plt.clf()
-    plots['DistStr'].make(color='red',linestyle='-',htype='step',logv=True)
-    plots['DistBtr'].make(color='blue',linestyle='-',htype='step',logv=True)
-    plots['DistSte'].make(color='red',linestyle=':',htype='step',logv=True)
-    plots['DistBte'].make(color='blue',linestyle=':',htype='step',logv=True)
-    plots['DistributionL'].plot(same=True,logv=True,legend=leg)
+        plt.clf()
+        plots['DistStr'].make(linestyle='-',logv=True,**plargs[Skey])
+        plots['DistBtr'].make(linestyle='-',logv=True,**plargs[Bkey])
+        plots['DistSte'].make(linestyle=':',logv=True,**plargs[Skey])
+        plots['DistBte'].make(linestyle=':',logv=True,**plargs[Bkey])
+        plots['DistributionL'].plot(same=True,logv=True,legend=leg)
     
-    if POSTWEIGHT:
+    #if POSTWEIGHT:
+    if LOADMODEL:
+        plt.clf()
+        plots['WeightSte'].make(linestyle='-',**plargs[Skey])
+        plots['WeightBte'].make(linestyle=':',**plargs[Bkey])
+        plots['Weights'].plot(same=True,legend=leg)
+    else:
         plt.clf()
         plots['WeightStr'].make(color='red',linestyle='-',htype='step')
         plots['WeightBtr'].make(color='blue',linestyle='-',htype='step')
         plots['WeightSte'].make(color='red',linestyle=':',htype='step')
         plots['WeightBte'].make(color='blue',linestyle=':',htype='step')
         plots['Weights'].plot(same=True,legend=leg)
-        
-    for col in netvars:
-        for plot in vplots:
-            vplots[plot][0] = vplots[plot][0]/(sum(abs(vplots[plot][0]+.0001)))
-        for plot in pplots:
-            pplots[plot][0] = pplots[plot][0]/(sum(abs(pplots[plot][0]+.0001)))
+    
+    if dataflag != True:
+        for col in netvars:
+            for plot in vplots:
+                vplots[plot].ndivide(sum(abs(vplots[plot][0]+.0001)))
+            for plot in pplots:
+                pplots[plot].ndivide(sum(abs(pplots[plot][0]+.0001)))
 
     if isLHE:
         for i in range(nlhe):
             lheplots['dist'+str(i)][0] = lheplots['dist'+str(i)][0]/sum(lheplots['dist'+str(i)][0])
             lheplots['dist'+str(i)].plot(htype='step')#,logv=True)
-       
-    
+        
     for col in netvars:
         plt.clf()
-        vplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
-        #vplots['RW'+col].make(color='black',linestyle='--',htype='step')
-        vplots['BG'+col].make(color='blue' ,linestyle=':',htype='step')
-        if POSTWEIGHT:
-            vplots[col].title = 'With post-weighted network training'
-        else:
-            vplots[col].title = 'With weighted network training'
-        vplots[col].plot(same=True,legend=['Signal','Background'])
+        vplots['SG'+col].make(linestyle='-',**plargs[Skey])
+        vplots['BG'+col].make(linestyle=':',**plargs[Bkey],error=dataflag)
+        #if POSTWEIGHT:
+        vplots[col].title = 'With post-weighted network training'
+        #else:
+        #   vplots[col].title = 'With weighted network training'
+        vplots[col].plot(same=True,legend=[Skey,Bkey])
+        
         plt.clf()
         pplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
         pplots['SFL'+col].make(color='black',linestyle='--',htype='step')
         pplots['SPS'+col].make(color='blue' ,linestyle=':',htype='step')
-        if dataflag == 1:
-            pplots[col].title = 'For DT rated above '+str(passnum)
-        else:
-            pplots[col].title = 'For SG rated above '+str(passnum)
-        pplots[col].plot(same=True,legend=['All Signal','Failing Signal','Passing Signal'])
+        pplots[col].plot(same=True,legend=[f"All {Skey}", f"Failing {Skey}",f"Passing {Skey}"])
+        
         plt.clf()
         pplots['BG'+col].make(color='red'  ,linestyle='-',htype='step')
         pplots['BFL'+col].make(color='black',linestyle='--',htype='step')
         pplots['BPS'+col].make(color='blue' ,linestyle=':',htype='step')
-        pplots['B'+col].title = 'For BG rated above '+str(passnum)
-        pplots['B'+col].plot(same=True,legend=['All Background','Failing Background','Passing Background'])
+        pplots['B'+col].plot(same=True,legend=[f"All {Bkey}",f"Failing {Bkey}",f"Passing {Bkey}"])
         
     #if POSTWEIGHT:
     #model.save('postweighted.hdf5')
@@ -925,9 +926,9 @@ def main():
                         i = j
             elif '-LHE' in arg:
                 isLHE = True
-        print('-')
-        print('sigfiles',sigfiles,'datafiles',datafiles)
-        print('-')
+        #print('-')
+        #print('sigfiles',sigfiles,'datafiles',datafiles)
+        #print('-')
         if not len(datafiles):
             dataflag = False
         elif len(sigfiles) and not len(bgfiles):

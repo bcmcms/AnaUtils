@@ -33,7 +33,7 @@ executor = concurrent.futures.ThreadPoolExecutor()
 ##########################################################
 # normevts = x-sec * lumi for signal, or # events for bg #
         
-    
+## Previously used for finding floating point division errors
 def debugsearch(hist,vhist,dhist):
     for idx in range(len(hist[0])):
         if hist[0][idx] > 5:
@@ -43,8 +43,9 @@ def debugsearch(hist,vhist,dhist):
             print('data:',dhist[0][idx])
 
 def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents='',bgevents='',dataevents=''):
-    #%%
-    #
+    #%%######################
+    ## Opening Definitions ##
+    #########################
     bgfracs = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401]
     nlhe = len(bgfracs)
     print("Current LHE bg weights are",bgfracs)
@@ -52,6 +53,7 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
         raise ValueError('A complete triplicate of input files, or input events, was not passed properly')
     for sfile in sigfiles:
         for dfile in datafiles:
+            ## Handles file operations if event trees are not passed
             if fromfile:
                 sigevents = uproot.open(sfile).get('Events')
                 bgevents = []
@@ -59,6 +61,7 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
                     bgevents.append(uproot.open(LHEBGfiles[i]).get('Events'))
                 dataevents = uproot.open(dfile).get('Events')
             
+            ## Initializing, filling, and normalizing histograms
             sigPU = Hist(200,(-0.5,199.5),'event pileup','fraction of events','weightplots/sigPU','Signal Pileup')
             dataPU= Hist(200,(-0.5,199.5),'event pileup','fraction of events','weightplots/dataPU','Data Pileup')
             compPU= Hist(200,(-0.5,199.5),'normalized signal (red), data (black), and weighted signal (blue)','bin fraction','weightplots/compPU')
@@ -72,13 +75,29 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
             
             bgPU = []
             bgesum = 0
+            ## In addition to looping previous operations over LHE background slices,
+            ## The total background event number after fraction cuts is calculated
             for i in range(nlhe):
                 bgPU.append(Hist(200,(-0.5,199.5),'event pileup','fraction of events','weightplots/bgPU_'+str(i),'Background #'+str(i)+' Pileup'))
                 bgPU[i].dfill(pd.DataFrame(bgevents[i].array('PV_npvs')))
                 bgPU[i][0] = bgPU[i][0] / sum(bgPU[i][0])
-                bgesum = bgesum + (bgevents[i].array('event').shape[0] * bgfracs[i])
-                print(bgevents[i].array('event').shape[0],bgfracs[i],bgesum)
                 
+                ## Pre-selection cuts must be applied to find surviving QCD event number
+                #bgjets = PhysObj('FatJet',LHEBGfiles[i],'pt','eta','mass','msoftdrop','btagDDBvL','btagDeepB')
+                #bgjets.cut(bgjets.pt > 240).cut(abs(bgjets.eta)<2.4).cut(bgjets.btagDDBvL > 0.8).cut(
+                        #bgjets.btagDeepB > 0.4184).cut(bgjets.msoftdrop > 90).cut(bgjets.mass > 90)
+                ## Tallying event number after cuts
+                #bgesum = bgesum + (bgjets.pt.shape[0] * bgfracs[i])
+
+            ## Applying pre-selection cuts to data to find total passing event number
+            #dtjets = PhysObj('FatJet',dfile,'pt','eta','mass','msoftdrop','btagDDBvL','btagDeepB')
+            #dtjets.cut(dtjets.pt > 240).cut(abs(dtjets.eta)<2.4).cut(dtjets.btagDDBvL > 0.8).cut(
+                    #dtjets.btagDeepB > 0.4184).cut(dtjets.msoftdrop > 90).cut(dtjets.mass > 90)
+            
+            ####################
+            ## Signal Weights ##
+            ####################
+            
             sigweights = {
                     'genweights': pd.DataFrame(sigevents.array('Generator_weight')).rename(columns=inc),
                     # x-sec * lumi / nEvents
@@ -88,6 +107,8 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
                     }
             sigweights.update({'PUweights': pd.DataFrame(np.array(sigweights['PUhist'][0])[sigevents.array('PV_npvs')]).rename(columns=inc)})
             sigweights.update({'normweights': sigweights['floatNorm']*(sigweights['genweights']/sigweights['genweights'])})
+
+            ## Test histograms for inspection purposes
             tPU = sigweights['PUhist']
             tPU.fname = "weightplots/sigDdataPU"
             tPU.title = 'Data / Signal Pileup'
@@ -114,36 +135,43 @@ def getweights(sigfiles='',LHEBGfiles='',datafiles='',fromfile=True,sigevents=''
             ratioPUs[0].make(color='red'  ,linestyle='-',htype='step')
             ratioPUs[1].plot(same=True,color='black',linestyle='--',htype='step')
             
+            ########################
+            ## Background Weights ##
+            ########################
+            
             bgweights = []
             for i in range(nlhe):
                 bgweights.append({
                         'genweights': pd.DataFrame(bgevents[i].array('Generator_weight')).rename(columns=inc),
                         # data events / (bg events * bg lhe weight)
-                        'floatNorm': dataevents.array('Jet_eta').shape[0]/(dataevents.array('Jet_eta').shape[0]),#*bgfracs[i]),
+                        'floatNorm': 1,#dtjets.pt.shape[0]/bgesum,#*bgfracs[i]),
                         'PUhist': dataPU.divideby(bgPU[i],split=True,trimnoise=.00001),   
                         'events': pd.DataFrame(bgevents[i].array('event')).rename(columns=inc)
                         })
                 bgweights[i].update({'PUweights': pd.DataFrame(np.array(bgweights[i]['PUhist'][0])[bgevents[i].array( 'PV_npvs')]).rename(columns=inc)})
                 bgweights[i].update({'normweights': bgweights[i]['floatNorm']*(bgweights[i]['genweights']/bgweights[i]['genweights'])})
                 bgname = 'weights/'+fstrip(LHEBGfiles[i])+"-"+fstrip(dfile)
+
+                ## Saving BG output
                 print('Writing to',bgname+".p")
+                np.savetxt(bgname+'.txt',bgweights[i]['PUhist'][0])
                 pickle.dump(bgweights[i],open(bgname+'.p', "wb"))
+                
+                ## Test histograms for inspection purposes
                 tPU = bgweights[i]['PUhist']
                 tPU.fname = "weightplots/bgDdataPU_"+str(i)
                 tPU.title = 'Data / Background slice '+str(i)+' Pileup'
                 tPU.ylabel = 'per-bin event weighting'
                 tPU.plot()
                 bgPU[i].plot()
-                np.savetxt(bgname+'.txt',bgweights[i]['PUhist'][0])
-                #with open(bgname+".txt",'w') as bfile:
-                #    bfile.write(bgweights[i]['PUhist'][0].astype(str))
+
+                
+            ## Saving signal output
             sgname = 'weights/'+fstrip(sfile)+"-"+fstrip(dfile)
             print('Writing to',sgname+".p")
             pickle.dump(sigweights,open(sgname+'.p', "wb"))
             np.savetxt(sgname+'.txt',sigweights['PUhist'][0])
-            #with open(sgname+".txt",'w') as sfile:
-            #    sfile.write(sigweights['PUhist'][0].astype(str))
-            #sfile.close()
+            
             return sigweights, bgweights
                 
 ## Define 'main' function as primary executable

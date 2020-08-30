@@ -14,12 +14,19 @@ import numpy as np
 #import awkward
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as PathEffects
+from matplotlib.patches import Rectangle
+from matplotlib.collections import PatchCollection
 import pandas as pd
 #import itertools as it
 import copy as cp
 from munch import DefaultMunch
 
 import mplhep as hep
+
+def stepx(xs):
+    return np.tile(xs, (2,1)).T.flatten()[1:-1]
+def stepy(ys):
+    return np.tile(ys, (2,1)).T.flatten()
 
 class Hist(object):
     def __init__(s,size,bounds,xlabel='',ylabel='',fname='',title=''):
@@ -31,6 +38,7 @@ class Hist(object):
         s.title = title
         s.fname = fname
         s.fig = ''
+        s.er = s.hs[0]
 
     def __getitem__(s,i):
         if (i > 1) or (i < -2):
@@ -50,8 +58,12 @@ class Hist(object):
         s.hs[0] = s.hs[0] + inplot[0]
         return s
 
-    ## Fills the stored histogram with the supplied values
+    ## Fills the stored histogram with the supplied values, and tracks squared uncertainty sum
     def fill(s,vals,weights=None):
+        if weights is None:
+            s.er = s.er + plt.hist(vals,s.size,s.bounds)[0]
+        else:
+            s.er = s.er + plt.hist(vals,s.size,s.bounds,weights=(weights*weights))[0]
         s.hs[0] = s.hs[0] + plt.hist(vals,s.size,s.bounds,weights=weights)[0]
         return s
 
@@ -74,18 +86,39 @@ class Hist(object):
         ## Empty bins should have a weight of 0
         s.hs[0][np.isnan(s.hs[0])] = 0
         return s
-
+    
+    ## Normalizes the histogram by the magnitude of a specified bin
     def norm(s,tar=0,split=False):
         if split:
             s = cp.deepcopy(s)
         nval = s.hs[0][tar]
         s.hs[0] = s.hs[0]/nval
         return s
+    
+    ## Divides the histogram's bins, and its squared uncertainty sum, by a number.
+    def ndivide(s,num=1):
+        if num == 0:
+            raise Exception(f"You tried to divide {s.fname} by 0")
+        s.hs[0] = s.hs[0]/num
+        s.er = s.er/(num*num)
+        return s
 
     ## Creates and returns a pyplot-compatible histogram object
-    def make(s,logv=False,htype='bar',color=None,linestyle='solid'):
-        return plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],
+    def make(s,logv=False,htype='bar',color=None,linestyle='solid',error=False):
+        if htype=='err':
+            binwidth = s.hs[1][2]-s.hs[1][1]
+            plot = plt.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.er),fmt='.k',
+                        color=color,linewidth=2,capsize=3)    
+            if logv:
+                plt.yscale('log')
+            return plot
+        plot = plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],
                         log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=2)
+        if error==True:
+            plt.fill_between(stepx(s.hs[1]),stepy(s.hs[0]-np.sqrt(s.er)),stepy(s.hs[0]+np.sqrt(s.er)),
+                             alpha=0.0,hatch='xxxxxx',zorder=2,label='_nolegend_')
+            
+        return plot
         #return hep.histplot(s.hs[0],s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
     def plot(s,ylim=False,same=False,legend=False,**args):
         if not same:
@@ -111,7 +144,7 @@ class Hist(object):
             plt.savefig(s.fname)
         plt.close(s.fig)
        
-            
+    ## Shortcut for creating stacked plots of two comperable datasets
     def stackplot(s,phist,ylim=False):
         plt.clf()
         s.make(htype='step',color='black')
@@ -125,59 +158,7 @@ class Hist(object):
         if s.title != '':
             plt.title(s.title)
         if s.fname != '':
-            plt.savefig(s.fname+'_v')      
-            
-#    def bplt(self):
-#        #if self.fig is not '':
-#        #    self.fig, (self.ax, self.ax2) = plt.subplots(2,1, sharex=True, gridspec_kw={'height_ratios':[3,1]})
-#        #    self.fig.subplots_adjust(hspace=0)
-#        #else:
-#        #self.fig, self.ax = plt.subplots()
-#        plt.subplots_adjust(
-#            top=0.88,
-#            bottom=0.11,
-#            left=0.11,
-#            right=0.88,
-#            hspace=0.2,
-#            wspace=0.2
-#        )
-#        
-#    def mplt(self):
-#        #self.bplt()
-#        n_, bins_, patches_ = plt.hist(
-#            self.hs[1][:-1],
-#            self.size,
-#            self.bounds,
-#            #stacked=True,# fill=True,
-#            #range=range_,
-#            histtype='step',#'stepfilled',
-#            #density=False,
-#            #linewidth=0,
-#            weights=self.hs[0],
-#            color   = self.color,
-#            label   = self.ylabel
-#        )
-#
-#        #self.eplt
-#        
-#    def eplt(self):
-#        self.fontsize = 12
-#        self.lumi = 58.9 #2018
-#        #self.ax.xaxis.set_minor_locator(AutoMinorLocator())
-#        #self.ax.yaxis.set_minor_locator(AutoMinorLocator())
-#        plt.tick_params(which='both', direction='in', top=True, right=True)
-#        plt.text(0.105,0.89, r"$\bf{CMS}$ $Simulation$", fontsize = self.fontsize)
-#        plt.text(0.635,0.89, f'{self.lumi}'+r' fb$^{-1}$ (13 TeV)',  fontsize = self.fontsize)
-#        #plt.xlabel(self.xlabel, fontsize = self.fontsize)
-#        #self.ax.set_ylabel(f"{'%' if self.doNorm else 'Events'} / {(self.bin_w[0].round(2) if len(set(self.bin_w)) == 1 else 'bin')}")#fontsize = self.fontsize)
-#        #plt.xlim(self.bin_range)
-#        #if self.doLog: self.ax.set_yscale('log')
-#        plt.grid(True)
-#        #plt.setp(patches_, linewidth=0)
-#        plt.legend(framealpha = 0, ncol=2, fontsize='xx-small')
-#        #if self.doSave: plt.savefig(f'{self.saveDir}{self.xlabel}_.pdf', dpi = 300)
-#        #if self.doShow: plt.show()
-#        #plt.close(self.fig)
+            plt.savefig(s.fname+'_v')    
 
 
 class Hist2d(object):
