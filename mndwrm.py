@@ -2,6 +2,7 @@
 
 ########################################################################
 ### NanoAOD analyzer utility mndwrm.py                               ###
+### Compiled with Keras-2.4.3 Tensorflow-1.14.0                      ###
 ###                                                                  ###
 ### Run without arguments for a list of flags and options            ###
 ########################################################################
@@ -49,7 +50,7 @@ VERBOSE=False
 ##Switches whether weights are loaded and applied to the post-training statistics,
 ##and what data file they expect to be associated with
 POSTWEIGHT = True
-DATANAME = '2018D_Parked_promptD-v1_200218_214714_0000_Skim_nFat1_doubB_0p8_deepB_Med_massH_70_msoft_70_183M.root'
+DATANAME = '2018D_Parked.root'
 
 evtlist = [35899001,24910172,106249475,126514437,43203653,27186346,17599588,64962950,61283040,54831588]
 
@@ -154,6 +155,17 @@ def tutor(bgjetframe,sigjetframe):
 #%%
 
 def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
+    #%%################
+    # Plots and Setup #
+    ###################
+    #training=True
+    #training=False
+    #tf.random.set_random_seed(2)
+    #tf.compat.v1.set_random_seed(2)
+    #np.random.seed(2)
+    
+    #fig = plt.figure(figsize=(10.0,6.0))
+    
     global LOADMODEL
     plargs = {'Data':  {'color':'black','htype':'step'},
               'Background':   {'color':'red','htype':'step'},
@@ -172,16 +184,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         else:
             Skey = 'Signal'
             Bkey = 'Data'
-    #%%################
-    # Plots and Setup #
-    ###################
-    #training=True
-    #training=False
-    #tf.random.set_random_seed(2)
-    #tf.compat.v1.set_random_seed(2)
-    #np.random.seed(2)
-    
-    #fig = plt.figure(figsize=(10.0,6.0))
+
     
     l1 = 8
     l2 = 8
@@ -189,9 +192,9 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
     alpha = 0.85
     gamma = 0.8
     model = keras.Sequential([
-            keras.Input(shape=(8,),dtype='float32'),
+            #keras.Input(shape=(4,),dtype='float32'),
             #keras.layers.Flatten(input_shape=(8,)),
-            keras.layers.Dense(l1, activation=tf.nn.relu),#, bias_regularizer=tf.keras.regularizers.l2(l=0.0)),
+            keras.layers.Dense(l1, activation=tf.nn.relu,input_shape=(4,)),#, bias_regularizer=tf.keras.regularizers.l2(l=0.0)),
             keras.layers.Dense(l2, activation=tf.nn.relu),
             keras.layers.Dense(l3, activation=tf.nn.relu),
             #keras.layers.Dropout(0.1),
@@ -209,7 +212,9 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
     
     scaler = MinMaxScaler()
     
-    netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs']
+    #netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs']
+    netvars = ['DeepB','H4qvs','DDBvL','CSVV2']
+    #netvars = ['pt','eta','mass','msoft']
     
     ## Define what pdgId we expect the A to have
     Aid = 9000006
@@ -243,8 +248,10 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet in all (red), passing signal (blue), and signal (black) events','Fractional Distribution','netplots/pCSVV2'),
         "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet','Fractional Distribution','netplots/pDeepB'),
         "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet in all (red), passing (blue), and failing  (black) events','Fractional Distribution','netplots/pmsoft'),
-        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet','Fractional Distribution','netplots/pDDBvL'),
+        "DDBvL":    Hist(55 ,(0,1.1)    ,'DDBvL for highest pT jet','Fractional Distribution','netplots/pDDBvL'),
         "H4qvs":    Hist(24 ,(-10,2)    ,'H4qvs for highest pT jet','Fractional Distribution','netplots/pH4qvs'),
+        "npvs":     Hist(40 ,(0,80)     ,'npvs per event','Fractional Distribution','netplots/pnpvs'),
+        "npvsG":    Hist(40 ,(0,80)     ,'npvsGood per event','Fractional Distribution','netplots/pnpvsG'),
         }
     prefix = ['SG','SPS','SFL','BG','BPS','BFL']
     tdict = {}
@@ -266,8 +273,10 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet','Fractional Distribution','netplots/CSVV2'),
         "DeepB":    Hist(22 ,(0,1.1)    ,'DeepB for highest pT jet','Fractional Distribution','netplots/DeepB'),
         "msoft":    Hist(50 ,(0,200)    ,'msoft for highest pT jet','Fractional Distribution','netplots/msoft'),
-        "DDBvL":    Hist(22 ,(0,1.1)    ,'DDBvL for highest pT jet','Fractional Distribution','netplots/DDBvL'),
-        "H4qvs":    Hist(20 ,(0,1)    ,'H4qvs for highest pT jet','Fractional Distribution','netplots/H4qvs')
+        "DDBvL":    Hist(55 ,(0,1.1)    ,'DDBvL for highest pT jet','Fractional Distribution','netplots/DDBvL'),
+        "H4qvs":    Hist(20 ,(0,1)      ,'H4qvs for highest pT jet','Fractional Distribution','netplots/H4qvs'),
+        "npvs":     Hist(40 ,(0,80)     ,'npvs per event','Fractional Distribution','netplots/npvs'),
+        "npvsG":    Hist(40 ,(0,80)     ,'npvsGood per event','Fractional Distribution','netplots/npvsG')
         #"LHEHT":    Hist(400,(0,4000)   ,'LHE_HT for highest pT jet in passing signal (red), BG (blue), and raw BG (black) events','% Distribution','netplots/LHE_HT'),
     }
     tdict = {}
@@ -309,6 +318,10 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
     if LOADMODEL:
         if dataflag == 1:
             pf = 'D'
+            for key in vplots:
+                vplots[key].ylabel = 'Events'
+            for key in pplots:
+                pplots[key].ylabel = 'Events'
         elif dataflag == -1:
             pf = 'C'
         else:
@@ -384,6 +397,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             jets.msoft = pd.DataFrame(events.array('FatJet_msoftdrop', executor=executor)).rename(columns=inc)
             jets.H4qvs = pd.DataFrame(events.array('FatJet_deepTagMD_H4qvsQCD', executor=executor)).rename(columns=inc)
             jets.event = pd.DataFrame(events.array('event', executor=executor)).rename(columns=inc)
+            jets.npvs  = pd.DataFrame(events.array('PV_npvs', executor=executor)).rename(columns=inc)
+            jets.npvsG = pd.DataFrame(events.array('PV_npvsGood', executor=executor)).rename(columns=inc)
             jets.extweight = jets.event / jets.event
             if wname != '':
                 weights = pickle.load(open('weights/'+wname+'-'+fstrip(DATANAME)+'.p',"rb" ))
@@ -394,6 +409,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
                 jets.extweight = jets.event / jets.event
             for j in range(1,jets.pt.shape[1]):
                 jets.event[j+1] = jets.event[1]
+                jets.npvs[j+1] = jets.npvs[1]
+                jets.npvsG[j+1] = jets.npvsG[1]
                 #if POSTWEIGHT:
                 jets.extweight[j+1] = jets.extweight[1]
             return jets
@@ -511,6 +528,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             ev = Event(bs,sigjets,As,higgs)
         else:
             ev = Event(sigjets)
+            
         
         if isLHE:
             for jets in bgjets+[sigjets]:
@@ -539,7 +557,94 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             slimjets.cut(slimjets.DeepB > 0.1241)
             slimjets.cut(slimjets.DeepFB > 0.277)
             slimjets.cut(slimjets.puid > 0)
-            slimjets.trimTo(jets.eta)
+            slimjets.trimto(jets.eta)
+        ## Implement muon cuts for QCD in comparison to data
+        elif dataflag == True:
+#            smuplots = {
+#                "pt":       Hist(50 ,(0,200)  ,'pT for highest pT muon','Fractional Distribution','muplots/pt'),
+#                "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT muon','Fractional Distribution','muplots/eta'),
+#                "dxy":      Hist(25 ,(0,0.5)     ,'dxy for highest pT muon','Fractional Distribution','muplots/dxy'),
+#                "dxyErr":     Hist(25 ,(0,0.01)   ,'dxyerr for highest pT muon','Fractional Distribution','muplots/dxyerr'),
+#                "dxyoErr":    Hist(25 ,(0,100)   ,'dxy / dxyerr for highest pT muon','Fractional Distribution','muplots/dxyoerr'),
+#                }
+#            bmuplots = cp.deepcopy(smuplots)
+            
+            muons = PhysObj('Muon',sigfiles[fnum],'mediumId','eta','pt','dxy','dxyErr')
+            ev.register(muons)
+            muons.cut(muons.mediumId > 0.9)
+            muons.cut(abs(muons.eta) < 1.5)
+            muons.cut(np.logical_or(
+                    np.logical_and(muons.pt > 7,abs(muons.dxy/muons.dxyErr) > 4),
+                    np.logical_and(muons.pt > 8,abs(muons.dxy/muons.dxyErr) > 3)))
+            ev.sync()
+            
+#            for prop in ['pt','eta','dxy','dxyErr']:
+#                smuplots[prop].dfill(muons[prop][muons.pt.rank(axis=1,method='first') == 1])
+#            smuplots['dxyoErr'].dfill(muons['dxy'][muons.pt.rank(axis=1,method='first') == 1] /
+#                    muons['dxyErr'][muons.pt.rank(axis=1,method='first') == 1])
+#            
+#            muons.extweight = pd.DataFrame()
+#            muons.extweight[1] = np.sum(sigjets.extweight[sigjets.pt.rank(axis=1,method='first') == 1],axis=1)
+            
+            ## Apply these cuts to data events as well
+            if isLHE:
+                bmuons = []
+#                bmwtpiece = []
+                for i in range(nlhe):
+                    idx = fnum*nlhe + i
+                    bmuons.append(PhysObj('Muon',bgfiles[idx],'mediumId','eta','pt','dxy','dxyErr'))
+                    bmuons[i].cut(bmuons[i].mediumId > 0.9)
+                    bmuons[i].cut(abs(bmuons[i].eta) < 1.5)
+                    bmuons[i].cut(np.logical_or(
+                            np.logical_and(bmuons[i].pt > 7,abs(bmuons[i].dxy/bmuons[i].dxyErr) > 4),
+                            np.logical_and(bmuons[i].pt > 8,abs(bmuons[i].dxy/bmuons[i].dxyErr) > 3)))
+                    bgjets[i].trimto(bmuons[i].pt)
+#                    bmuons[i].trimto(bgjets[i].pt)
+#                    bmuons[i].extweight = pd.DataFrame()
+#                    bmuons[i].extweight[1] = lheweights[i] * np.sum(bgjets[i].extweight[bgjets[i].pt.rank(axis=1,method='first') == 1],axis=1)
+#                    bmwtpiece.append(bmuons[i].extweight[1])
+#                    
+#                bmweightsum = np.sum(pd.concat(bmwtpiece,ignore_index=True))
+#                    
+#                for i in range(nlhe):
+#                    if bmuons[i].pt.shape[0] > 0:
+#                        bmuons[i]['extweight'] = bmuons[i]['extweight'] * np.sum(muons['extweight'])/bmweightsum
+#                        for prop in ['pt','eta','dxy','dxyErr']:
+#                            bmuplots[prop].fill(np.sum(bmuons[i][prop][bmuons[i].pt.rank(axis=1,method='first') == 1],axis=1),
+#                                    weights=bmuons[i].extweight[1])
+#                        bmuplots['dxyoErr'].fill(np.sum(bmuons[i].dxy[bmuons[i].pt.rank(axis=1,method='first') == 1],axis=1) / np.sum(bmuons[i].dxyErr[bmuons[i].pt.rank(axis=1,method='first') == 1],axis=1),
+#                                weights=bmuons[i].extweight[1])
+            else:
+                muons = PhysObj('Muon',bgfiles[fnum],'mediumId','eta','pt','dxy','dxyErr')
+                muons.cut(muons.mediumId > 0.9)
+                muons.cut(abs(muons.eta) < 1.5)
+                muons.cut(np.logical_or(
+                        np.logical_and(muons.pt > 7,abs(muons.dxy/muons.dxyErr) > 4),
+                        np.logical_and(muons.pt > 8,abs(muons.dxy/muons.dxyErr) > 3)))
+                bgjets.trimto(muons.pt)
+            plt.clf()
+#            for prop in smuplots:
+#                smuplots[prop].make(linestyle='-',**plargs[Skey])
+#                bmuplots[prop].plot(same=True,linestyle='-',legend=['Data','Background'],**plargs[Bkey])
+        ## Extra debug table check
+#       
+#        dbframe = pd.DataFrame()
+#        sigjets1 = sigjets.cut(abs(sigjets.eta) > 1.8,split=True)
+#        sigjets2 = sigjets.cut(abs(sigjets.eta) > 0.7,split=True)
+#        dbframe[0] = [sigjets.eta.shape[0],
+#                np.sum(np.sum(sigjets.extweight[sigjets.pt.rank(axis=1,method='first') == 1])),
+#                sigjets1.eta.shape[0],
+#                np.sum(np.sum(sigjets2.extweight[sigjets2.pt.rank(axis=1,method='first') == 1]))
+#                ]
+#        for i in range(nlhe):
+#            bgjets1 = bgjets[i].cut(abs(bgjets[i].eta) > 1.8,split=True)
+#            bgjets2 = bgjets[i].cut(abs(bgjets[i].eta) > 0.7,split=True)
+#            dbframe[i+1] = [bgjets[i].eta.shape[0],
+#                    np.sum(np.sum(bgjets[i].extweight[bgjets[i]['pt'].rank(axis=1,method='first') == 1])),
+#                    bgjets1.eta.shape[0],
+#                    np.sum(np.sum(bgjets2.extweight[bgjets2.pt.rank(axis=1,method='first') == 1]))
+#                    ]
+#        np.savetxt('DEBUGarray.txt',dbframe)
         
         ##############################
         # Processing and Calculation #
@@ -586,7 +691,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
                 fjets = fjets + blist[i][blist[i]<0.8].fillna(0)/blist[i][blist[i]<0.8].fillna(0)
             fjets = fjets.max(axis=1)
             fjets = fjets[fjets==4].dropna()
-            sigjets.trimTo(fjets)
+            sigjets.trimto(fjets)
             ev.sync()
         
 
@@ -595,7 +700,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         # Preparing Neural Net Variables #
         ##################################
         bgjetframe = pd.DataFrame()
-        extvars = ['event','extweight']
+        extvars = ['event','extweight','npvs','npvsG']
         
         if isLHE:
             bgpieces = []
@@ -606,7 +711,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
                 twgtframe = pd.DataFrame()
                 for prop in netvars+extvars:
                     twgtframe[prop] = bgjets[i][prop][bgjets[i]['pt'].rank(axis=1,method='first') == 1].max(axis=1)
-                twgtframe['eta'] = abs(twgtframe['eta'])
+                if 'eta' in netvars:
+                    twgtframe['eta'] = abs(twgtframe['eta'])
                 twgtframe['val'] = 0
                 tempframe = twgtframe.sample(frac=lheweights[i],random_state=6)
                 twgtframe['extweight'] = twgtframe['extweight'] * lheweights[i]
@@ -630,7 +736,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         sigjetframe = pd.DataFrame()
         for prop in netvars + extvars:
             sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first') == 1].max(axis=1)
-        sigjetframe['eta'] = abs(sigjetframe['eta'])
+        if 'eta' in netvars:    
+            sigjetframe['eta'] = abs(sigjetframe['eta'])
         sigjetframe['val'] = 1
         sigtrnframe = sigjetframe[sigjetframe['event']%2 == 0]
         nsig = sigtrnframe.shape[0]
@@ -664,8 +771,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             W_inputs = X_inputs['extweight']
             Y_inputs = X_inputs['val']
             X_inputs = X_inputs.drop(extvars,axis=1)
-            model = keras.models.load_model('archive/weighted.hdf5', compile=False) 
-            scaler = pickle.load( open("archive/weightedscaler.p", "rb" ) )
+            model = keras.models.load_model('btagfiles/weighted.hdf5', compile=False) #archive
+            scaler = pickle.load( open("btagfiles/weightedscaler.p", "rb" ) )
             ##
             #print(scaler.transform(bgpieces[1].drop('val',axis=1)))
             ##
@@ -710,16 +817,16 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             diststt = model.predict(scaler.transform(sigjetframe.drop(extvars,axis=1)))
             distbtt = model.predict(scaler.transform(bgjetframe.drop(extvars,axis=1)))
         
-        if isLHE:
-            for i in range(nlhe):
-                piece = wtpieces[i].drop(extvars,axis=1)
-                piece = piece.reset_index(drop=True)
-                piece = scaler.transform(piece)
-                lhedist = model.predict(piece)
-                #if POSTWEIGHT:
-                lheplots['dist'+str(i)].fill(lhedist,wtpieces[i]['extweight'])
-                #else:
-                #    lheplots['dist'+str(i)].fill(lhedist)
+        #if isLHE:
+        #    for i in range(nlhe):
+        #        piece = wtpieces[i].drop(extvars,axis=1)
+        #        piece = piece.reset_index(drop=True)
+        #        piece = scaler.transform(piece)
+        #        lhedist = model.predict(piece)
+        #        #if POSTWEIGHT:
+        #        lheplots['dist'+str(i)].fill(lhedist,wtpieces[i]['extweight'])
+        #        #else:
+        #        #    lheplots['dist'+str(i)].fill(lhedist)
         
         if LOADMODEL:
             plots['DistSte'].fill(diststt,W_inputs[Y_inputs==1])
@@ -760,7 +867,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             plt.ylabel('True Positive Rate')
             plt.legend(['y=x','Validation','Training'])
             plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
-            plt.savefig(plots['Distribution'].fname)
+            plt.savefig(plots['Distribution'].fname+'ROC')
             
         #else:
         #    plots['DistStr'].fill(diststr)
@@ -769,7 +876,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         #    plots['DistBte'].fill(distbte)
         #    plt.clf()
             
-        for col in netvars:
+        for col in netvars + ['npvs','npvsG']:
             vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
             vplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
 
@@ -846,7 +953,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
             lheplots['dist'+str(i)][0] = lheplots['dist'+str(i)][0]/sum(lheplots['dist'+str(i)][0])
             lheplots['dist'+str(i)].plot(htype='step')#,logv=True)
         
-    for col in netvars:
+    for col in netvars + ['npvs','npvsG']:
         plt.clf()
         vplots['SG'+col].make(linestyle='-',**plargs[Skey])
         vplots['BG'+col].make(linestyle=':',**plargs[Bkey],error=dataflag)
@@ -867,6 +974,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False):
         pplots['BFL'+col].make(color='black',linestyle='--',htype='step')
         pplots['BPS'+col].make(color='blue' ,linestyle=':',htype='step')
         pplots['B'+col].plot(same=True,legend=[f"All {Bkey}",f"Failing {Bkey}",f"Passing {Bkey}"])
+        
         
     #if POSTWEIGHT:
     #model.save('postweighted.hdf5')

@@ -87,6 +87,10 @@ class Hist(object):
         s.hs[0][np.isnan(s.hs[0])] = 0
         return s
     
+    def divideBy(s,*args,**kwargs):
+        s = s.divideby(*args,**kwargs)
+        return s
+    
     ## Normalizes the histogram by the magnitude of a specified bin
     def norm(s,tar=0,split=False):
         if split:
@@ -182,8 +186,8 @@ class Hist2d(object):
         s.hs[0] = s.hs[0] + inplot[0]
         return s
 
-    def fill(s,valx,valy):
-        s.hs[0] = s.hs[0] + plt.hist2d(valx,valy,s.sizes,s.bounds)[0]
+    def fill(s,valx,valy,weights=None):
+        s.hs[0] = s.hs[0] + plt.hist2d(valx,valy,s.sizes,s.bounds,weights=weights)[0]
         return s
 
     def dfill(s,framex,framey):
@@ -204,8 +208,8 @@ class Hist2d(object):
         out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth)
         return out    
 
-    def plot(s,logv=False,text=False,**args):
-        s.make(**args)
+    def plot(s,logv=False,text=False,*args,**kwargs):
+        s.make(*args,**kwargs)
         #print(s.hs[0])
         #print(s.hs[1])
         #print(s.hs[2])
@@ -248,11 +252,15 @@ class PhysObj(DefaultMunch):
         return s
 
     ## Removes events that are missing in the passed frame
-    def trimTo(s,frame,split=False):
+    def trimto(s,frame,split=False):
         if split:
             s = s.copy()
         for elem in s:
             s[elem] = s[elem].loc[frame.index.intersection(s[elem].index)]
+        return s
+    
+    def trimTo(s,*args,**kwargs):
+        s = s.trimto(*args,**kwargs)
         return s
     
     ## Removes events that are missing from the passed frame (probably not ideal to have to do this)
@@ -268,6 +276,7 @@ class PhysObj(DefaultMunch):
         for elem in s:
             s[elem] = s[elem][mask].dropna(how='all')
         return s
+    
 
 class Event():
     def __init__(s,*args):
@@ -300,12 +309,13 @@ class Event():
 
     ## Applies disqualified events to all associated objects
     def applycuts(s,split=False):
+        ## event splitting is currently broken; applying deepcopy to a physics object attempts to call a string
         if split:
             s = cp.deepcopy(s)
         for obj in s.objs:
-            s[obj].trimTo(s.frame)
+            s[obj].trimto(s.frame)
         return s
-
+    
     def sync(s,split=False):
         if split:
             s = cp.deepcopy(s)
