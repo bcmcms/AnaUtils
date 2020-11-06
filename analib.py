@@ -185,10 +185,10 @@ class Hist(object):
             plt.savefig(s.fname+'_v')    
             
     def toTH1(s):
-        return HackyTH1(s.hs[1][0],s.hs[1][-1],s.hs[0],s.title)
+        return np.histogram(s.hs[1][12:-5],s.hs[1][12:-4],weights=s.hs[0][12:-4])
     
     def errtoTH1(s):
-        return HackyTH1(s.hs[1][0],s.hs[1][-1],np.sqrt(s.ser))
+        return np.histogram(s.hs[1][12:-5],s.hs[1][12:-4],weights=np.sqrt(s.ser[12:-4]))
     
 #    errToTh1 = errtoTH1
     def errToTH1(s):
