@@ -20,13 +20,25 @@ import pandas as pd
 #import itertools as it
 import copy as cp
 from munch import DefaultMunch
-
+import uproot_methods.classes.TH1
+import types
 import mplhep as hep
 
 def stepx(xs):
     return np.tile(xs, (2,1)).T.flatten()[1:-1]
 def stepy(ys):
     return np.tile(ys, (2,1)).T.flatten()
+
+class HackyTH1(uproot_methods.classes.TH1.Methods, list):
+    def __init__(self, low, high, values, title=""):
+        self._fXaxis = types.SimpleNamespace()
+        self._fXaxis._fNbins = len(values)
+        self._fXaxis._fXmin = low
+        self._fXaxis._fXmax = high
+        for x in values:
+            self.append(float(x))
+        self._fTitle = title
+        self._classname = "TH1F"
 
 class Hist(object):
     def __init__(s,size,bounds,xlabel='',ylabel='',fname='',title=''):
@@ -38,7 +50,7 @@ class Hist(object):
         s.title = title
         s.fname = fname
         s.fig = ''
-        s.er = s.hs[0]
+        s.ser = s.hs[0]
 
     def __getitem__(s,i):
         if (i > 1) or (i < -2):
@@ -61,9 +73,9 @@ class Hist(object):
     ## Fills the stored histogram with the supplied values, and tracks squared uncertainty sum
     def fill(s,vals,weights=None):
         if weights is None:
-            s.er = s.er + plt.hist(vals,s.size,s.bounds)[0]
+            s.ser = s.ser + plt.hist(vals,s.size,s.bounds)[0]
         else:
-            s.er = s.er + plt.hist(vals,s.size,s.bounds,weights=(weights*weights))[0]
+            s.ser = s.ser + plt.hist(vals,s.size,s.bounds,weights=(weights*weights))[0]
         s.hs[0] = s.hs[0] + plt.hist(vals,s.size,s.bounds,weights=weights)[0]
         return s
 
@@ -79,17 +91,25 @@ class Hist(object):
             raise Exception('Mismatch between passed and stored histogram dimensions')
         if split:
             s = cp.deepcopy(s)
+        inplot = cp.deepcopy(inplot)
+        
         if trimnoise:
             s.hs[0][s.hs[0]<trimnoise]=np.nan
             inplot[0][inplot[0]<trimnoise]=np.nan
+            
+        A = s.hs[0]
+        eA = np.sqrt(s.ser)
         s.hs[0] = np.divide(s.hs[0],inplot[0], where=inplot[0]!=0)
         ## Empty bins should have a weight of 0
         s.hs[0][np.isnan(s.hs[0])] = 0
+        inplot[0][np.isnan(inplot[0])] = 0
+        ## ex^2 = x^2 * ((eA/A)^2 + (eB/B)^2)
+        s.ser = (s.hs[0]*s.hs[0])*(np.power(eA/A,2)+np.power(np.sqrt(inplot.ser)/inplot[0],2))
+        s.ser[np.isnan(s.ser)] = 0.
         return s
     
     def divideBy(s,*args,**kwargs):
-        s = s.divideby(*args,**kwargs)
-        return s
+        return s.divideby(*args,**kwargs)
     
     ## Normalizes the histogram by the magnitude of a specified bin
     def norm(s,tar=0,split=False):
@@ -104,22 +124,22 @@ class Hist(object):
         if num == 0:
             raise Exception(f"You tried to divide {s.fname} by 0")
         s.hs[0] = s.hs[0]/num
-        s.er = s.er/(num*num)
+        s.ser = s.ser/(num*num)
         return s
 
     ## Creates and returns a pyplot-compatible histogram object
     def make(s,logv=False,htype='bar',color=None,linestyle='solid',error=False):
         if htype=='err':
             binwidth = s.hs[1][2]-s.hs[1][1]
-            plot = plt.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.er),fmt='.k',
-                        color=color,linewidth=2,capsize=3)    
+            plot = plt.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.ser),fmt='.k',
+                        color=color,linewidth=2,capsize=3)
             if logv:
                 plt.yscale('log')
             return plot
-        plot = plt.hist(s.hs[1][:-1],s.size,s.bounds,weights=s.hs[0],
+        plot = plt.hist(s.hs[1][:-1],s.hs[1],weights=s.hs[0],
                         log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=2)
         if error==True:
-            plt.fill_between(stepx(s.hs[1]),stepy(s.hs[0]-np.sqrt(s.er)),stepy(s.hs[0]+np.sqrt(s.er)),
+            plt.fill_between(stepx(s.hs[1]),stepy(s.hs[0]-np.sqrt(s.ser)),stepy(s.hs[0]+np.sqrt(s.ser)),
                              alpha=0.0,hatch='xxxxxx',zorder=2,label='_nolegend_')
             
         return plot
@@ -163,13 +183,23 @@ class Hist(object):
             plt.title(s.title)
         if s.fname != '':
             plt.savefig(s.fname+'_v')    
+            
+    def toTH1(s):
+        return HackyTH1(s.hs[1][0],s.hs[1][-1],s.hs[0],s.title)
+    
+    def errtoTH1(s):
+        return HackyTH1(s.hs[1][0],s.hs[1][-1],np.sqrt(s.ser))
+    
+#    errToTh1 = errtoTH1
+    def errToTH1(s):
+        return s.errtoTH1()
 
 
 class Hist2d(object):
     def __init__(s,sizes,bounds,xlabel='',ylabel='',fname='',title=''):
         s.sizes = sizes
         s.bounds = bounds
-        s.hs = [plt.hist2d([],[],sizes,bounds)[0],plt.hist2d([],[],sizes,bounds)[1],plt.hist2d([],[],sizes,bounds)[2],plt.hist2d([],[],sizes,bounds)]
+        s.hs = [plt.hist2d([],[],sizes,bounds)[0],plt.hist2d([],[],sizes,bounds)[1],plt.hist2d([],[],sizes,bounds)[2]]#,plt.hist2d([],[],sizes,bounds)]
         s.xlabel = xlabel
         s.ylabel = ylabel
         s.title = title
@@ -177,8 +207,14 @@ class Hist2d(object):
 
     def __getitem__(s,i):
         if (i > 2) or (i < -3):
-            raise Exception('histo object was accessed with an invalid index')
+            raise Exception('hist2d object was accessed with an invalid index')
         return s.hs[i]
+    
+    def __setitem__(s,i,val):
+        if (i > 2) or (i < -3):
+            raise Exception('hist2d object was accessed with an invalid index')
+        s.hs[i] = val
+        return s
 
     def add(s,inplot):
         if (len(inplot[0]) != len(s.hs[0])) or (len(inplot[1]) != len(s.hs[1])) or (len(inplot[2]) != len(s.hs[2])):
@@ -208,8 +244,9 @@ class Hist2d(object):
         out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth)
         return out    
 
-    def plot(s,logv=False,text=False,*args,**kwargs):
-        s.make(*args,**kwargs)
+    def plot(s,logv=False,text=False,empty=False,*args,**kwargs):
+        if not empty:
+            s.make(*args,**kwargs)
         #print(s.hs[0])
         #print(s.hs[1])
         #print(s.hs[2])

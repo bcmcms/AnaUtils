@@ -16,6 +16,7 @@ import pandas as pd
 from analib import Hist, PhysObj, Event, inc, fstrip, Hist2d
 import pickle
 import copy as cp
+import math
 #from uproot_methods import TLorentzVector, TLorentzVectorArray
 #from sklearn.model_selection import train_test_split
 from sklearn.metrics import roc_curve, auc
@@ -38,7 +39,8 @@ executor = concurrent.futures.ThreadPoolExecutor()
 ##Controls how many epochs the network will train for
 epochs = 50
 ##The weights LHE segment split data should be merged by
-lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401]
+#lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401]
+lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401,1.0,0.33,0.034,0.034,0.024,0.0024,0.00044]
 nlhe = len(lheweights)
 
 DATANAME = '2018D_Parked.root'
@@ -127,11 +129,15 @@ def ana(sigfiles,bgfiles,isLHE=False):
     Aid = 36
     ## Make a dictionary of histogram objects
     plots = {
-        "SigDist":  Hist2d([20,20],[[0.5,1],[0.8,1]],'b-tag network','phys network','netplots/SigDist'),
-        "BGDist":   Hist2d([20,20],[[0.5,1],[0.8,1]],'b-tag network','phys network','netplots/BGDist'),
-        "SigDistF":  Hist2d([20,20],[[0.5,1],[0.8,1]],'b-tag network','phys network','netplots/SigDistF'),
-        "BGDistF":   Hist2d([20,20],[[0.5,1],[0.8,1]],'b-tag network','phys network','netplots/BGDistF'),
+        "SigDist":  Hist2d([20,20],[[0,1],[0,1]],'b-tag network','phys network','netplots/SigDist'),
+        "BGDist":   Hist2d([20,20],[[0,1],[0,1]],'b-tag network','phys network','netplots/BGDist'),
+        "SigProfile":  Hist(20,(0,1),'b-tag bin','phys network avg','netplots/SigProfile'),
+        "BGProfile":   Hist(20,(0,1),'b-tag bin','phys network avg','netplots/BGProfile'),
+        "SigRanges":  Hist(20,(0,1),'confidence','events','netplots/SigRanges'),
+        "BGRanges":   Hist(20,(0,1),'confidence','events','netplots/BGRanges'),
         }
+    for i in range(3):
+        plots.update({f"SigRanges{i}":cp.deepcopy(plots['SigRanges']),F"BGRanges{i}":cp.deepcopy(plots['BGRanges'])})
    
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
@@ -218,9 +224,10 @@ def ana(sigfiles,bgfiles,isLHE=False):
         sigjets = loadjets(PhysObj('sigjets'),sigevents,fstrip(sigfiles[fnum]))
         
         if isLHE:
-            bgjets = [PhysObj('300'),PhysObj('500'),PhysObj('700'),PhysObj('1000'),PhysObj('1500'),PhysObj('2000'),PhysObj('inf')]
+            #bgjets = [PhysObj('300'),PhysObj('500'),PhysObj('700'),PhysObj('1000'),PhysObj('1500'),PhysObj('2000'),PhysObj('inf')]
+            bgjets = []
             for i in range(nlhe):
-                bgjets[i] = loadjets(bgjets[i],bgevents[i],fstrip(bgfiles[(fnum*nlhe)+i]))                    
+                bgjets.append(loadjets(PhysObj(str(i)),bgevents[i],fstrip(bgfiles[(fnum*nlhe)+i])))
         else:
             bgjets = loadjets(PhysObj('bgjets'),bgevents,fstrip(bgfiles[fnum]))
 
@@ -319,7 +326,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 
         if isLHE:
             for jets in bgjets+[sigjets]:
-                jets.cut(jets.pt > 240)#240)#170)
+                jets.cut(jets.pt > 170)#240)#170)
                 jets.cut(abs(jets.eta)<2.4)
                 jets.cut(jets.DDBvL > 0.8)#0.8)#0.6)
                 jets.cut(jets.DeepB > 0.4184)
@@ -328,7 +335,7 @@ def ana(sigfiles,bgfiles,isLHE=False):
                 jets.cut(jets.mass > 90)
         else:
             for jets in [bgjets, sigjets]:
-                jets.cut(jets.pt > 240)#170)
+                jets.cut(jets.pt > 170)#170)
                 jets.cut(abs(jets.eta)<2.4)
                 jets.cut(jets.DDBvL > 0.8)#0.6)
                 jets.cut(jets.DeepB > 0.4184)
@@ -493,22 +500,57 @@ def ana(sigfiles,bgfiles,isLHE=False):
         ##################################
         
         distsb  = bmodel.predict(   Xb_inputs[Y_inputs==1])
-#        distsbF = bmodel.predict(   XbF_inputs[YF_inputs==1])
         distsp  = physmodel.predict(Xp_inputs[Y_inputs==1])
-#        distspF = physmodel.predict(XpF_inputs[YF_inputs==1])
         
         distbb  = bmodel.predict    (Xb_inputs  [Y_inputs==0])
-#        distbbF = bmodel.predict    (XbF_inputs [YF_inputs==0])
         distbp  = physmodel.predict (Xp_inputs  [Y_inputs==0])
-#        distbpF = physmodel.predict (XpF_inputs [YF_inputs==0])
 
         plots['SigDist' ].fill(distsb[:,0] ,distsp[:,0] ,weights=W_inputs[Y_inputs==1])
-        #plots['SigDistF'].fill(distsbF[:,0], distspF[:,0],weights=WF_inputs[YF_inputs==1])
         plots['BGDist'  ].fill(distbb[:,0] ,distbp[:,0] ,weights=W_inputs[Y_inputs==0])
-        #plots['BGDistF' ].fill(distbbF[:,0],distbpF[:,0],weights=WF_inputs[YF_inputs==0])
         
-    for p in plots:
-        plots[p].plot()
+        Sprofile, Serr, Bprofile, Berr = [],[],[],[]
+        for i in range(plots['SigDist'][0].shape[0]):
+            Sprofile.append(np.average(distsp[np.logical_and(
+                    distsb > plots['SigDist'][1][i],
+                    distsb <= plots['SigDist'][1][i+1])]))
+            Serr.append(np.std(distsp[np.logical_and(
+                    distsb > plots['SigDist'][1][i],
+                    distsb <= plots['SigDist'][1][i+1])]))
+            Bprofile.append(np.average(distbp[np.logical_and(
+                    distbb > plots['BGDist'][1][i],
+                    distbb <= plots['BGDist'][1][i+1])]))
+            Berr.append(np.std(distbp[np.logical_and(
+                    distbb > plots['BGDist'][1][i],
+                    distbb <= plots['BGDist'][1][i+1])]))
+        plots['SigProfile'][0] = Sprofile
+        plots['SigProfile'].ser = np.power(Serr,2)
+        plots['BGProfile'][0] = Bprofile
+        plots['BGProfile'].ser = np.power(Berr,2)
+        
+        sbranges, bbranges = [0.0], [0.0]
+        for i in range(1,4):
+            sbranges.append(np.sort(distsb.ravel())[math.floor(distsb.shape[0]*i/3)-1])
+            bbranges.append(np.sort(distbb.ravel())[math.floor(distbb.shape[0]*i/3)-1])
+        
+        for i in range(3):
+            plots[f"SigRanges{i}"].fill(distsp[np.logical_and(
+                    distsb > sbranges[i],
+                    distsb <= sbranges[i+1])])
+            plots[f"BGRanges{i}"].fill(distbp[np.logical_and(
+                    distbb > bbranges[i],
+                    distbb <= bbranges[i+1])])
+        
+        
+    for p in [plots['SigDist'],plots['BGDist']]:
+        p.plot()
+    for p in [plots['SigProfile'],plots['BGProfile']]:
+        p.plot(error=True,htype='err')
+    plt.clf()
+    for plot in ['SigRanges','BGRanges']:
+        plots[f"{plot}{0}"].make(linestyle='-',color='b',htype='step')
+        plots[f"{plot}{1}"].make(linestyle='--',color='r',htype='step')
+        plots[f"{plot}{2}"].make(linestyle=':',color='k',htype='step')
+        plots[plot].plot(same=True,legend=['Low Confidence','Medium Confidence','High Confidence'])
         
     #%%
 
