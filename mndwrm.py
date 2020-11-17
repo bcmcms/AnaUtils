@@ -7,6 +7,8 @@
 ### Run without arguments for a list of flags and options            ###
 ########################################################################
 
+from ROOT import TH1F, TFile, gROOT, TCanvas
+
 import sys
 import uproot
 import numpy as np
@@ -89,24 +91,13 @@ def binary_focal_loss(alpha=.25, gamma=2.):
     return binary_focal_loss_fixed
     
 
-def tutor(bgjetframe,sigjetframe):
-    bgtrnframe = bgjetframe.sample(frac=0.7,random_state=6)
-    #nbg = bgtestframe.shape[0]
-    sigtrnframe = sigjetframe.sample(frac=0.7,random_state=6)
-    #nsig = sigtestframe.shape[0]
-
-    scaler = MinMaxScaler()
-    X_test = pd.concat([bgjetframe.drop(bgtrnframe.index), sigjetframe.drop(sigtrnframe.index)],ignore_index=True)
-    Y_test = X_test['val']
-    X_test = X_test.drop('val',axis=1)
-    X_test = scaler.fit_transform(X_test)
-    
+def tutor(X_train,X_test,Y_train,Y_test):
     records = {}
     rsums = {}
     lr=.01
-    for l1 in [7,8]:
-        for l2 in [7,8]:
-            for l3 in [7,8]:            
+    for l1 in [8,12,24,36]:
+        for l2 in [8,12,24,36]:
+            for l3 in [8,12,24,36]:            
                 for alpha in [0.5,0.6,0.7,0.8,0.85,0.9]:
                     for gamma in [0.6,0.7,0.8,0.85,0.9,1.0,1.2]:
                         rname = str(l1)+' '+str(l2)+' '+str(l3)+': alpha '+str(alpha)+' gamma '+str(gamma)
@@ -117,13 +108,14 @@ def tutor(bgjetframe,sigjetframe):
                             #tf.compat.v1.set_random_seed(2)
                             np.random.seed(2)
                             model = keras.Sequential([
-                                    keras.Input(shape=(8,),dtype='float32'),
-                                    #keras.layers.Flatten(input_shape=(8,)),
-                                    keras.layers.Dense(l1, activation=tf.nn.relu),
-                                    keras.layers.Dense(l2, activation=tf.nn.relu),
-                                    keras.layers.Dense(l3, activation=tf.nn.relu),
-                                    keras.layers.Dense(1, activation=tf.nn.sigmoid),
-                                    ])
+                                #keras.Input(shape=(4,),dtype='float32'),
+                                #keras.layers.Flatten(input_shape=(8,)),
+                                keras.layers.Dense(l1, activation=tf.nn.relu,input_shape=(len(X_test.shape[1]),)),
+                                keras.layers.Dense(l2, activation=tf.nn.relu),
+                                keras.layers.Dense(l3, activation=tf.nn.relu),
+                                #keras.layers.Dropout(0.1),
+                                keras.layers.Dense(1, activation=tf.nn.sigmoid),
+                                ])
                             optimizer  = keras.optimizers.Adam(learning_rate=lr)
                             model.compile(optimizer=optimizer,     
                                           #loss='binary_crossentropy',
@@ -132,10 +124,6 @@ def tutor(bgjetframe,sigjetframe):
                                           loss=[binary_focal_loss(alpha, gamma)],
                                           metrics=['accuracy'])#,tf.keras.metrics.AUC()])
 
-                            X_train = pd.concat([bgtrnframe,sigtrnframe],ignore_index=True)
-                            Y_train= X_train['val']
-                            X_train = X_train.drop('val',axis=1)
-                            X_train = scaler.transform(X_train)
                             model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True)
 
                             rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
@@ -186,8 +174,21 @@ def lumipucalc(inframe):
                 (inframe['npvsG'] == b+1)] = inframe['extweight'] * Rtensor[x][y]['H'][b] * Ltensor[x][y]['H']
     return inframe['extweight']
   
-
-
+def computedR(jet,thing,nms=['jet','thing']):
+    nj = jet.eta.shape[1]
+    nt = thing.eta.shape[1]
+    ## Create our dR dataframe by populating its first column and naming it accordingly
+    jtdr2 = pd.DataFrame(np.power(jet.eta[1] - thing.eta[1],2) + np.power(jet.phi[1] - thing.phi[1],2)).rename(columns={1:f"{nms[0]} 1 {nms[1]} 1"})
+    jtstr = []
+    ## Loop over jet x thing combinations
+    for j in range(1,nj+1):
+        for t in range(1,nt+1):
+            jtstr.append(f"{nms[0]} {j} {nms[1]} {t}")
+            if (j+t==2):
+                continue
+            jtdr2[jtstr[-1]] = pd.DataFrame(np.power(jet.eta[j]-thing.eta[t],2) + np.power(jet.phi[j]-thing.phi[t],2))
+    return np.sqrt(jtdr2)
+        
 #%%
 
 def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
@@ -239,7 +240,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 Bname = names[2]
             else: Bname = Bkey
 
-    netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs']
+    netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','n2b1','submass1','submass2','subtau1','subtau2','nsv']
+    #netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs']
     #netvars = ['DeepB','H4qvs','DDBvL','CSVV2']
     #netvars = ['pt','eta','mass','msoft']
 
@@ -305,6 +307,12 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         "meta":     Hist(15 ,(0,3)      ,'|eta| for highest pT muon','Fractional Distribution','netplots/pmeta'),
         "mip":      Hist(20 ,(2,12)     ,'dxy/dxyError for highest pT muon','Fractional Distribution','netplots/pmip'),
         "HT":       Hist(500 ,(0,5000)  ,'pT for highest pT jet','Fractional Distribution','netplots/pHT'),
+        "n2b1":     Hist(10 ,(-5,5)     ,'n2b1 for highest pT jet','Fractional Distribution','netplots/pn2b1'),
+        "submass1": Hist(105,(-5,105)   ,'submass for 1st subjet of highest pT jet','Fractional Distribution','netplots/psubmass1'),
+        "submass2": Hist(105,(-5,105)   ,'submass for 2nd subjet of highest pT jet','Fractional Distribution','netplots/psubmass2'),
+        "subtau1":  Hist(5  ,(-4,1)     ,'subtau1 for 1st subjet of highest pT jet','Fractional Distribution','netplots/psubtau1'),
+        "subtau2":  Hist(5  ,(-4,1)     ,'subtau1 for 2nd subjet of highest pT jet','Fractional Distribution','netplots/psubtau2'),
+        'nsv':      Hist(20 ,(0,20)     ,'# of secondary vertices with dR<0.8 to highest pT jet','Fractional Distribution','netplots/pnsv'),
         }
     prefix = ['SG','SPS','SFL','BG','BPS','BFL']
     tdict = {}
@@ -333,7 +341,14 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         "mpt":      Hist(80 ,(150,550)  ,'pT for highest pT muon','Fractional Distribution','netplots/mpt'),
         "meta":     Hist(15 ,(0,3)      ,'|eta| for highest pT muon','Fractional Distribution','netplots/meta'),
         "mip":      Hist(20 ,(2,12)     ,'dxy/dxyError for highest pT muon','Fractional Distribution','netplots/mip'),
-        "HT":       Hist(500 ,(0,5000)  ,'pT for highest pT jet','Fractional Distribution','netplots/HT'),
+        "HT":       Hist(500,(0,5000)   ,'pT for highest pT jet','Fractional Distribution','netplots/HT'),
+        "n2b1":     Hist(10 ,(-5,5)     ,'n2b1 for highest pT jet','Fractional Distribution','netplots/n2b1'),
+        "submass1": Hist(105,(-5,105)   ,'submass for 1st subjet of highest pT jet','Fractional Distribution','netplots/submass1'),
+        "submass2": Hist(105,(-5,105)   ,'submass for 2nd subjet of highest pT jet','Fractional Distribution','netplots/submass2'),
+        "subtau1":  Hist(5  ,(-4,1)     ,'subtau1 for 1st subjet of highest pT jet','Fractional Distribution','netplots/subtau1'),
+        "subtau2":  Hist(5  ,(-4,1)     ,'subtau1 for 2nd subjet of highest pT jet','Fractional Distribution','netplots/subtau2'),
+        'nsv':      Hist(20 ,(0,20)     ,'# of secondary vertices with dR<0.8 to highest pT jet','Fractional Distribution','netplots/nsv'),
+        
     }
     tdict = {}
     prefix = ['BG','SG','RW']
@@ -452,9 +467,25 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             jets.DDBvL = pd.DataFrame(events.array('FatJet_btagDDBvL', executor=executor)).rename(columns=inc)
             jets.msoft = pd.DataFrame(events.array('FatJet_msoftdrop', executor=executor)).rename(columns=inc)
             jets.H4qvs = pd.DataFrame(events.array('FatJet_deepTagMD_H4qvsQCD', executor=executor)).rename(columns=inc)
+            jets.n2b1  = pd.DataFrame(events.array('FatJet_n2b1', executor=executor)).rename(columns=inc)
+            jets.n2b1[jets.n2b1 < -5] = -2
+
             jets.event = pd.DataFrame(events.array('event', executor=executor)).rename(columns=inc)
             jets.npvs  = pd.DataFrame(events.array('PV_npvs', executor=executor)).rename(columns=inc)
             jets.npvsG = pd.DataFrame(events.array('PV_npvsGood', executor=executor)).rename(columns=inc)
+            
+            idxa1 = events.array('FatJet_subJetIdx1')
+            idxa2 = events.array('FatJet_subJetIdx2')
+            idxa1f = pd.DataFrame(idxa1).rename(columns=inc)
+            idxa2f = pd.DataFrame(idxa2).rename(columns=inc)
+            submass = events.array('SubJet_mass')
+            subtau = events.array('SubJet_tau1')
+            jets.submass1 = pd.DataFrame(submass[idxa1[idxa1!=-1]]).rename(columns=inc).add(idxa1f[idxa1f==-1]*0,fill_value=0)
+            jets.submass2 = pd.DataFrame(submass[idxa2[idxa2!=-1]]).rename(columns=inc).add(idxa2f[idxa2f==-1]*0,fill_value=0)
+            jets.subtau1  = pd.DataFrame(subtau[ idxa1[idxa1!=-1]]).rename(columns=inc).add(idxa1f[idxa1f==-1]*0,fill_value=0)
+            jets.subtau2  = pd.DataFrame(subtau[ idxa2[idxa2!=-1]]).rename(columns=inc).add(idxa2f[idxa2f==-1]*0,fill_value=0)
+            del idxa1, idxa2, idxa1f, idxa2f, submass, subtau
+            
             jets.extweight = jets.event / jets.event
             if gweights:
                 jets.extweight[1] = jets.extweight[1] * pd.DataFrame(events.array('Generator_weight'))[0]
@@ -472,7 +503,6 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 jets.event[j+1] = jets.event[1]
                 jets.npvs[j+1] = jets.npvs[1]
                 jets.npvsG[j+1] = jets.npvsG[1]
-                #if POSTWEIGHT:
                 jets.extweight[j+1] = jets.extweight[1]
                 jets.HT[j+1] = jets.HT[1]
             return jets
@@ -484,21 +514,27 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             sigjets = loadjets(PhysObj('sigjets'),sigevents)
         else:
             sigjets = loadjets(PhysObj('sigjets'),sigevents,True)
+            sigjets.extweight = sigjets.extweight * .0046788#GGH_HPT specific xsec weight
+        sigsv = PhysObj('sigsv',sigfiles[fnum],'eta','phi',varname='SV')
             
         if isLHE:
             bgjets = []
+            bgsv = []
             for i in range(nlhe):
-                bgjets.append(loadjets(PhysObj(f"{i}"),bgevents[i],True))
+                bgjets.append(loadjets(PhysObj(f"bgjet{i}"),bgevents[i],True))
+                bgsv.append(PhysObj(f"bgsv{i}",bgfiles[fnum*nlhe+i],'eta','phi',varname='SV'))
+                
         else:
             if dataflag == -1:
                 DATANAME = bgfiles[fnum]
                 bgjets = loadjets(PhysObj('bgjets'),bgevents)
             else:
                 bgjets = loadjets(PhysObj('bgjets'),bgevents,True)
+            bgsv = PhysObj('bgsv',bgfiles[fnum],'eta','phi',varname='SV')
 
         print(f"Processing {str(len(sigjets.eta))} {Skey} events")
         
-        if not dataflag:
+        if (not dataflag) and (not LOADMODEL):
             pdgida  = sigevents.array('GenPart_pdgId')
             paridxa = sigevents.array('GenPart_genPartIdxMother')
             parida  = pdgida[paridxa] 
@@ -546,7 +582,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
 
             ## Figure out how many bs and jets there are
             nb = bs.oeta.shape[1]
-            njet= sigjets.eta.shape[1]
+            # njet= sigjets.eta.shape[1]
             #nsjet=slimjets.eta.shape[1]
             na = As.oeta.shape[1]
             if na != 2:
@@ -587,17 +623,17 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             
 #           plots['genAmass'].dfill(As.mass)
 
-            ev = Event(bs,sigjets,As,higgs)
+            ev = Event(bs,sigjets,As,higgs,sigsv)
         else:
-            ev = Event(sigjets)
+            ev = Event(sigjets,sigsv)
             
         
         if isLHE:
             bev = []
             for i in range(nlhe):
-                bev.append(Event(bgjets[i]))
+                bev.append(Event(bgjets[i],bgsv[i]))
         else:
-            bev = Event(bgjets)
+            bev = Event(bgjets,bgsv)
         
         if isLHE:
             for jets in bgjets+[sigjets]:
@@ -624,7 +660,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 
 
 
-        if not dataflag:
+        if (not dataflag) and (not LOADMODEL):
             bs.cut(bs.pt>5)
             bs.cut(abs(bs.eta)<2.4)
             ev.sync()
@@ -632,7 +668,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             slimjets.cut(slimjets.DeepB > 0.1241)
             slimjets.cut(slimjets.DeepFB > 0.277)
             slimjets.cut(slimjets.puid > 0)
-            slimjets.trimto(jets.eta)
+            slimjets.trimto(sigjets.eta)
             
         ## Apply golden JSON cuts to data events
         if dataflag == True:
@@ -702,36 +738,36 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 bev.sync()
 
         
-        ##############################
-        # Processing and Calculation #
-        ##############################
-
-        if not dataflag:
-            ## Create our dR dataframe by populating its first column and naming it accordingly
-            jbdr2 = pd.DataFrame(np.power(sigjets.eta[1]-bs.eta[1],2) + np.power(sigjets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
-            sjbdr2= pd.DataFrame(np.power(slimjets.eta[1]-bs.eta[1],2) + np.power(slimjets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
-            ## Loop over jet x b combinations
-            jbstr = []
-            for j in range(1,njet+1):
-                for b in range(1,nb+1):
-                    ## Make our column name
-                    jbstr.append("Jet "+str(j)+" b "+str(b))
-                    if (j+b==2):
-                        continue
-                    ## Compute and store the dr of the given b and jet for every event at once
-                    jbdr2[jbstr[-1]] = pd.DataFrame(np.power(sigjets.eta[j]-bs.eta[b],2) + np.power(sigjets.phi[j]-bs.phi[b],2))
-                    sjbdr2[jbstr[-1]]= pd.DataFrame(np.power(slimjets.eta[j]-bs.eta[b],2) + np.power(slimjets.phi[j]-bs.phi[b],2))
+        ##########################
+        # Training-Specific Cuts #
+        ##########################
+        if (not dataflag) and (not LOADMODEL):
+            jbdr = computedR(sigjets,bs,['jet','b'])
+            # ## Create our dR dataframe by populating its first column and naming it accordingly
+            # jbdr2 = pd.DataFrame(np.power(sigjets.eta[1]-bs.eta[1],2) + np.power(sigjets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
+            # sjbdr2= pd.DataFrame(np.power(slimjets.eta[1]-bs.eta[1],2) + np.power(slimjets.phi[1]-bs.phi[1],2)).rename(columns={1:'Jet 1 b 1'})
+            # ## Loop over jet x b combinations
+            # jbstr = []
+            # for j in range(1,njet+1):
+            #     for b in range(1,nb+1):
+            #         ## Make our column name
+            #         jbstr.append("Jet "+str(j)+" b "+str(b))
+            #         if (j+b==2):
+            #             continue
+            #         ## Compute and store the dr of the given b and jet for every event at once
+            #         jbdr2[jbstr[-1]] = pd.DataFrame(np.power(sigjets.eta[j]-bs.eta[b],2) + np.power(sigjets.phi[j]-bs.phi[b],2))
+            #         sjbdr2[jbstr[-1]]= pd.DataFrame(np.power(slimjets.eta[j]-bs.eta[b],2) + np.power(slimjets.phi[j]-bs.phi[b],2))
         
             ## Create a copy array to collapse in jets instead of bs
             blist = []
-            sblist = []
+            # sblist = []
             for b in range(nb):
-                blist.append(np.sqrt(jbdr2.filter(like='b '+str(b+1))))
+                blist.append(jbdr.filter(like='b '+str(b+1)))
                 blist[b] = blist[b][blist[b].rank(axis=1,method='first') == 1]
                 blist[b] = blist[b].rename(columns=lambda x:int(x[4:6]))
-                sblist.append(np.sqrt(sjbdr2.filter(like='b '+str(b+1))))
-                sblist[b] = sblist[b][sblist[b].rank(axis=1,method='first') == 1]
-                sblist[b] = sblist[b].rename(columns=lambda x:int(x[4:6]))
+                # sblist.append(np.sqrt(sjbdr2.filter(like='b '+str(b+1))))
+                # sblist[b] = sblist[b][sblist[b].rank(axis=1,method='first') == 1]
+                # sblist[b] = sblist[b].rename(columns=lambda x:int(x[4:6]))
         
             ## Trim resolved jet objects        
 #           if resjets==3:
@@ -749,8 +785,43 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             fjets = fjets[fjets==4].dropna()
             sigjets.trimto(fjets)
             ev.sync()
+            
         
-
+        #############################
+        # Secondary Vertex Analysis #
+        #############################
+        ## Compute jet-vertex dR
+        sjvdr = computedR(sigjets,sigsv,['jet','sv'])
+        sjlist = []
+        nsvframe = pd.DataFrame()
+        ## Loop over jets
+        for j in range(sigjets.eta.shape[1]):
+            ## Collect vertex dRs for each jet
+            sjlist.append(sjvdr.filter(like=f"jet {j+1}"))
+            sjlist[j] = sjlist[j].rename(columns=lambda x:int(x[9:11]))
+            ## Remove dR >= 0.8, sum number of remaining vertices
+            nsvframe[j+1] = np.sum(sjlist[j][sjlist[j]<0.8].fillna(0)/sjlist[j][sjlist[j]<0.8].fillna(0),axis=1)
+        sigjets.nsv = nsvframe
+        
+        if isLHE:
+            for i in range(nlhe):
+                bjvdr = computedR(bgjets[i],bgsv[i],['jet','sv'])
+                bjlist = []
+                nsvframe = pd.DataFrame()
+                for j in range(bgjets[i].eta.shape[1]):
+                    bjlist.append(bjvdr.filter(like=f"jet {j+1}"))
+                    bjlist[j] = bjlist[j].rename(columns=lambda x:int(x[9:11]))
+                    nsvframe[j+1] = np.sum(bjlist[j][bjlist[j]<0.8].fillna(0)/bjlist[j][bjlist[j]<0.8].fillna(0),axis=1)
+                bgjets[i].nsv = nsvframe
+        else:
+            bjvdr = computedR(bgjets,bgsv,['jet','sv'])
+            bjlist = []
+            nsvframe = pd.DataFrame()
+            for j in range(bgjets.eta.shape[1]):
+                bjlist.append(bjvdr.filter(like=f"jet {j+1}"))
+                bjlist[j] = bjlist[j].rename(columns=lambda x:int(x[9:11]))
+                nsvframe[j+1] = np.sum(bjlist[j][bjlist[j]<0.8].fillna(0)/bjlist[j][bjlist[j]<0.8].fillna(0),axis=1)
+            bgjets.nsv = nsvframe
         
         ##################################
         # Preparing Neural Net Variables #
@@ -844,16 +915,13 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         # Training Neural Net #
         #######################
         
-        if TUTOR == True:
-            tutor(bgjetframe,sigjetframe)
-            sys.exit()
             
         #if not isLHE:
         #    X_test = pd.concat([bgjetframe.drop(bgtrnframe.index), sigjetframe.drop(sigtrnframe.index)])#,ignore_index=True)
         #    X_train = pd.concat([bgtrnframe,sigtrnframe])#,ignore_index=True)
         #    passnum = 0.9       
         #else:
-        if LOADMODEL:
+        if LOADMODEL and not TUTOR:
             if isLHE:
                 bgjetframe=bgrawframe
             ## Normalize event number between QCD and data samples
@@ -901,7 +969,10 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
             
-            history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=VERBOSE)
+            if TUTOR == True:
+                tutor(X_train,X_test,Y_train,Y_test)
+                sys.exit()
+            else: history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=VERBOSE)
 
             rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
             trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
@@ -995,16 +1066,31 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col],bgjetframe[distbtt > passnum].reset_index(drop=True)['extweight'])
             pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col],bgjetframe[distbtt <= passnum].reset_index(drop=True)['extweight'])
 
-    if dataflag == False:
-        outfile = uproot.recreate("Combined.root")
-        outfile["SnetQCD"] = plots['DistBte'].toTH1()
-        outfile["SnetQCDerr"] = plots['DistBte'].errToTH1()
-        outfile["SnetSMC"] = plots['DistSte'].toTH1()
-        outfile["SnetSMCerr"] = plots['DistSte'].errToTH1()
-    elif dataflag == True:
-        outfile = uproot.recreate("CombinedD.root")
-        outfile["data_obs"] = plots['DistSte'].toTH1()
-        outfile["data_obserr"] = plots['DistSte'].errToTH1()
+    if False:#LOADMODEL:
+        #if gROOT.FindObject('Combined.root'):
+         #   rfile = TFile('Combined.root','UPDATE')
+        rfile = TFile('Combined.root','UPDATE')
+        if dataflag:
+            th1 = plots['DistSte'].toTH1('data_obs')
+            th12 = plots['DistBte'].toTH1('DnetQCD')
+        else:
+            th1 = plots['DistSte'].toTH1('SnetSMC')
+            th12 = plots['DistBte'].toTH1('SnetQCD')
+        rfile.Write()
+        rfile.Close()
+
+#    if dataflag == False:
+#        outfile = uproot.recreate("Combined.root")
+#        outfile["SnetQCD"] = plots['DistBte'].toTH1()
+#        outfile["SnetQCDerr"] = plots['DistBte'].errToTH1()
+#        outfile["SnetSMC"] = plots['DistSte'].toTH1()
+#        outfile["SnetSMCerr"] = plots['DistSte'].errToTH1()
+#    elif dataflag == True:
+#        outfile = uproot.recreate("CombinedGen.root")
+#        outfile["data_obs"] = plots['DistSte'].toTH1()
+#        outfile["data_obserr"] = plots['DistSte'].errToTH1()
+#        outfile["DnetQCD"] = plots['DistBte'].toTH1(scale=0.5)
+#        outfile["DnetQCDerr"] = plots['DistBte'].errToTH1(scale=0.5)
         
 
     for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
@@ -1044,6 +1130,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         plots['DistSte'].make(linestyle=':',logv=True,**plargs[Skey])
         plots['DistBte'].make(linestyle=':',logv=True,**plargs[Bkey])
         plots['DistributionL'].plot(same=True,logv=True,legend=leg)
+    
+
     
     #if POSTWEIGHT:
 #    if LOADMODEL:
@@ -1103,6 +1191,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
     arcdict = {"plots":plots,"pplots":pplots,"vplots":vplots}
     pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/arcdict.p', "wb"))
     #pickle.dump(sigjetframe, open("sigj.p","wb"))
+
     
         
     #%%
@@ -1141,6 +1230,8 @@ def main():
                     fileptr = bgfiles
                 elif 'd' in arg:
                     fileptr = datafiles
+                elif arg == '-lhe':
+                    isLHE=True
                 else:
                     dialogue()
                 for j in range(i+1,nrgs):
@@ -1158,7 +1249,7 @@ def main():
                     names[1] = sys.argv[i+1]
                 elif 'd' in arg:
                     names[2] = sys.argv[i+1]
-            elif ('-LHE' in arg) or ('-lhe' in arg):
+            elif '-LHE' in arg:
                 isLHE = True
         #print('-')
         #print('sigfiles',sigfiles,'datafiles',datafiles)

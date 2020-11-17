@@ -20,8 +20,8 @@ import pandas as pd
 #import itertools as it
 import copy as cp
 from munch import DefaultMunch
-import uproot_methods.classes.TH1
-import types
+from ROOT import TH1F
+#import types
 import mplhep as hep
 
 def stepx(xs):
@@ -29,16 +29,16 @@ def stepx(xs):
 def stepy(ys):
     return np.tile(ys, (2,1)).T.flatten()
 
-class HackyTH1(uproot_methods.classes.TH1.Methods, list):
-    def __init__(self, low, high, values, title=""):
-        self._fXaxis = types.SimpleNamespace()
-        self._fXaxis._fNbins = len(values)
-        self._fXaxis._fXmin = low
-        self._fXaxis._fXmax = high
-        for x in values:
-            self.append(float(x))
-        self._fTitle = title
-        self._classname = "TH1F"
+#class HackyTH1(uproot_methods.classes.TH1.Methods, list):
+#    def __init__(self, low, high, values, title=""):
+#        self._fXaxis = types.SimpleNamespace()
+#        self._fXaxis._fNbins = len(values)
+#        self._fXaxis._fXmin = low
+#        self._fXaxis._fXmax = high
+#        for x in values:
+#            self.append(float(x))
+#        self._fTitle = title
+#        self._classname = "TH1F"
 
 class Hist(object):
     def __init__(s,size,bounds,xlabel='',ylabel='',fname='',title=''):
@@ -184,15 +184,19 @@ class Hist(object):
         if s.fname != '':
             plt.savefig(s.fname+'_v')    
             
-    def toTH1(s):
-        return np.histogram(s.hs[1][12:-5],s.hs[1][12:-4],weights=s.hs[0][12:-4])
+    def toTH1(s,title,scale=1):
+        th1 = TH1F(title,title,len(s.hs[0]),s.hs[1][0],s.hs[1][-1])
+        for i in range(len(s.hs[0])):
+            th1.SetBinContent(i,s.hs[0][i]*scale)
+            th1.SetBinError(i,np.sqrt(s.ser[i])*scale)
+        return th1
     
-    def errtoTH1(s):
-        return np.histogram(s.hs[1][12:-5],s.hs[1][12:-4],weights=np.sqrt(s.ser[12:-4]))
-    
-#    errToTh1 = errtoTH1
-    def errToTH1(s):
-        return s.errtoTH1()
+#    def errtoTH1(s,scale=1):
+#        return np.histogram(s.hs[1][12:-5],s.hs[1][12:-4],weights=np.sqrt(s.ser[12:-4])*scale)
+#    
+##    errToTh1 = errtoTH1
+#    def errToTH1(s,scale=1):
+#        return s.errtoTH1(scale)
 
 
 class Hist2d(object):
@@ -274,11 +278,13 @@ def fstrip(path):
     return path.split('/')[-1].split('.root')[0]
 
 class PhysObj(DefaultMunch):
-    def __init__(s,name='',rfile='',*args):
+    def __init__(s,name='',rfile='',*args,varname=False):
         if len(args) != 0:
             events = uproot.open(rfile).get('Events')
+            if not varname:
+                varname = name
             for arg in args:
-                s[arg] = pd.DataFrame(events.array(name+'_'+arg)).rename(columns=inc)
+                s[arg] = pd.DataFrame(events.array(varname+'_'+arg)).rename(columns=inc)
         super().__init__(name)
 
     def __setitem__(s,key,value):
