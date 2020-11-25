@@ -1,0 +1,52 @@
+Replacements:
+FatJet n2b1 < 5 -> -2
+FatJet submass1 == -1 -> 0
+FatJet submass2 == -1 -> 0
+FatJet subtau1 == -1 -> 0
+FatJet subtau2 == -1 -> 0
+FatJet eta -> abs(eta)
+-----------------------
+Cuts:
+
+FatJet pT > 170
+FatJet abs(eta) < 2.4
+FatJet DDBvL > 0.8
+FatJet DeepB > 0.4184
+FatJet msoft > 90
+FatJet mass > 90
+FatJet msoft < 200
+FatJet npvsG >= 1
+
+-Training only-
+GEN_b pT > 5
+GEN_b abs(eta) < 2.4
+GET_jet DeepB > 0.1241
+GEN_jet DeepFB > 0.277
+GEN_jet puid > 0
+Computed # of GEN bs with dR < 0.8 to one RECO FatJet = 4
+
+-Data only-
+event run#,liminosityBlock is in C2018.json
+
+-Non-training-
+Muon softId > 0.9
+Muon abs(eta) < 2.4
+Muon pT > 7
+Muon IP > 2
+Muon ip3d < 0.5
+-----------------------
+Weights:
+
+-Non-training-
+Precalc Luminosity weights
+Precalc Pileup weights
+
+-MC only-
+NanoAOD Generator_Weight 
+
+--Signal only--
+Hard-coded GGH HpT x-section rate
+
+--BG only--
+Hard-coded LHE section weights
+

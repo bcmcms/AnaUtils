@@ -55,7 +55,6 @@ VERBOSE=False
 ##Switches whether weights are loaded and applied to the post-training statistics,
 ##and what data file they expect to be associated with
 POSTWEIGHT = True
-DATANAME = '2018D_Parked.root'
 JSONNAME = 'C2018.json'
 bgdbg, sigdbg = '',''
 
@@ -148,7 +147,7 @@ def tutor(X_train,X_test,Y_train,Y_test):
 def lumipucalc(inframe):
     for var in ['extweight','mpt','meta','mip','npvsG']:
         if var not in inframe.columns:
-            raise ValueError('Dataframe passed to lumipucalc() with no {var} column')
+            raise ValueError(f"Dataframe passed to lumipucalc() with no {var} column")
     Rtensor = pickle.load(open('MuonRtensor.p',"rb"))
     Ltensor = pickle.load(open('MuonLtensor.p',"rb"))
     Rmeta = Rtensor.pop('meta')
@@ -239,6 +238,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             if names[2]:
                 Bname = names[2]
             else: Bname = Bkey
+    if TUTOR:
+        LOADMODEL = False
 
     netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','n2b1','submass1','submass2','subtau1','subtau2','nsv']
     #netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs']
@@ -249,8 +250,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
     l1 = 8
     l2 = 8
     l3 = 8
-    alpha = 0.85
-    gamma = 0.8
+    alpha = 0.5
+    gamma = 2.2
     model = keras.Sequential([
             #keras.Input(shape=(4,),dtype='float32'),
             #keras.layers.Flatten(input_shape=(8,)),
@@ -307,11 +308,11 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         "meta":     Hist(15 ,(0,3)      ,'|eta| for highest pT muon','Fractional Distribution','netplots/pmeta'),
         "mip":      Hist(20 ,(2,12)     ,'dxy/dxyError for highest pT muon','Fractional Distribution','netplots/pmip'),
         "HT":       Hist(500 ,(0,5000)  ,'pT for highest pT jet','Fractional Distribution','netplots/pHT'),
-        "n2b1":     Hist(10 ,(-5,5)     ,'n2b1 for highest pT jet','Fractional Distribution','netplots/pn2b1'),
+        "n2b1":     Hist(10 ,(0,1)     ,'n2b1 for highest pT jet','Fractional Distribution','netplots/pn2b1'),
         "submass1": Hist(105,(-5,105)   ,'submass for 1st subjet of highest pT jet','Fractional Distribution','netplots/psubmass1'),
         "submass2": Hist(105,(-5,105)   ,'submass for 2nd subjet of highest pT jet','Fractional Distribution','netplots/psubmass2'),
-        "subtau1":  Hist(5  ,(-4,1)     ,'subtau1 for 1st subjet of highest pT jet','Fractional Distribution','netplots/psubtau1'),
-        "subtau2":  Hist(5  ,(-4,1)     ,'subtau1 for 2nd subjet of highest pT jet','Fractional Distribution','netplots/psubtau2'),
+        "subtau1":  Hist(10 ,(0,1)     ,'subtau1 for 1st subjet of highest pT jet','Fractional Distribution','netplots/psubtau1'),
+        "subtau2":  Hist(10 ,(0,1)     ,'subtau1 for 2nd subjet of highest pT jet','Fractional Distribution','netplots/psubtau2'),
         'nsv':      Hist(20 ,(0,20)     ,'# of secondary vertices with dR<0.8 to highest pT jet','Fractional Distribution','netplots/pnsv'),
         }
     prefix = ['SG','SPS','SFL','BG','BPS','BFL']
@@ -342,11 +343,11 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         "meta":     Hist(15 ,(0,3)      ,'|eta| for highest pT muon','Fractional Distribution','netplots/meta'),
         "mip":      Hist(20 ,(2,12)     ,'dxy/dxyError for highest pT muon','Fractional Distribution','netplots/mip'),
         "HT":       Hist(500,(0,5000)   ,'pT for highest pT jet','Fractional Distribution','netplots/HT'),
-        "n2b1":     Hist(10 ,(-5,5)     ,'n2b1 for highest pT jet','Fractional Distribution','netplots/n2b1'),
+        "n2b1":     Hist(10 ,(0,1)     ,'n2b1 for highest pT jet','Fractional Distribution','netplots/n2b1'),
         "submass1": Hist(105,(-5,105)   ,'submass for 1st subjet of highest pT jet','Fractional Distribution','netplots/submass1'),
         "submass2": Hist(105,(-5,105)   ,'submass for 2nd subjet of highest pT jet','Fractional Distribution','netplots/submass2'),
-        "subtau1":  Hist(5  ,(-4,1)     ,'subtau1 for 1st subjet of highest pT jet','Fractional Distribution','netplots/subtau1'),
-        "subtau2":  Hist(5  ,(-4,1)     ,'subtau1 for 2nd subjet of highest pT jet','Fractional Distribution','netplots/subtau2'),
+        "subtau1":  Hist(10 ,(0,1)     ,'subtau1 for 1st subjet of highest pT jet','Fractional Distribution','netplots/subtau1'),
+        "subtau2":  Hist(10 ,(0,1)     ,'subtau1 for 2nd subjet of highest pT jet','Fractional Distribution','netplots/subtau2'),
         'nsv':      Hist(20 ,(0,20)     ,'# of secondary vertices with dR<0.8 to highest pT jet','Fractional Distribution','netplots/nsv'),
         
     }
@@ -375,6 +376,11 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         pplots = dataswap(pplots)
         vplots = dataswap(vplots)
         plots  = dataswap(plots )
+    
+    if not LOADMODEL:
+        for prop in ['mpt','meta','mip']:
+            vplots.pop(prop)
+            pplots.pop(prop)
                 
     
     if isLHE:
@@ -506,11 +512,9 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 jets.extweight[j+1] = jets.extweight[1]
                 jets.HT[j+1] = jets.HT[1]
             return jets
-        
-        global DATANAME        
+             
         
         if dataflag == True:
-            DATANAME = sigfiles[fnum]
             sigjets = loadjets(PhysObj('sigjets'),sigevents)
         else:
             sigjets = loadjets(PhysObj('sigjets'),sigevents,True)
@@ -526,7 +530,6 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 
         else:
             if dataflag == -1:
-                DATANAME = bgfiles[fnum]
                 bgjets = loadjets(PhysObj('bgjets'),bgevents)
             else:
                 bgjets = loadjets(PhysObj('bgjets'),bgevents,True)
@@ -670,6 +673,10 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             slimjets.cut(slimjets.puid > 0)
             slimjets.trimto(sigjets.eta)
             
+        #####################
+        # Non-Training Cuts #
+        #####################
+            
         ## Apply golden JSON cuts to data events
         if dataflag == True:
             events = sigevents
@@ -701,15 +708,16 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             dtev.cut(truthframe == True)
             event.sync()
 
-        ## Muon cuts for both MC and Data
-        if True:#dataflag in [1,0,-1]:
-            muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr')
+        ## Muon cuts for non-training comparisons
+        if LOADMODEL:
+            muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d')
             muons.ip = abs(muons.dxy / muons.dxyErr)
             ev.register(muons)
             muons.cut(muons.softId > 0.9)
             muons.cut(abs(muons.eta) < 2.4)
             muons.cut(muons.pt > 7)
             muons.cut(muons.ip > 2)
+            muons.cut(muons.ip3d < 0.5)
             ev.sync()
             
             ## Apply these cuts to data events as well
@@ -718,23 +726,25 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
     #                bmwtpiece = []
                 for i in range(nlhe):
                     idx = fnum*nlhe + i
-                    bmuons.append(PhysObj('Muon',bgfiles[idx],'softId','eta','pt','dxy','dxyErr'))
+                    bmuons.append(PhysObj('Muon',bgfiles[idx],'softId','eta','pt','dxy','dxyErr','ip3d'))
                     bmuons[i].ip = abs(bmuons[i].dxy / bmuons[i].dxyErr)
                     bev[i].register(bmuons[i])
                     bmuons[i].cut(bmuons[i].softId > 0.9)
                     bmuons[i].cut(abs(bmuons[i].eta) < 2.4)
                     bmuons[i].cut(bmuons[i].pt > 7)
                     bmuons[i].cut(bmuons[i].ip > 2)
+                    bmuons[i].cut(muons.ip3d < 0.5)
                     bev[i].sync()
     
             else:
-                bmuons = PhysObj('Muon',bgfiles[fnum],'softId','eta','pt','dxy','dxyErr')
+                bmuons = PhysObj('Muon',bgfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d')
                 bmuons.ip = abs(bmuons.dxy / bmuons.dxyErr)
                 bev.register(bmuons)
                 bmuons.cut(muons.softId > 0.9)
                 bmuons.cut(abs(muons.eta) < 2.4)
                 bmuons.cut(bmuons.pt > 7)
                 bmuons.cut(bmuons.ip > 2)
+                bmuons.cut(muons.ip3d < 0.5)
                 bev.sync()
 
         
@@ -830,8 +840,9 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         
         bgjetframe = pd.DataFrame()
         extvars = ['event','extweight','npvs','npvsG']
-        muvars = ['mpt','meta','mip']
-        
+        if LOADMODEL:
+            muvars = ['mpt','meta','mip']
+        else: muvars = []
         if isLHE:
             bgpieces = []
             wtpieces = []
@@ -844,9 +855,9 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 if 'eta' in netvars:
                     twgtframe['eta'] = abs(twgtframe['eta'])
                 ## Add section for muon variables
-                for prop in ['pt','eta','ip']:
-                    twgtframe[f"m{prop}"] = bmuons[i][prop][bmuons[i]['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
-                twgtframe['val'] = 0
+                if LOADMODEL:
+                    for prop in ['pt','eta','ip']:
+                        twgtframe[f"m{prop}"] = bmuons[i][prop][bmuons[i]['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
                 tempframe = twgtframe.sample(frac=lheweights[i],random_state=6)
                 twgtframe['extweight'] = twgtframe['extweight'] * lheweights[i]
                 bgpieces.append(tempframe)
@@ -856,7 +867,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             bgrawframe = pd.concat(wtpieces,ignore_index=True)
             bgjetframe = bgjetframe.dropna()
             bgrawframe = bgrawframe.dropna()
-            if dataflag != -1:
+            if LOADMODEL:
                 bgjetframe['extweight'] = lumipucalc(bgjetframe)
     #            debugframe['extweight'] = lumipucalc(cp.deepcopy(bgjetframe))
     #            sys.exit()
@@ -864,6 +875,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 bgrawframe['extweight'] = lumipucalc(bgrawframe)
     #            print('---->')
     #            print(bgrawframe['extweight'])
+            bgjetframe['val'] = 0
+            bgrawframe['val'] = 0
             bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
 
         else:
@@ -871,11 +884,13 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 bgjetframe[prop] = bgjets[prop][bgjets['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
             bgjetframe['eta'] = abs(bgjetframe['eta'])
             ## Add section for muon variables
-            for prop in ['pt','eta','ip']:
-                bgjetframe[f"m{prop}"] = bmuons[prop][bmuons['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
+            if LOADMODEL:
+                for prop in ['pt','eta','ip']:
+                    bgjetframe[f"m{prop}"] = bmuons[prop][bmuons['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
+            
+                if dataflag != -1:
+                    bgjetframe['extweight'] = lumipucalc(bgjetframe)
             bgjetframe['val'] = 0
-            if dataflag != -1:
-                bgjetframe['extweight'] = lumipucalc(bgjetframe)
             bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
         
         nbg = bgtrnframe.shape[0]
@@ -884,14 +899,15 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         for prop in netvars + extvars:
             sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
         if 'eta' in netvars:    
-            sigjetframe['eta'] = abs(sigjetframe['eta'])
+            sigjetframe['eta'] = abs(sigjetframe['eta'])   
         ## Add section for muon variables
-        for prop in ['pt','eta','ip']:
-            sigjetframe[f"m{prop}"] = muons[prop][muons['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
+        if LOADMODEL:
+            for prop in ['pt','eta','ip']:
+                sigjetframe[f"m{prop}"] = muons[prop][muons['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
+    
+            if dataflag != True:
+                sigjetframe['extweight'] = lumipucalc(sigjetframe)
         sigjetframe['val'] = 1
-        
-        if dataflag != True:
-            sigjetframe['extweight'] = lumipucalc(sigjetframe)
         sigtrnframe = sigjetframe[sigjetframe['event']%2 == 0]
         nsig = sigtrnframe.shape[0]
         
@@ -1232,6 +1248,7 @@ def main():
                     fileptr = datafiles
                 elif arg == '-lhe':
                     isLHE=True
+                    continue
                 else:
                     dialogue()
                 for j in range(i+1,nrgs):
@@ -1251,6 +1268,7 @@ def main():
                     names[2] = sys.argv[i+1]
             elif '-LHE' in arg:
                 isLHE = True
+            #else: dialogue()
         #print('-')
         #print('sigfiles',sigfiles,'datafiles',datafiles)
         #print('-')
