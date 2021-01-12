@@ -9,14 +9,14 @@
 
 from ROOT import TH1F, TFile, gROOT, TCanvas
 
-import sys
+import sys, math
 import uproot
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 #import itertools as it
 #import copy as cp
-from analib import Hist, PhysObj, Event, inc, fstrip#, Hist2D
+from analib import Hist, PhysObj, Event, inc, fstrip, InputConfig#, Hist2D
 import pickle
 import copy as cp
 #from uproot_methods import TLorentzVector, TLorentzVectorArray
@@ -28,6 +28,7 @@ from tensorflow import keras
 #from tensorflow.python.keras import backend as BE
 from keras import backend as K
 import json
+import threading
 
 import mplhep as hep
 plt.style.use([hep.style.ROOT,hep.style.CMS]) # For now ROOT defaults to CMS
@@ -44,17 +45,17 @@ epochs = 50
 ##The weights LHE segment split data should be merged by
 #lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401] # old bg
 #lheweights = [1.0,0.33,0.034,0.034,0.024,0.0024,0.00044] #bEnriched bg
-lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401,1.0,0.33,0.034,0.034,0.024,0.0024,0.00044]
-nlhe = len(lheweights)
+#lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401,1.0,0.33,0.034,0.034,0.024,0.0024,0.00044]
+#nlhe = len(lheweights)
 ##Controls whether a network is trained up or loaded from disc
-LOADMODEL = True
+#LOADMODEL = True
 ##Switches tutoring mode on or off
-TUTOR = False
+#TUTOR = False
 ##Switches whether training statistics are reported or suppressed (for easier to read debugging)
-VERBOSE=False
+#VERBOSE=False
 ##Switches whether weights are loaded and applied to the post-training statistics,
 ##and what data file they expect to be associated with
-POSTWEIGHT = True
+#POSTWEIGHT = True
 JSONNAME = 'C2018.json'
 bgdbg, sigdbg = '',''
 
@@ -93,44 +94,54 @@ def binary_focal_loss(alpha=.25, gamma=2.):
 def tutor(X_train,X_test,Y_train,Y_test):
     records = {}
     rsums = {}
+    
+    def tutorthread(l1,l2,l3,alpha,gamma,lr,records,rsums):
+        rname = str(l1)+' '+str(l2)+' '+str(l3)+': alpha '+str(alpha)+' gamma '+str(gamma)
+        aoc = []
+        for i in range(10):
+            #tf.random.set_random_seed(2)
+            #tf.compat.v1.random.set_random_seed(2)
+            #tf.compat.v1.set_random_seed(2)
+            np.random.seed(2)
+            model = keras.Sequential([
+                #keras.Input(shape=(4,),dtype='float32'),
+                #keras.layers.Flatten(input_shape=(8,)),
+                keras.layers.Dense(l1, activation=tf.nn.relu,input_shape=(len(X_test.shape[1]),)),
+                keras.layers.Dense(l2, activation=tf.nn.relu),
+                keras.layers.Dense(l3, activation=tf.nn.relu),
+                #keras.layers.Dropout(0.1),
+                keras.layers.Dense(1, activation=tf.nn.sigmoid),
+                ])
+            optimizer  = keras.optimizers.Adam(learning_rate=lr)
+            model.compile(optimizer=optimizer,     
+                          #loss='binary_crossentropy',
+                          #loss=[focal_loss],
+                          #loss=[custom],
+                          loss=[binary_focal_loss(alpha, gamma)],
+                          metrics=['accuracy'])#,tf.keras.metrics.AUC()])
+
+            model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True)
+
+            rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
+            aoc.append(auc(rocx,rocy))
+        aocsum = np.sum(aoc)/10               
+        records[rname] = aocsum
+        rsums[rname] = aoc
+        print(rname,' = ',aocsum)
+        
     lr=.01
+    threadlist = []
     for l1 in [8,12,24,36]:
         for l2 in [8,12,24,36]:
             for l3 in [8,12,24,36]:            
                 for alpha in [0.5,0.6,0.7,0.8,0.85,0.9]:
                     for gamma in [0.6,0.7,0.8,0.85,0.9,1.0,1.2]:
-                        rname = str(l1)+' '+str(l2)+' '+str(l3)+': alpha '+str(alpha)+' gamma '+str(gamma)
-                        aoc = []
-                        for i in range(10):
-                            #tf.random.set_random_seed(2)
-                            #tf.compat.v1.random.set_random_seed(2)
-                            #tf.compat.v1.set_random_seed(2)
-                            np.random.seed(2)
-                            model = keras.Sequential([
-                                #keras.Input(shape=(4,),dtype='float32'),
-                                #keras.layers.Flatten(input_shape=(8,)),
-                                keras.layers.Dense(l1, activation=tf.nn.relu,input_shape=(len(X_test.shape[1]),)),
-                                keras.layers.Dense(l2, activation=tf.nn.relu),
-                                keras.layers.Dense(l3, activation=tf.nn.relu),
-                                #keras.layers.Dropout(0.1),
-                                keras.layers.Dense(1, activation=tf.nn.sigmoid),
-                                ])
-                            optimizer  = keras.optimizers.Adam(learning_rate=lr)
-                            model.compile(optimizer=optimizer,     
-                                          #loss='binary_crossentropy',
-                                          #loss=[focal_loss],
-                                          #loss=[custom],
-                                          loss=[binary_focal_loss(alpha, gamma)],
-                                          metrics=['accuracy'])#,tf.keras.metrics.AUC()])
-
-                            model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True)
-
-                            rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
-                            aoc.append(auc(rocx,rocy))
-                        aocsum = np.sum(aoc)/10               
-                        records[rname] = aocsum
-                        rsums[rname] = aoc
-                        print(rname,' = ',aocsum)
+                        threadlist.append(threading.Thread(target=tutorthread,args=(l1,l2,l3,alpha,gamma,lr,records,rsums)))
+                        threadlist[-1].start()
+                        
+    for th in threadlist:
+        th.join()
+                        
                     
     winner = max(records,key=records.get)
     print('Best performance was AOC of ',records.pop(winner),' for layout ',winner)
@@ -190,8 +201,25 @@ def computedR(jet,thing,nms=['jet','thing']):
         
 #%%
 
-def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
-    #%%################
+def ana(sigfiles,bgfiles,LOADMODEL=True,TUTOR=False,passplots=False):
+    #%%
+    passplots=False
+    ic = InputConfig('GGH_HPT.json','bgC.json')
+    if ic.sigdata:
+        dataflag = -1
+        if ic.bgdata:
+            raise ValueError("Both signal and background are marked as data")
+    elif ic.bgdata:
+        dataflag = 1
+    else: dataflag = 0
+    sigfiles = ic.sigfiles
+    bgfiles = ic.bgfiles
+    if ic.bglhe:
+        isLHE=True
+        lheweights = ic.bgweight
+        nlhe = len(lheweights)
+    else: isLHE=False
+    ###################
     # Plots and Setup #
     ###################
     #training=True
@@ -199,29 +227,41 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
     #tf.random.set_random_seed(2)
     #tf.compat.v1.set_random_seed(2)
     #np.random.seed(2)
-    
+     
     #fig = plt.figure(figsize=(10.0,6.0))
     
-    namelist = ['Signal','Background','Data']
-    namedict = {}
-    for i in range(3):
-        if names[i]:
-            namedict.update({namelist[i]:names[i]})
-        else:
-            namedict.update({namelist[i]:namelist[i]})
+    # if ic.signame:
+    #     namedict.update({"Signal":ic.signame})
+    # elif ic.sigdata:
+    #     namedict.update({"Signal":"Data"})
+    # else: namedict.update({"Signal":"Signal"})
+    # if ic.bgname:
+    #     namedict.update({"Background":ic.bgname})
+    # elif ic.bgdata:
+    #     namedict.update({"Background":"Data"})
+    # else: namedict.update({"Background":"Background"})
+    # for i in range(3):
+    #     if names[i]:
+    #         namedict.update({namelist[i]:names[i]})
+    #     else:
+    #         namedict.update({namelist[i]:namelist[i]})
     
-    global LOADMODEL
+    #global LOADMODEL
     plargs = {'Data':  {'color':'black','htype':'step'},
               'Background':   {'color':'red','htype':'step'},
               'Signal':{'color':'blue','htype':'step'}
               }
-    Skey = 'Signal'
-    Bkey = 'Background'
-    if names[0]:
-        Sname = names[0]
+    if dataflag == True:
+        Skey = 'Data'
+    else: Skey = 'Signal'
+    if dataflag == -1:
+        Bkey = 'Data'
+    else: Bkey = 'Background'
+    if ic.signame:
+        Sname = ic.signame
     else: Sname = Skey
-    if names[1]:
-        Bname = names[1]
+    if ic.bgname:
+        Bname = ic.bgname
     else: Bname = Bkey
     ## The dataflag controls which file list if any has been replaced by data
     if dataflag:
@@ -229,17 +269,20 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         if dataflag == True:
             plargs['Data'].update({'htype':'err'})
             plargs['Background'].update( {'htype':'bar'})
-            Skey = 'Data'
-            if names[2]:
-                Sname = names[2]
-            else: Sname = Skey
-        else:
-            Bkey = 'Data'
-            if names[2]:
-                Bname = names[2]
-            else: Bname = Bkey
+            # Skey = 'Data'
+            # if names[2]:
+            #     Sname = names[2]
+            # else: Sname = Skey
+        # else:
+        #     Bkey = 'Data'
+        #     if names[2]:
+        #         Bname = names[2]
+        #     else: Bname = Bkey
     if TUTOR:
         LOADMODEL = False
+        
+    if not LOADMODEL:
+        passplots = False
 
     netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','n2b1','submass1','submass2','subtau1','subtau2','nsv']
     #netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs']
@@ -288,6 +331,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         "DistSte":  Hist(50,(0,1)),
         "DistBtr":  Hist(50,(0,1)),
         "DistBte":  Hist(50,(0,1)),
+        "SensS"  :  Hist(10,(0,1)),
+        "SensB"  :  Hist(10,(0,1), 'Confidence','Fraction of Events','netplots/Sensitivity'),
         "LossvEpoch":   Hist(epochs,(0.5,epochs+.5),'Epoch Number','Loss','otherplots/LossvEpoch'),
         "AccvEpoch":Hist(epochs,(0.5,epochs+.5),'Epoch Number','Accuracy','otherplots/AccvEpoch'),
     }
@@ -403,28 +448,30 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             pf = 'C'
         else:
             pf = 'S'
+        if passplots == True:
+            pf = pf + 'P'
         for key in vplots:
             vplots[key].fname = pf+vplots[key].fname
         for key in pplots:
             pplots[key].fname = pf+pplots[key].fname
-        for key in ['Distribution','DistributionL']:
+        for key in ['Distribution','DistributionL','SensB']:
             plots[key].fname = pf+plots[key].fname
 
     ## Create an internal figure for pyplot to write to
     plt.figure(1)
-    if isLHE:
-        nbg = len(bgfiles)/nlhe
-        if float(nbg).is_integer():
-            nbg = int(nbg)
-        else:
-            raise Exception('LHE argument specified, but BG files do not divide evenly into '+str(nlhe))
-    else:
-        nbg = len(bgfiles)
-    nsig = len(sigfiles)
-    sigmbg = nbg - nsig
+    # if isLHE:
+    #     nbg = len(bgfiles)/nlhe
+    #     if float(nbg).is_integer():
+    #         nbg = int(nbg)
+    #     else:
+    #         raise Exception('LHE argument specified, but BG files do not divide evenly into '+str(nlhe))
+    # else:
+    #     nbg = len(bgfiles)
+    # nsig = len(sigfiles)
+    # sigmbg = nbg - nsig
     ## Loop over input files
-    for fnum in range(max(nbg,nsig)):
-        print('bg',nbg,'sig',nsig)
+    for fnum in range(ic.size):
+        print('bg',len(bgfiles),'sig',len(sigfiles))
         
         #####################
         # Loading Variables #
@@ -434,22 +481,22 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         else:
             print('Opening',sigfiles[fnum],'+',bgfiles[fnum])
         
-        ## Loop some data if the bg/signal files need to be equalized
-        if sigmbg > 0:
-            print('Catching up signal')
-            sigfiles.append(sigfiles[fnum])
-            sigmbg = sigmbg - 1
-        elif sigmbg < 0:
-            if isLHE:
-                print('Catching up background')
-                for i in range(nlhe):
-                    bgfiles.append(bgfiles[fnum+i])
-                    sigmbg = sigmbg + 1
-            else:
-                print('Catching up background')
-                bgfiles.append(bgfiles[fnum])
-                sigmbg = sigmbg + 1
-        print('diff:',sigmbg)
+        # ## Loop some data if the bg/signal files need to be equalized
+        # if sigmbg > 0:
+        #     print('Catching up signal')
+        #     sigfiles.append(sigfiles[fnum])
+        #     sigmbg = sigmbg - 1
+        # elif sigmbg < 0:
+        #     if isLHE:
+        #         print('Catching up background')
+        #         for i in range(nlhe):
+        #             bgfiles.append(bgfiles[fnum+i])
+        #             sigmbg = sigmbg + 1
+        #     else:
+        #         print('Catching up background')
+        #         bgfiles.append(bgfiles[fnum])
+        #         sigmbg = sigmbg + 1
+        # print('diff:',sigmbg)
         ## Open our file and grab the events tree
         if isLHE:
             bgevents = []
@@ -709,7 +756,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             event.sync()
 
         ## Muon cuts for non-training comparisons
-        if LOADMODEL:
+        if (LOADMODEL) and (not passplots):
             muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d')
             muons.ip = abs(muons.dxy / muons.dxyErr)
             ev.register(muons)
@@ -717,7 +764,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             muons.cut(abs(muons.eta) < 2.4)
             muons.cut(muons.pt > 7)
             muons.cut(muons.ip > 2)
-            muons.cut(muons.ip3d < 0.5)
+            #muons.cut(muons.ip3d < 0.5)
             ev.sync()
             
             ## Apply these cuts to data events as well
@@ -733,7 +780,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                     bmuons[i].cut(abs(bmuons[i].eta) < 2.4)
                     bmuons[i].cut(bmuons[i].pt > 7)
                     bmuons[i].cut(bmuons[i].ip > 2)
-                    bmuons[i].cut(muons.ip3d < 0.5)
+                    bmuons[i].cut(bmuons[i].ip3d < 0.5)
                     bev[i].sync()
     
             else:
@@ -744,7 +791,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 bmuons.cut(abs(muons.eta) < 2.4)
                 bmuons.cut(bmuons.pt > 7)
                 bmuons.cut(bmuons.ip > 2)
-                bmuons.cut(muons.ip3d < 0.5)
+                bmuons.cut(bmuons.ip3d < 0.5)
                 bev.sync()
 
         
@@ -815,6 +862,10 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         
         if isLHE:
             for i in range(nlhe):
+                if bgjets[i].pt.size <= 0:
+                    bgjets[i].nsv = pd.DataFrame()
+                    print(f"BG slice {i} had 0 passing events at nsv calc")
+                    continue
                 bjvdr = computedR(bgjets[i],bgsv[i],['jet','sv'])
                 bjlist = []
                 nsvframe = pd.DataFrame()
@@ -840,7 +891,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         
         bgjetframe = pd.DataFrame()
         extvars = ['event','extweight','npvs','npvsG']
-        if LOADMODEL:
+        if LOADMODEL and (not passplots):
             muvars = ['mpt','meta','mip']
         else: muvars = []
         if isLHE:
@@ -855,7 +906,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 if 'eta' in netvars:
                     twgtframe['eta'] = abs(twgtframe['eta'])
                 ## Add section for muon variables
-                if LOADMODEL:
+                if LOADMODEL and (not passplots):
                     for prop in ['pt','eta','ip']:
                         twgtframe[f"m{prop}"] = bmuons[i][prop][bmuons[i]['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
                 tempframe = twgtframe.sample(frac=lheweights[i],random_state=6)
@@ -867,7 +918,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             bgrawframe = pd.concat(wtpieces,ignore_index=True)
             bgjetframe = bgjetframe.dropna()
             bgrawframe = bgrawframe.dropna()
-            if LOADMODEL:
+            if LOADMODEL and (not passplots):
                 bgjetframe['extweight'] = lumipucalc(bgjetframe)
     #            debugframe['extweight'] = lumipucalc(cp.deepcopy(bgjetframe))
     #            sys.exit()
@@ -884,7 +935,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
                 bgjetframe[prop] = bgjets[prop][bgjets['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
             bgjetframe['eta'] = abs(bgjetframe['eta'])
             ## Add section for muon variables
-            if LOADMODEL:
+            if LOADMODEL and (not passplots):
                 for prop in ['pt','eta','ip']:
                     bgjetframe[f"m{prop}"] = bmuons[prop][bmuons['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
             
@@ -900,8 +951,13 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
         if 'eta' in netvars:    
             sigjetframe['eta'] = abs(sigjetframe['eta'])   
+        ## 
+        if dataflag != 1:
+            ptwgt = 3.9 - (0.4*np.log2(sigjetframe.pt))
+            ptwgt[ptwgt < 0.1] = 0.1
+            sigjetframe.extweight = sigjetframe.extweight * ptwgt
         ## Add section for muon variables
-        if LOADMODEL:
+        if LOADMODEL and (not passplots):
             for prop in ['pt','eta','ip']:
                 sigjetframe[f"m{prop}"] = muons[prop][muons['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
     
@@ -988,7 +1044,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
             if TUTOR == True:
                 tutor(X_train,X_test,Y_train,Y_test)
                 sys.exit()
-            else: history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=VERBOSE)
+            else: history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=False)
 
             rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
             trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
@@ -1027,10 +1083,26 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         if LOADMODEL:
             plots['DistSte'].fill(diststt,W_inputs[Y_inputs==1])
             plots['DistBte'].fill(distbtt,W_inputs[Y_inputs==0])
-#            plots['WeightSte'].fill(W_inputs[Y_inputs==1])
-#            plots['WeightBte'].fill(W_inputs[Y_inputs==0])
+            
+            ## Store the output confidence values and their weights
+            distsf = pd.DataFrame(diststt)
+            distsf['W'] = W_inputs[Y_inputs==1].reset_index(drop=True)
+            ## Sort both of them together by the confidence values
+            distsf = distsf.sort_values(by=[0])
+            ## Store the cumulative sum of the weights
+            distsf['W_csum'] = distsf.W.cumsum()
+            ## Decide what weighted interval each volume should encompass
+            isize = distsf.W_csum.max() / 10
+            ## label which of those intervals each event falls into
+            distsf['bin'] = (distsf.W_csum / isize).apply(math.floor)
+            
+            for i in range(1,10):
+                plots['SensS'][1][i] = distsf[distsf['bin']==i-1][0].max()
+                plots['SensB'][1][i] = plots['SensS'][1][i]
+            plots['SensS'].fill(diststt,W_inputs[Y_inputs==1])
+            plots["SensB"].fill(distbtt,W_inputs[Y_inputs==0])
 
-        else:
+        elif not passplots:
             hist = pd.DataFrame(history.history)
             #for h in history:
                 #hist = pd.concat([hist,pd.DataFrame(h.history)],ignore_index=True)
@@ -1072,15 +1144,16 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         #    plt.clf()
             
         for col in netvars + muvars + ['npvs','npvsG']:
-            vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
-            vplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
-
-            pplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
-            pplots['SPS'+col].fill(sigjetframe[diststt > passnum].reset_index(drop=True)[col],sigjetframe[diststt > passnum].reset_index(drop=True)['extweight'])
-            pplots['SFL'+col].fill(sigjetframe[diststt <= passnum].reset_index(drop=True)[col],sigjetframe[diststt <= passnum].reset_index(drop=True)['extweight'])
-            pplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
-            pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col],bgjetframe[distbtt > passnum].reset_index(drop=True)['extweight'])
-            pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col],bgjetframe[distbtt <= passnum].reset_index(drop=True)['extweight'])
+            if not passplots:
+                vplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
+                vplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
+            else:
+                pplots['SG'+col].fill(sigjetframe.reset_index(drop=True)[col],sigjetframe.reset_index(drop=True)['extweight'])
+                pplots['SPS'+col].fill(sigjetframe[diststt > passnum].reset_index(drop=True)[col],sigjetframe[diststt > passnum].reset_index(drop=True)['extweight'])
+                pplots['SFL'+col].fill(sigjetframe[diststt <= passnum].reset_index(drop=True)[col],sigjetframe[diststt <= passnum].reset_index(drop=True)['extweight'])
+                pplots['BG'+col].fill(bgjetframe.reset_index(drop=True)[col],bgjetframe.reset_index(drop=True)['extweight'])
+                pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col],bgjetframe[distbtt > passnum].reset_index(drop=True)['extweight'])
+                pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col],bgjetframe[distbtt <= passnum].reset_index(drop=True)['extweight'])
 
     if False:#LOADMODEL:
         #if gROOT.FindObject('Combined.root'):
@@ -1109,7 +1182,7 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
 #        outfile["DnetQCDerr"] = plots['DistBte'].errToTH1(scale=0.5)
         
 
-    for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte']]:
+    for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte'],plots['SensB'],plots['SensS']]:
         if sum(p[0]) != 0:
             p.ndivide(sum(p[0]))
         
@@ -1121,6 +1194,8 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         
     if LOADMODEL:
         leg = [Sname,Bname]
+        Sens = np.sqrt(np.sum(np.power(plots['SensS'][0],2)/plots['SensB'][0]))
+        print(f"Calculated Senstivity of {Sens}")
             
         plt.clf()
         plots['DistSte'].make(linestyle='-',**plargs[Skey])
@@ -1130,7 +1205,10 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
         plots['DistSte'].make(linestyle='-',logv=True,**plargs[Skey])
         plots['DistBte'].make(linestyle=':',logv=True,**plargs[Bkey])
         plots['DistributionL'].plot(same=True,logv=True,legend=leg)
-    else:
+        plots['SensS'].make(linestyle='-',logv=True,**plargs[Skey])
+        plots['SensB'].title = Sens
+        plots['SensB'].plot(legend=leg,same=True,linestyle=':',logv=True,**plargs[Bkey])
+    elif not passplots:
         leg = ['Signal (training)','Background (training)','Signal (testing)', 'Background(testing)']
             
         plt.clf()
@@ -1163,49 +1241,52 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
 #        plots['WeightBte'].make(color='blue',linestyle=':',htype='step')
 #        plots['Weights'].plot(same=True,legend=leg)
     
-    if dataflag != True:
-        for col in netvars:
-            for plot in vplots:
-                vplots[plot].ndivide(sum(abs(vplots[plot][0]+.0001)))
-            for plot in pplots:
-                pplots[plot].ndivide(sum(abs(pplots[plot][0]+.0001)))
 
-#    if isLHE:
-#        for i in range(nlhe):
-#            lheplots['dist'+str(i)][0] = lheplots['dist'+str(i)][0]/sum(lheplots['dist'+str(i)][0])
-#            lheplots['dist'+str(i)].plot(htype='step')#,logv=True)
-        
-    for col in netvars + muvars + ['npvs','npvsG']:
-        plt.clf()
-        vplots['SG'+col].make(linestyle='-',**plargs[Skey])
-        vplots['BG'+col].make(linestyle=':',**plargs[Bkey],error=dataflag)
-        #if POSTWEIGHT:
-        vplots[col].title = 'With post-weighted network training'
-        #else:
-        #   vplots[col].title = 'With weighted network training'
-        vplots[col].plot(same=True,legend=[Sname,Bname])
-        
-        plt.clf()
-        pplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
-        pplots['SFL'+col].make(color='black',linestyle='--',htype='step')
-        pplots['SPS'+col].make(color='blue' ,linestyle=':',htype='step')
-        pplots[col].plot(same=True,legend=[f"All {Sname}", f"Failing {Sname}",f"Passing {Sname}"])
-        
-        plt.clf()
-        pplots['BG'+col].make(color='red'  ,linestyle='-',htype='step')
-        pplots['BFL'+col].make(color='black',linestyle='--',htype='step')
-        pplots['BPS'+col].make(color='blue' ,linestyle=':',htype='step')
-        pplots['B'+col].plot(same=True,legend=[f"All {Bname}",f"Failing {Bname}",f"Passing {Bname}"])
-        
+    
+    if passplots:
+        if dataflag != True:
+            for col in netvars:
+                for plot in pplots:
+                    pplots[plot].ndivide(sum(abs(pplots[plot][0]+.0001)))
+                    
+        for col in netvars + muvars + ['npvs','npvsG']:   
+            plt.clf()
+            pplots['SG'+col].make(color='red'  ,linestyle='-',htype='step')
+            pplots['SFL'+col].make(color='black',linestyle='--',htype='step')
+            pplots['SPS'+col].make(color='blue' ,linestyle=':',htype='step')
+            pplots[col].plot(same=True,legend=[f"All {Sname}", f"Failing {Sname}",f"Passing {Sname}"])
+            
+            plt.clf()
+            pplots['BG'+col].make(color='red'  ,linestyle='-',htype='step')
+            pplots['BFL'+col].make(color='black',linestyle='--',htype='step')
+            pplots['BPS'+col].make(color='blue' ,linestyle=':',htype='step')
+            pplots['B'+col].plot(same=True,legend=[f"All {Bname}",f"Failing {Bname}",f"Passing {Bname}"])
+    else:
+        if dataflag != True:
+            for col in netvars:
+                for plot in vplots:
+                    vplots[plot].ndivide(sum(abs(vplots[plot][0]+.0001)))
+        for col in netvars + muvars + ['npvs','npvsG']:
+            plt.clf()
+            vplots['SG'+col].make(linestyle='-',**plargs[Skey])
+            vplots['BG'+col].make(linestyle=':',**plargs[Bkey],error=dataflag)
+            #if POSTWEIGHT:
+            #vplots[col].title = 'With post-weighted network training'
+            #else:
+            #   vplots[col].title = 'With weighted network training'
+            vplots[col].plot(same=True,legend=[Sname,Bname])
         
     #if POSTWEIGHT:
     #model.save('postweighted.hdf5')
     #pickle.dump(scaler, open("postweightedscaler.p", "wb"))
     #else:
-    model.save('weighted.hdf5')
-    pickle.dump(scaler, open("weightedscaler.p", "wb"))
-    arcdict = {"plots":plots,"pplots":pplots,"vplots":vplots}
-    pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/arcdict.p', "wb"))
+    if not LOADMODEL:
+        model.save('weighted.hdf5')
+        pickle.dump(scaler, open("weightedscaler.p", "wb"))
+        
+    elif not passplots:
+        arcdict = {"plots":plots,"vplots":vplots}
+        pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/arcdict.p', "wb"))
     #pickle.dump(sigjetframe, open("sigj.p","wb"))
 
     
@@ -1218,71 +1299,32 @@ def ana(sigfiles,bgfiles,isLHE=False,dataflag=False,names=[False,False,False]):
 def main():
     if (len(sys.argv) > 1):
         nrgs = len(sys.argv)
-        sigfiles, bgfiles, datafiles = [],[],[]
-        names = [False,False,False]
-        isLHE=False
+        sigfile, bgfile = '',''
+        passplots=False
+        LOADMODEL = True
+        TUTOR = False
         ## Check for file sources
         for i in range(nrgs):
             arg = sys.argv[i]
-            if '-f' in arg:
-                if 's' in arg:
-                    fileptr = sigfiles
-                elif 'b' in arg:
-                    fileptr = bgfiles
-                elif 'd' in arg:
-                    fileptr = datafiles
-                else:
-                    dialogue()
-                for j in range(i+1,nrgs):
-                    if '-' in sys.argv[j]:
-                        break
-                    else:
-                        fileptr.append(sys.argv[j])
-                        i = j
-            elif '-l' in arg:
-                if 's' in arg:
-                    fileptr = sigfiles
-                elif 'b' in arg:
-                    fileptr = bgfiles
-                elif 'd' in arg:
-                    fileptr = datafiles
-                elif arg == '-lhe':
-                    isLHE=True
-                    continue
-                else:
-                    dialogue()
-                for j in range(i+1,nrgs):
-                    if '-' in sys.argv[j]:
-                        break
-                    else:
-                        with open(sys.argv[j],'r') as rfile:
-                            for line in rfile:
-                                fileptr.append(line.strip('\n'))
-                        i = j
-            elif '-n' in arg:
-                if 's' in arg:
-                    names[0] = sys.argv[i+1]
-                elif 'b' in arg:
-                    names[1] = sys.argv[i+1]
-                elif 'd' in arg:
-                    names[2] = sys.argv[i+1]
-            elif '-LHE' in arg:
-                isLHE = True
+            if '-s' in arg:
+                sigfile = sys.argv[i+1]
+            elif '-b' in arg:
+                bgfile = sys.argv[i+1]
+            elif ('-Pass' in arg) or ('-pass' in arg):
+                passplots = True
+            elif ('-Train' in arg) or ('-train' in arg):
+                LOADMODEL=False
+            elif ('-Tutor' in arg) or ('-tutor' in arg):
+                TUTOR = True
+                LOADMODEL=False
             #else: dialogue()
         #print('-')
         #print('sigfiles',sigfiles,'datafiles',datafiles)
         #print('-')
-        if not len(datafiles):
-            dataflag = False
-        elif len(sigfiles) and not len(bgfiles):
-            bgfiles = datafiles
-            dataflag = -1
-        elif len(bgfiles) and not len(sigfiles):
-            sigfiles = datafiles
-            dataflag = True
-        else: dialogue()
-        
-        ana(sigfiles,bgfiles,isLHE,dataflag,names)
+        if not sigfile or not bgfile:
+            dialogue()
+        else:
+            ana(sigfile,bgfile,LOADMODEL,TUTOR,passplots)
 
     else:
         dialogue()
@@ -1290,12 +1332,11 @@ def main():
 def dialogue():
     print("Expected:\n mndwrm.py [-LHE] <-f/-l>s (signal.root) <-f/-l>b (background.root)")
     print("---formatting flags--")
-    print("-f     Targets a specific file to run over")
-    print("-l     Specifies a list containing all files to run over")
-    print("s      Marks the following file(s) as signal")
-    print("b      Marks the following file(s) as background")
-    print("d      Marks the following file(s) as data - used to substitute 's' or 'd' as only 2 input types are expected")
-    print("-LHE   Indicates background files are split by LHE, and should be merged")
+    print("-s     Marks the signal .json file")
+    print("-b     Marks the background .json file")
+    print("-Pass  Indicates pass/fail plots should be made instead of regular plots")
+    print("-Train Indicates a new neural network should be trained")
+    print("-Tutor Indicates the neural network hyperparameters should be optimized")
     sys.exit(0)
     
 if __name__ == "__main__":

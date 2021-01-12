@@ -9,7 +9,7 @@
 #import os
 #import subprocess
 #import sys
-import uproot
+import uproot, json
 import numpy as np
 #import awkward
 import matplotlib.pyplot as plt
@@ -73,10 +73,10 @@ class Hist(object):
     ## Fills the stored histogram with the supplied values, and tracks squared uncertainty sum
     def fill(s,vals,weights=None):
         if weights is None:
-            s.ser = s.ser + plt.hist(vals,s.size,s.bounds)[0]
+            s.ser = s.ser + plt.hist(vals,s.hs[1])[0]
         else:
-            s.ser = s.ser + plt.hist(vals,s.size,s.bounds,weights=(weights*weights))[0]
-        s.hs[0] = s.hs[0] + plt.hist(vals,s.size,s.bounds,weights=weights)[0]
+            s.ser = s.ser + plt.hist(vals,s.hs[1],weights=(weights*weights))[0]
+        s.hs[0] = s.hs[0] + plt.hist(vals,s.hs[1],weights=weights)[0]
         return s
 
     ## Fills the stored histogram with values from the supplied dataframe
@@ -162,8 +162,8 @@ class Hist(object):
             plt.xlabel(s.xlabel,fontsize=14)
         if s.ylabel != '':
             plt.ylabel(s.ylabel,fontsize=18)
-        #if s.title != '':
-            #plt.title(s.title)
+        # if s.title != '':
+        #     plt.title(s.title)
         if s.fname != '':
             plt.savefig(s.fname)
         plt.close(s.fig)
@@ -365,3 +365,119 @@ class Event():
         s.scan()
         s.applycuts()
         return s
+    
+class InputConfig(object):
+    def __init__(s,sigfile,bgfile):
+        with open(sigfile) as f:
+            sigdata = json.load(f)
+            s.sigdata =     sigdata['isdata']
+            s.siglhe =      sigdata['islhe']
+            s.signame =     sigdata['name']
+            if 'files' in sigdata:
+                s.sigfiles =    sigdata['files']
+                s.sigweight =   sigdata['weight']
+            elif 'filepairs' in sigdata:
+                s.sigfiles,s.sigweight = s.expandpairs(sigdata['filepairs'])
+            else: raise NameError("Could not find 'files' or 'filepairs' in input file")
+        with open(bgfile) as f:
+            bgdata = json.load(f)
+            s.bgdata =      bgdata['isdata']
+            s.bglhe =       bgdata['islhe']
+            s.bgname =      bgdata['name']
+            if 'files' in bgdata:
+                s.bgfiles =     bgdata['files']
+                s.bgweight =    bgdata['weight']
+            elif 'filepairs' in bgdata:
+                s.bgfiles,s.bgweight = s.expandpairs(bgdata['filepairs'])
+            else: raise NameError("Could not find 'files' or 'filepairs' in input file")
+        if type(s.sigfiles) == str:
+            s.sigfiles = [s.sigfiles]
+        if type(s.bgfiles) == str:
+            s.bgfiles = [s.bgfiles]
+        signum = len(s.sigfiles)
+        bgnum =  len(s.bgfiles)
+        
+    
+        if s.bglhe == True and s.siglhe == True:
+            raise ValueError("Signal and background sources can't both be lhe split")
+        elif s.bglhe == True:
+            s.size = signum
+        elif s.siglhe == True:
+            raise ValueError("Currently, signal lhe support is still pending")
+        else:
+            ## Loop one input file until it reaches the dimensionality of the largest list
+            while len(s.sigfiles) < max(signum,bgnum):
+                s.sigfiles.append(s.sigfiles[signum*-1])
+            while len(s.bgfiles) < max(signum,bgnum):
+                s.bgfiles.append(s.bgfiles[signum*-1])  
+            s.size = max(signum,bgnum)
+        
+        ## Loop weights to match input dimensions
+        if type(s.sigweight)==list:
+            while len(s.sigweight) < len(s.sigfiles):
+                s.sigweight.append(s.sigweight[signum*-1])
+            if len(s.sigweight) > len(s.sigfiles):
+                raise ValueError('Input weight array too large')
+        elif type(s.sigweight)==int or type(s.sigweight)==float:
+            tlst = []
+            for i in range(s.size):
+                tlst.append(s.sigweight)
+            s.sigweight = tlst
+            
+        if type(s.bgweight)==list:
+            while len(s.bgweight) < len(s.bgfiles):
+                s.bgweight.append(s.bgweight[bgnum*-1])
+            if len(s.bgweight) > len(s.bgfiles):
+                raise ValueError(f"Input weight array too large")
+        elif type(s.bgweight)==int or type(s.bgweight)==float:
+            tlst = []
+            for i in range(s.size):
+                tlst.append(s.bgweight)
+            s.bgweight=tlst
+            
+    def expandpairs(s,pairs):
+        flist, wlist = []
+        if (len(pairs) % 2):
+            raise ValueError("Pair list was found to have odd number of elements during unwrapping")
+        for i in range(0,len(pairs),2):
+            flist.append(pairs[i])
+            wlist.append(pairs[i+1])
+        return flist, wlist       
+    
+                
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+            
+                
+        
+            
