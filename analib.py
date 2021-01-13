@@ -373,6 +373,9 @@ class InputConfig(object):
             s.sigdata =     sigdata['isdata']
             s.siglhe =      sigdata['islhe']
             s.signame =     sigdata['name']
+            if 'normweight' in sigdata:
+                snormweight = sigdata['normweight']
+            else: snormweight = False
             if 'files' in sigdata:
                 s.sigfiles =    sigdata['files']
                 s.sigweight =   sigdata['weight']
@@ -384,6 +387,9 @@ class InputConfig(object):
             s.bgdata =      bgdata['isdata']
             s.bglhe =       bgdata['islhe']
             s.bgname =      bgdata['name']
+            if 'normweight' in bgdata:
+                bnormweight = bgdata['normweight']
+            else: bnormweight = False
             if 'files' in bgdata:
                 s.bgfiles =     bgdata['files']
                 s.bgweight =    bgdata['weight']
@@ -434,6 +440,11 @@ class InputConfig(object):
             for i in range(s.size):
                 tlst.append(s.bgweight)
             s.bgweight=tlst
+            
+        if snormweight:
+            s.sigweight = np.divide(s.sigweight,max(s.sigweight))
+        if bnormweight:
+            s.bgweight = np.divide(s.bgweight,max(s.bgweight))
             
     def expandpairs(s,pairs):
         flist, wlist = []

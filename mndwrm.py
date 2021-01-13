@@ -201,10 +201,10 @@ def computedR(jet,thing,nms=['jet','thing']):
         
 #%%
 
-def ana(sigfiles,bgfiles,LOADMODEL=True,TUTOR=False,passplots=False):
+def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
     #%%
     passplots=False
-    ic = InputConfig('GGH_HPT.json','bgC.json')
+    ic = InputConfig(sigfile,bgfile)
     if ic.sigdata:
         dataflag = -1
         if ic.bgdata:
