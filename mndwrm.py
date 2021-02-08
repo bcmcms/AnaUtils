@@ -7,7 +7,7 @@
 ### Run without arguments for a list of flags and options            ###
 ########################################################################
 
-from ROOT import TH1F, TFile, gROOT, TCanvas
+# from ROOT import TH1F, TFile, gROOT, TCanvas
 
 import sys, math
 import uproot
@@ -203,14 +203,13 @@ def computedR(jet,thing,nms=['jet','thing']):
 
 def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
     #%%
-    passplots=False
     ic = InputConfig(sigfile,bgfile)
     if ic.sigdata:
-        dataflag = -1
+        dataflag = 1
         if ic.bgdata:
             raise ValueError("Both signal and background are marked as data")
     elif ic.bgdata:
-        dataflag = 1
+        dataflag = -1
     else: dataflag = 0
     sigfiles = ic.sigfiles
     bgfiles = ic.bgfiles
@@ -510,7 +509,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         sigf = uproot.open(sigfiles[fnum])
         sigevents = sigf.get('Events')
         
-        def loadjets(jets, events,gweights=False):
+        def loadjets(jets, events,bgweights=False):
             jets.eta= pd.DataFrame(events.array('FatJet_eta', executor=executor)).rename(columns=inc)
             jets.phi= pd.DataFrame(events.array('FatJet_phi', executor=executor)).rename(columns=inc)
             jets.pt = pd.DataFrame(events.array('FatJet_pt' , executor=executor)).rename(columns=inc)
@@ -540,9 +539,12 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             del idxa1, idxa2, idxa1f, idxa2f, submass, subtau
             
             jets.extweight = jets.event / jets.event
-            if gweights:
-                jets.extweight[1] = jets.extweight[1] * pd.DataFrame(events.array('Generator_weight'))[0]
+            if bgweights:
                 jets.HT = pd.DataFrame(events.array('LHE_HT' , executor=executor)).rename(columns=inc)
+                tempweight = 4.346 - (0.356*np.log2(jets.HT[1]))
+                tempweight[tempweight < 0.1] = 0.1
+                jets.extweight[1] = jets.extweight[1] * tempweight
+                
             else:
                 jets.HT = jets.event * 6000 / jets.event
 #            if wname != '':
@@ -560,12 +562,12 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 jets.HT[j+1] = jets.HT[1]
             return jets
              
-        
+        print(f"Dataflag:{dataflag}")
         if dataflag == True:
             sigjets = loadjets(PhysObj('sigjets'),sigevents)
         else:
-            sigjets = loadjets(PhysObj('sigjets'),sigevents,True)
-            sigjets.extweight = sigjets.extweight * .0046788#GGH_HPT specific xsec weight
+            sigjets = loadjets(PhysObj('sigjets'),sigevents)
+            #sigjets.extweight = sigjets.extweight * .0046788#GGH_HPT specific xsec weight
         sigsv = PhysObj('sigsv',sigfiles[fnum],'eta','phi',varname='SV')
             
         if isLHE:
@@ -909,7 +911,10 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 if LOADMODEL and (not passplots):
                     for prop in ['pt','eta','ip']:
                         twgtframe[f"m{prop}"] = bmuons[i][prop][bmuons[i]['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
-                tempframe = twgtframe.sample(frac=lheweights[i],random_state=6)
+                if np.max(lheweights) > 1.0:
+                    tempframe = twgtframe.sample(frac=lheweights[i],random_state=6,replace=True)
+                else:
+                    tempframe = twgtframe.sample(frac=lheweights[i],random_state=6)
                 twgtframe['extweight'] = twgtframe['extweight'] * lheweights[i]
                 bgpieces.append(tempframe)
                 #pickle.dump(tempframe, open(filefix+str(i)+"piece.p", "wb"))
@@ -963,6 +968,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
     
             if dataflag != True:
                 sigjetframe['extweight'] = lumipucalc(sigjetframe)
+        sigjetframe['extweight'] = sigjetframe['extweight'] * ic.sigweight[fnum]
         sigjetframe['val'] = 1
         sigtrnframe = sigjetframe[sigjetframe['event']%2 == 0]
         nsig = sigtrnframe.shape[0]
@@ -1155,18 +1161,18 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 pplots['BPS'+col].fill(bgjetframe[distbtt > passnum].reset_index(drop=True)[col],bgjetframe[distbtt > passnum].reset_index(drop=True)['extweight'])
                 pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum].reset_index(drop=True)[col],bgjetframe[distbtt <= passnum].reset_index(drop=True)['extweight'])
 
-    if False:#LOADMODEL:
-        #if gROOT.FindObject('Combined.root'):
-         #   rfile = TFile('Combined.root','UPDATE')
-        rfile = TFile('Combined.root','UPDATE')
-        if dataflag:
-            th1 = plots['DistSte'].toTH1('data_obs')
-            th12 = plots['DistBte'].toTH1('DnetQCD')
-        else:
-            th1 = plots['DistSte'].toTH1('SnetSMC')
-            th12 = plots['DistBte'].toTH1('SnetQCD')
-        rfile.Write()
-        rfile.Close()
+    # if False:#LOADMODEL:
+    #     #if gROOT.FindObject('Combined.root'):
+    #      #   rfile = TFile('Combined.root','UPDATE')
+    #     rfile = TFile('Combined.root','UPDATE')
+    #     if dataflag:
+    #         th1 = plots['DistSte'].toTH1('data_obs')
+    #         th12 = plots['DistBte'].toTH1('DnetQCD')
+    #     else:
+    #         th1 = plots['DistSte'].toTH1('SnetSMC')
+    #         th12 = plots['DistBte'].toTH1('SnetQCD')
+    #     rfile.Write()
+    #     rfile.Close()
 
 #    if dataflag == False:
 #        outfile = uproot.recreate("Combined.root")
@@ -1227,22 +1233,6 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
     
 
     
-    #if POSTWEIGHT:
-#    if LOADMODEL:
-#        plt.clf()
-#        plots['WeightSte'].make(linestyle='-',**plargs[Skey])
-#        plots['WeightBte'].make(linestyle=':',**plargs[Bkey])
-#        plots['Weights'].plot(same=True,legend=leg)
-#    else:
-#        plt.clf()
-#        plots['WeightStr'].make(color='red',linestyle='-',htype='step')
-#        plots['WeightBtr'].make(color='blue',linestyle='-',htype='step')
-#        plots['WeightSte'].make(color='red',linestyle=':',htype='step')
-#        plots['WeightBte'].make(color='blue',linestyle=':',htype='step')
-#        plots['Weights'].plot(same=True,legend=leg)
-    
-
-    
     if passplots:
         if dataflag != True:
             for col in netvars:
@@ -1262,7 +1252,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             pplots['BPS'+col].make(color='blue' ,linestyle=':',htype='step')
             pplots['B'+col].plot(same=True,legend=[f"All {Bname}",f"Failing {Bname}",f"Passing {Bname}"])
     else:
-        if dataflag != True:
+        if False:#dataflag != True:
             for col in netvars:
                 for plot in vplots:
                     vplots[plot].ndivide(sum(abs(vplots[plot][0]+.0001)))
@@ -1270,10 +1260,6 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             plt.clf()
             vplots['SG'+col].make(linestyle='-',**plargs[Skey])
             vplots['BG'+col].make(linestyle=':',**plargs[Bkey],error=dataflag)
-            #if POSTWEIGHT:
-            #vplots[col].title = 'With post-weighted network training'
-            #else:
-            #   vplots[col].title = 'With weighted network training'
             vplots[col].plot(same=True,legend=[Sname,Bname])
         
     #if POSTWEIGHT:
@@ -1286,7 +1272,18 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         
     elif not passplots:
         arcdict = {"plots":plots,"vplots":vplots}
-        pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/arcdict.p', "wb"))
+        if ic.signame:
+            if ic.bgname:
+                setname = ic.signame+' vs '+ic.bgname
+            else:
+                setname = ic.signame
+        elif ic.bgname:
+            setname = ic.bgname
+        else: setname = ''
+        arcdict.update({'setname':setname})
+        if setname:
+            pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/'+setname+'.p', "wb"))
+        else: pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/arcdict.p', "wb"))
     #pickle.dump(sigjetframe, open("sigj.p","wb"))
 
     
