@@ -64,14 +64,29 @@ class Hist(object):
         return s
 
     ## Adds the values of a passed histogram to the class's plot
-    def add(s,inplot):
+    def add(s,inplot,split=False):
         if (len(inplot[0]) != len(s.hs[0])) or (len(inplot[1]) != len(s.hs[1])):
             raise Exception('Mismatch between passed and stored histogram dimensions')
+        if split == True:
+            s = cp.deepcopy(s)
         s.hs[0] = s.hs[0] + inplot[0]
+        s.ser = s.ser + inplot.ser
+        return s
+    
+    ## Subtracts the values of a passed histogram from the class's plot
+    def sub(s,inplot,split=False):
+        if (len(inplot[0]) != len(s.hs[0])) or (len(inplot[1]) != len(s.hs[1])):
+            raise Exception('Mismatch between passed and stored histogram dimensions')
+        if split == True:
+            s = cp.deepcopy(s) 
+        s.hs[0] = s.hs[0] - inplot[0]
+        s.ser = s.ser + inplot.ser
         return s
 
     ## Fills the stored histogram with the supplied values, and tracks squared uncertainty sum
     def fill(s,vals,weights=None):
+        vals[vals < s.hs[1][0]] = s.hs[1][0]
+        vals[vals > s.hs[1][-1]] = s.hs[1][-1]
         if weights is None:
             s.ser = s.ser + plt.hist(vals,s.hs[1])[0]
         else:
@@ -128,44 +143,60 @@ class Hist(object):
         return s
 
     ## Creates and returns a pyplot-compatible histogram object
-    def make(s,logv=False,htype='bar',color=None,linestyle='solid',error=False):
+    def make(s,logv=False,htype='bar',color=None,linestyle='solid',error=False,parent=plt):
         if htype=='err':
             binwidth = s.hs[1][2]-s.hs[1][1]
-            plot = plt.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.ser),fmt='.k',
+            plot = parent.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.ser),fmt='.k',
                         color=color,linewidth=2,capsize=3)
             if logv:
-                plt.yscale('log')
+                parent.yscale('log')
             return plot
-        plot = plt.hist(s.hs[1][:-1],s.hs[1],weights=s.hs[0],
+        plot = parent.hist(s.hs[1][:-1],s.hs[1],weights=s.hs[0],
                         log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=2)
         if error==True:
-            plt.fill_between(stepx(s.hs[1]),stepy(s.hs[0]-np.sqrt(s.ser)),stepy(s.hs[0]+np.sqrt(s.ser)),
+            parent.fill_between(stepx(s.hs[1]),stepy(s.hs[0]-np.sqrt(s.ser)),stepy(s.hs[0]+np.sqrt(s.ser)),
                              alpha=0.0,hatch='xxxxxx',zorder=2,label='_nolegend_')
             
         return plot
         #return hep.histplot(s.hs[0],s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
-    def plot(s,ylim=False,same=False,legend=False,**args):
+    def plot(s,ylim=False,same=False,legend=False,figure=False,**args):
         if not same:
             plt.clf()
         s.make(**args)
         
         hep.cms.label(loc=0,year='2018')
-        fig = plt.gcf()
+        if not figure:
+            fig = plt.gcf()
+        else: fig = figure
         fig.set_size_inches(10.0, 6.0)
-        plt.grid(True)
-        if legend:
-            plt.legend(legend,loc=0)
         
-        if ylim:
-            plt.ylim(ylim)
-        if s.xlabel != '':
-            plt.xlabel(s.xlabel,fontsize=14)
-        if s.ylabel != '':
-            plt.ylabel(s.ylabel,fontsize=18)
+       
+        
+        if 'parent' in args:
+            args['parent'].grid(True)
+            if legend:
+                args['parent'].legend(legend,loc=0)
+            if ylim:
+                args['parent'].set_ylim(ylim)
+            if s.xlabel != '':
+                args['parent'].set_xlabel(s.xlabel,fontsize=14)
+            if s.ylabel != '':
+                args['parent'].set_ylabel(s.ylabel,fontsize=18)
+        else:    
+            plt.grid(True)
+            if legend:
+                 plt.legend(legend,loc=0)
+            if ylim:
+                plt.ylim(ylim)
+            if s.xlabel != '':
+                plt.xlabel(s.xlabel,fontsize=14)
+            if s.ylabel != '':
+                plt.ylabel(s.ylabel,fontsize=18)
         # if s.title != '':
         #     plt.title(s.title)
         if s.fname != '':
-            plt.savefig(s.fname)
+            if figure:  figure.savefig(s.fname)
+            else:       plt.savefig(s.fname)
         plt.close(s.fig)
        
     ## Shortcut for creating stacked plots of two comperable datasets

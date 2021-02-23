@@ -175,13 +175,22 @@ def lumipucalc(inframe):
             y  = Rmeta['y'][yi]
             yn = Rmeta['y'][yi+1]
             for b in range(len(Rtensor[x][y]['L'])):
-                inframe['extweight'][(inframe['mpt'] > x)&(inframe['mpt'] < xn)&\
-                       (inframe['mip'] > y)&(inframe['mip'] < yn)&(inframe['meta'] < 1.5)&\
+                inframe['extweight'][(inframe['mpt'] >= x)&(inframe['mpt'] < xn)&\
+                       (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) < 1.5)&\
                        (inframe['npvsG'] == b+1)] = inframe['extweight'] * Rtensor[x][y]['L'][b] * Ltensor[x][y]['L']
             
-                inframe['extweight'][(inframe['mpt'] > x)&(inframe['mpt'] < xn)&\
-                (inframe['mip'] > y)&(inframe['mip'] < yn)&(inframe['meta'] >= 1.5)&\
+                inframe['extweight'][(inframe['mpt'] >= x)&(inframe['mpt'] < xn)&\
+                (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) >= 1.5)&\
                 (inframe['npvsG'] == b+1)] = inframe['extweight'] * Rtensor[x][y]['H'][b] * Ltensor[x][y]['H']
+            
+            inframe['extweight'][(inframe['mpt'] >= x)&(inframe['mpt'] < xn)&\
+                       (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) < 1.5)&\
+                       (inframe['npvsG'] > b+1)] = inframe['extweight'] * Rtensor[x][y]['L'][b] * Ltensor[x][y]['L']
+            
+            inframe['extweight'][(inframe['mpt'] >= x)&(inframe['mpt'] < xn)&\
+                (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) >= 1.5)&\
+                (inframe['npvsG'] > b+1)] = inframe['extweight'] * Rtensor[x][y]['H'][b] * Ltensor[x][y]['H']
+                    
     return inframe['extweight']
   
 def computedR(jet,thing,nms=['jet','thing']):
@@ -547,13 +556,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 
             else:
                 jets.HT = jets.event * 6000 / jets.event
-#            if wname != '':
-#                weights = pickle.load(open('weights/'+wname+'-'+fstrip(DATANAME)+'.p',"rb" ))
-#                for prop in ['genweights','PUweights','normweights']:
-#                    #print('jets.extweight[1]')#,jets.extweight[1])    
-#                    jets.extweight[1] = jets.extweight[1] * weights[prop][1]
-#            else:
-#                jets.extweight = jets.event / jets.event
+
             for j in range(1,jets.pt.shape[1]):
                 jets.event[j+1] = jets.event[1]
                 jets.npvs[j+1] = jets.npvs[1]
@@ -761,6 +764,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         if (LOADMODEL) and (not passplots):
             muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d')
             muons.ip = abs(muons.dxy / muons.dxyErr)
+            muons.eta = abs(muons.eta)
             ev.register(muons)
             muons.cut(muons.softId > 0.9)
             muons.cut(abs(muons.eta) < 2.4)
@@ -776,6 +780,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 for i in range(nlhe):
                     idx = fnum*nlhe + i
                     bmuons.append(PhysObj('Muon',bgfiles[idx],'softId','eta','pt','dxy','dxyErr','ip3d'))
+                    bmuons[i].eta = abs(bmuons[i].eta)
                     bmuons[i].ip = abs(bmuons[i].dxy / bmuons[i].dxyErr)
                     bev[i].register(bmuons[i])
                     bmuons[i].cut(bmuons[i].softId > 0.9)
@@ -787,6 +792,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
     
             else:
                 bmuons = PhysObj('Muon',bgfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d')
+                bmuons.eta = abs(bmuons.eta)
                 bmuons.ip = abs(bmuons.dxy / bmuons.dxyErr)
                 bev.register(bmuons)
                 bmuons.cut(muons.softId > 0.9)
@@ -925,12 +931,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             bgrawframe = bgrawframe.dropna()
             if LOADMODEL and (not passplots):
                 bgjetframe['extweight'] = lumipucalc(bgjetframe)
-    #            debugframe['extweight'] = lumipucalc(cp.deepcopy(bgjetframe))
-    #            sys.exit()
-    #            print(bgrawframe['extweight'])
                 bgrawframe['extweight'] = lumipucalc(bgrawframe)
-    #            print('---->')
-    #            print(bgrawframe['extweight'])
             bgjetframe['val'] = 0
             bgrawframe['val'] = 0
             bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
@@ -1284,7 +1285,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         if setname:
             pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/'+setname+'.p', "wb"))
         else: pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/arcdict.p', "wb"))
-    #pickle.dump(sigjetframe, open("sigj.p","wb"))
+    pickle.dump(bgjetframe, open("bgjet.p","wb"))
 
     
         
