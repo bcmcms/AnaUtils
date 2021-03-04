@@ -45,9 +45,11 @@ for pname in plotnames:
 ## Generate a dictionary of ratio plots
 ratiodict = {}
 for pname in plotnames:
-    temphist = cp.deepcopy(combodict[pname][-1])
-    temphist = temphist.sub(arcdata['vplots'][f"SG{pname}"],split=True).divideby(temphist,trimnoise=0.001)
+    temphist = cp.deepcopy(arcdata['vplots'][f"SG{pname}"])#combodict[pname][-1])
+    temphist = temphist.sub(combodict[pname][-1],split=True).divideby(combodict[pname][-1])
     temphist.fname = ''
+    temphist.xlabel=''
+    temphist.ylabel=''
     ratiodict.update({pname:temphist})
 
 ## Generate a legend for the upcoming plots
@@ -62,7 +64,7 @@ for pname in plotnames:
     fig, axis = plt.subplots(2,1,sharex=True,gridspec_kw={'height_ratios':[3,1]})
     for layer in range(nlen-1,-1,-1):
         combodict[pname][layer].make(color=colorlist[layer],htype='bar',parent=axis[0])
-    ratiodict[pname].make(color='black',htype='err',parent=axis[1])
+    ratiodict[pname].plot(same=True,color='black',htype='err',parent=axis[1],clean=True,ylim=[-0.5,0.5])
     arcdata['vplots'][f"SG{pname}"].plot(same=True,legend=leg,color='black',htype='err',parent=axis[0])
     
     #combodict[pname][0].plot(same=True,legend=leg,color=colorlist[0],htype='bar')

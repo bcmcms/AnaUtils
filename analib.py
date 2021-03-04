@@ -23,6 +23,7 @@ from munch import DefaultMunch
 # from ROOT import TH1F
 #import types
 import mplhep as hep
+from scipy.stats import norm
 
 def stepx(xs):
     return np.tile(xs, (2,1)).T.flatten()[1:-1]
@@ -101,7 +102,7 @@ class Hist(object):
 
     ## Divides the stored histogram by another, and either changes itself or returns a changed object
     ## Enabling trimnoise attempts to cut out the weird floating point errors you sometimes get when a number isn't exactly 0
-    def divideby(s,inplot,split=False,trimnoise=0):
+    def divideby(s,inplot,split=False,trimnoise=0,errmethod='default'):
         if (len(inplot[0]) != len(s.hs[0])) or (len(inplot[1]) != len(s.hs[1])):
             raise Exception('Mismatch between passed and stored histogram dimensions')
         if split:
@@ -111,16 +112,40 @@ class Hist(object):
         if trimnoise:
             s.hs[0][s.hs[0]<trimnoise]=np.nan
             inplot[0][inplot[0]<trimnoise]=np.nan
+        
+        upper, lower = [],[]
+        for i in range(len(s.hs[0])):
+            if errmethod == 'default':
+                A = s.hs[0][i]
+                eA = np.sqrt(s.ser[i])
+                B = inplot[0][i]
+                eB = np.sqrt(inplot.ser[i])
+                s.ser[i] = np.power(A*B,2) * (np.power(eA/A,2) + np.power(eB/B,2))
+                s.ser[np.isnan(s.ser)] = 0.
+            ## Using normal efficiency calculation changes the format of the error,
+            ## So there shouldn't be further histogram value operations done between it and plotting
+            elif errmethod == 'effnorm':
+                level = 0.68
+                total = inplot[0][i]
+                jitter = 1/total
+                passed = s.hs[0][i]
+                alpha = (1 - level)/2
+                avg = passed / total
+                sigma = np.sqrt(((avg + jitter) * (1 + jitter - avg))/total)
+                delta = norm.ppf(1-alpha,0,sigma)
+                upper.append(min(delta*delta,np.power(1-avg,2)))
+                lower.append(min(delta*delta,np.power(avg,2)))
+        if errmethod == 'effnorm': s.ser = np.array([lower,upper])
             
-        A = s.hs[0]
-        eA = np.sqrt(s.ser)
+        # A = s.hs[0]
+        # eA = np.sqrt(s.ser)
         s.hs[0] = np.divide(s.hs[0],inplot[0], where=inplot[0]!=0)
         ## Empty bins should have a weight of 0
         s.hs[0][np.isnan(s.hs[0])] = 0
         inplot[0][np.isnan(inplot[0])] = 0
-        ## ex^2 = x^2 * ((eA/A)^2 + (eB/B)^2)
-        s.ser = (s.hs[0]*s.hs[0])*(np.power(eA/A,2)+np.power(np.sqrt(inplot.ser)/inplot[0],2))
-        s.ser[np.isnan(s.ser)] = 0.
+        # ## ex^2 = x^2 * ((eA/A)^2 + (eB/B)^2)
+        # s.ser = (s.hs[0]*s.hs[0])*(np.power(eA/A,2)+np.power(np.sqrt(inplot.ser)/inplot[0],2))
+        #s.ser[np.isnan(s.ser)] = 0.
         return s
     
     def divideBy(s,*args,**kwargs):
@@ -159,12 +184,12 @@ class Hist(object):
             
         return plot
         #return hep.histplot(s.hs[0],s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
-    def plot(s,ylim=False,same=False,legend=False,figure=False,**args):
+    def plot(s,ylim=False,same=False,legend=False,figure=False,clean=False,**args):
         if not same:
             plt.clf()
         s.make(**args)
         
-        hep.cms.label(loc=0,year='2018')
+       
         if not figure:
             fig = plt.gcf()
         else: fig = figure
@@ -174,6 +199,7 @@ class Hist(object):
         
         if 'parent' in args:
             args['parent'].grid(True)
+            if not clean: hep.cms.label(loc=0,year='2018',ax=args['parent'])
             if legend:
                 args['parent'].legend(legend,loc=0)
             if ylim:
@@ -184,6 +210,7 @@ class Hist(object):
                 args['parent'].set_ylabel(s.ylabel,fontsize=18)
         else:    
             plt.grid(True)
+            hep.cms.label(loc=0,year='2018')
             if legend:
                  plt.legend(legend,loc=0)
             if ylim:
@@ -325,7 +352,7 @@ class PhysObj(DefaultMunch):
         #s.update({key:value})
         return s
 
-    ## Removes events that are missing in the passed frame
+    ## Removes events that are missing, in the passed frame
     def trimto(s,frame,split=False):
         if split:
             s = s.copy()
@@ -337,7 +364,7 @@ class PhysObj(DefaultMunch):
         s = s.trimto(*args,**kwargs)
         return s
     
-    ## Removes events that are missing from the passed frame (probably not ideal to have to do this)
+    ## Removes events that are missing, from the passed frame (probably not ideal to have to do this)
     def trim(s,frame):
         for elem in s:
             frame = frame.loc[s[elem].index.intersection(frame.index)]
@@ -401,9 +428,12 @@ class InputConfig(object):
     def __init__(s,sigfile,bgfile):
         with open(sigfile) as f:
             sigdata = json.load(f)
-            s.sigdata =     sigdata['isdata']
-            s.siglhe =      sigdata['islhe']
-            s.signame =     sigdata['name']
+            if 'isdata' in sigdata:
+                s.sigdata =     sigdata['isdata']
+            if 'islhe' in sigdata:
+                s.siglhe =      sigdata['islhe']
+            if 'name' in sigdata:
+                s.signame =     sigdata['name']
             if 'normweight' in sigdata:
                 snormweight = sigdata['normweight']
             else: snormweight = False
@@ -415,9 +445,12 @@ class InputConfig(object):
             else: raise NameError("Could not find 'files' or 'filepairs' in input file")
         with open(bgfile) as f:
             bgdata = json.load(f)
-            s.bgdata =      bgdata['isdata']
-            s.bglhe =       bgdata['islhe']
-            s.bgname =      bgdata['name']
+            if 'isdata' in bgdata:
+                s.bgdata =      bgdata['isdata']
+            if 'islhe' in bgdata:
+                s.bglhe =       bgdata['islhe']
+            if 'name' in bgdata:
+                s.bgname =      bgdata['name']
             if 'normweight' in bgdata:
                 bnormweight = bgdata['normweight']
             else: bnormweight = False
