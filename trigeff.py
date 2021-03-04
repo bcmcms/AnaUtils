@@ -17,6 +17,9 @@ def lumipucalc(inframe):
     Ltensor = pickle.load(open('MuonLtensor.p',"rb"))
     Rmeta = Rtensor.pop('meta')
     Lmeta = Ltensor.pop('meta')
+    
+    pd.set_option('mode.chained_assignment',None)
+    
     for list in Rmeta['x'],Rmeta['y'],Lmeta['x'],Lmeta['y']:
         list[-1] = 999999
 #    if Rmeta['x'] != Lmeta['x']:

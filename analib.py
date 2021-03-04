@@ -127,11 +127,12 @@ class Hist(object):
             elif errmethod == 'effnorm':
                 level = 0.68
                 total = inplot[0][i]
-                jitter = 1/total
+                avgwgt = s.ser[i] / total
+                jitter = avgwgt/total
                 passed = s.hs[0][i]
                 alpha = (1 - level)/2
                 avg = passed / total
-                sigma = np.sqrt(((avg + jitter) * (1 + jitter - avg))/total)
+                sigma = np.sqrt((avgwgt * (avg + jitter) * (1 + jitter - avg))/total)
                 delta = norm.ppf(1-alpha,0,sigma)
                 upper.append(min(delta*delta,np.power(1-avg,2)))
                 lower.append(min(delta*delta,np.power(avg,2)))
