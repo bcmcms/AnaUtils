@@ -172,13 +172,14 @@ class Hist(object):
     def make(s,logv=False,htype='bar',color=None,linestyle='solid',error=False,parent=plt):
         if htype=='err':
             binwidth = s.hs[1][2]-s.hs[1][1]
+            parent.hlines(s.hs[0],s.hs[1][0:-1],s.hs[1][1:],colors='black')
             plot = parent.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.ser),fmt='.k',
                         color=color,linewidth=2,capsize=3)
             if logv:
                 parent.yscale('log')
             return plot
         plot = parent.hist(s.hs[1][:-1],s.hs[1],weights=s.hs[0],
-                        log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=2)
+                        log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=0)
         if error==True:
             parent.fill_between(stepx(s.hs[1]),stepy(s.hs[0]-np.sqrt(s.ser)),stepy(s.hs[0]+np.sqrt(s.ser)),
                              alpha=0.0,hatch='xxxxxx',zorder=2,label='_nolegend_')
@@ -220,8 +221,8 @@ class Hist(object):
                 plt.xlabel(s.xlabel,fontsize=14)
             if s.ylabel != '':
                 plt.ylabel(s.ylabel,fontsize=18)
-        # if s.title != '':
-        #     plt.title(s.title)
+            if s.title != '':
+                plt.title(s.title)
         if s.fname != '':
             if figure:  figure.savefig(s.fname)
             else:       plt.savefig(s.fname)

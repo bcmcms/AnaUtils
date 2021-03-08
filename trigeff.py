@@ -97,6 +97,7 @@ def loadjets(jets, events,bgweights=False):
         jets.HT[j+1] = jets.HT[1]
     return jets
 
+#%%
 def compare(conf,option):
 #%%    
     print(f"Analysing {conf} with {option} cuts")
@@ -105,11 +106,15 @@ def compare(conf,option):
         islhe =     confd['islhe']
         #isdata =    confd['isdata']
         files =     confd['files']
+        if type(files) != list:
+            files = [files]
         fweights =  confd['weight']
+        if type(fweights) != list:
+            fweights = [fweights]
         name =      confd['name']
         
-    numplot = Hist(85,(150,1000),'pT of highest FatJet after cuts')
-    denplot = Hist(85,(150,1000),'pT of highest FatJet after cuts and triggers')
+    numplot = Hist(27,(150,1500),'pT of highest FatJet after cuts')
+    denplot = Hist(27,(150,1500),'pT of highest FatJet after cuts and triggers')
     
     elecvars = ['pt','eta','mvaFall17V2Iso_WP90']
     muvars = ['pt','eta','mediumPromptId','miniIsoId','softId','dxy','dxyErr','ip3d']
@@ -126,6 +131,7 @@ def compare(conf,option):
         
         jets.append(loadjets(PhysObj(f"Jets{i}"),events[i], islhe))
         jets[i].extweight = jets[i].extweight * fweights[i]
+        
         
         elecs.append(PhysObj(f"Electron{i}", files[i], *elecvars, varname='Electron'))
         
@@ -153,14 +159,14 @@ def compare(conf,option):
         jet.cut(jet.msoft < 200)
         jet.cut(jet.npvsG >= 1)
         
-    for elec in elecs:
-        elec.cut(elec.pt > 15)
-        elec.cut(abs(elec.eta) < 2.5)
-        elec.cut(elec.mvaFall17V2Iso_WP90 > 0.9)
-        
+    if option == 'MuonEG':
+        for elec in elecs:
+            elec.cut(elec.pt > 15)
+            elec.cut(abs(elec.eta) < 2.5)
+            elec.cut(elec.mvaFall17V2Iso_WP90 > 0.9) 
         
     for mu in mus:
-        if option == 'MuonBPH':
+        if option == 'MuonEG':
             mu.cut(mu.pt > 10)
             mu.cut(abs(mu.eta) < 2.4)
             mu.cut(mu.mediumPromptId > 0.9)
@@ -174,7 +180,7 @@ def compare(conf,option):
         
     for ev in evs: ev.sync()
     
-    if option == 'MuonBPH':
+    if option == 'MuonEG':
         for i in range(len(files)):
             l1s[i].cut(np.logical_and.reduce((
                 np.logical_and(np.logical_or(l1s[i].Mu7_EG23er2p5,l1s[i].Mu7_LooseIsoEG20er2p5),hlts[i].Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ),
@@ -206,6 +212,9 @@ def compare(conf,option):
     mergedframe = pd.concat(framepieces, ignore_index=True)
     mergedframe = mergedframe.dropna()
     
+    if conf == "GGH_HPT.json":
+        mergedframe['extweight'] = mergedframe['extweight'] * (3.9 - 0.4*np.log2(mergedframe['pt']))
+    
     if option == 'Parked':
         for i in range(len(files)):
             mergedframe['extweight'] = lumipucalc(mergedframe)
@@ -220,6 +229,7 @@ def compare(conf,option):
     effplot.fname  = f"Effplots/{name}_EfficiencyPlot_{option}"
     effplot.ylim   = (0,1)
     effplot.plot(htype='err')
+    pickle.dump(effplot,open(f"Effplots/{name}_EfficiencyPlot_{option}.p",'wb'))
     sys.exit()
 #%%
 
@@ -230,13 +240,13 @@ def main():
             file = sys.argv[i+1]
         elif sys.argv[i] == '-parked':
             option = 'Parked'
-        elif sys.argv[i] == 'muonbph':
-            option = 'MuonBPH'
+        elif sys.argv[i] == 'muoneg':
+            option = 'MuonEG'
     if file:
         compare(file,option)
     else:
         print("Expected arguments of the form: trigeff.py -f <config.json>")
-        print("Options such as -parked and -muonbph can also be used to specify cuts")
+        print("Options such as -parked and -muoneg can also be used to specify cuts")
         
 if __name__ == "__main__":
     main()
