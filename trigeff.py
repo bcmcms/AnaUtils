@@ -37,8 +37,8 @@ def lumipucalc(inframe):
                        (inframe['npvsG'] == b+1)] = inframe['extweight'] * Rtensor[x][y]['L'][b] * Ltensor[x][y]['L']
             
                 inframe['extweight'][(inframe['mpt'] >= x)&(inframe['mpt'] < xn)&\
-                (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) >= 1.5)&\
-                (inframe['npvsG'] == b+1)] = inframe['extweight'] * Rtensor[x][y]['H'][b] * Ltensor[x][y]['H']
+                        (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) >= 1.5)&\
+                        (inframe['npvsG'] == b+1)] = inframe['extweight'] * Rtensor[x][y]['H'][b] * Ltensor[x][y]['H']
             
             inframe['extweight'][(inframe['mpt'] >= x)&(inframe['mpt'] < xn)&\
                        (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) < 1.5)&\
@@ -144,9 +144,8 @@ def compare(conf,option):
         
     evs = []
     for i in range(len(files)):
-        evs.append(Event(jets[i],elecs[i],mus[i],l1s[i],hlts[i]))
+        evs.append(Event(jets[i],l1s[i],hlts[i],elecs[i],mus[i]))
         
-    
 
         
     for jet in jets:
@@ -173,31 +172,35 @@ def compare(conf,option):
             mu.cut(mu.miniIsoId >= 2)
         elif option == 'Parked':
             mu.cut(mu.softId > 0.9)
-            mu.cut(mu.eta < 2.4)
+            mu.cut(abs(mu.eta) < 2.4)
+            mu.cut(mu.pt > 7)
             mu.cut(mu.ip > 2)
             mu.cut(mu.ip3d < 0.5)
         #else: raise(NameError("Dataset name does not match expected"))
         
     for ev in evs: ev.sync()
     
+    
+    
     if option == 'MuonEG':
         for i in range(len(files)):
-            l1s[i].cut(np.logical_and.reduce((
+            l1s[i].cut(np.logical_or.reduce((
                 np.logical_and(np.logical_or(l1s[i].Mu7_EG23er2p5,l1s[i].Mu7_LooseIsoEG20er2p5),hlts[i].Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ),
                 np.logical_and(np.logical_or(l1s[i].Mu20_EG10er2p5,l1s[i].SingleMu22),hlts[i].Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL),
                 np.logical_and(l1s[i].SingleMu25,hlts[i].Mu27_Ele37_CaloIdL_MW),
                 np.logical_and(l1s[i].SingleMu25,hlts[i].Mu37_Ele27_CaloIdL_MW))))
     
             ## Makes a frame whose elements have the highest pt of the muon or electron in that position
-            passf = elec[i].pt.combine(mu[i].pt,np.maximum,fill_value=0)
+            passf = elecs[i].pt.combine(mus[i].pt,np.maximum,fill_value=0)
             ## Drops pt < 25
             passf = passf[passf > 25]
             ## Drops empty rows
-            passf.dropma(how='all')
+            passf = passf.dropna(how='all')
             ## The remaining events must have had an electron or muon with pt > 25 - the rest are removed
-            elec.trimTo(passf)
+            elecs[i].trimTo(passf)
         
     for ev in evs: ev.sync()
+    
     print("Assembling finished frame")
     framepieces = []
     for i in range(len(files)):
@@ -210,27 +213,34 @@ def compare(conf,option):
         tempframe['HLT_AK8PFJet500'] = hlts[i].AK8PFJet500[1]
         framepieces.append(tempframe)
     mergedframe = pd.concat(framepieces, ignore_index=True)
-    mergedframe = mergedframe.dropna()
+    # mergedframe = mergedframe.dropna()
+    
     
     if conf == "GGH_HPT.json":
-        mergedframe['extweight'] = mergedframe['extweight'] * (3.9 - 0.4*np.log2(mergedframe['pt']))
+        sigweight = (3.9 - 0.4*np.log2(mergedframe['pt']))
+        sigweight[sigweight < 0.1] = 0.1
+        mergedframe['extweight'] = mergedframe['extweight'] * sigweight
     
-    if option == 'Parked':
-        for i in range(len(files)):
-            mergedframe['extweight'] = lumipucalc(mergedframe)
+    if option == 'Parked': 
+        mergedframe['extweight'] = lumipucalc(mergedframe)
+            
+    pickle.dump(evs,open('effevents.p','wb'))
+    pickle.dump(mergedframe,open('effframe.p','wb'))
+            
     print("Producing histograms")
     denplot.fill(mergedframe['pt'],mergedframe['extweight'])
     numplot.fill(mergedframe['pt'][np.logical_and(mergedframe['L1_SingleJet180'] == 1, mergedframe['HLT_AK8PFJet500'] == 1)],
                  mergedframe['extweight'][np.logical_and(mergedframe['L1_SingleJet180'] == 1, mergedframe['HLT_AK8PFJet500'] == 1)])
     effplot = numplot.divideby(denplot,split=True,trimnoise=.001,errmethod='effnorm')
-    effplot.xlabel = 'AK8 jets passing cuts / passing cuts + triggers'
+    effplot.xlabel = 'pT of AK8 jet passing cuts + triggers / passing cuts'
     effplot.ylabel = f"{option} Ratio"
     effplot.title  = name
     effplot.fname  = f"Effplots/{name}_EfficiencyPlot_{option}"
     effplot.ylim   = (0,1)
     effplot.plot(htype='err')
     pickle.dump(effplot,open(f"Effplots/{name}_EfficiencyPlot_{option}.p",'wb'))
-    sys.exit()
+    #sys.exit()
+    pickle.dump({'numplot':numplot,'denplot':denplot,'effplot':effplot},open('effplots.p','wb'))
 #%%
 
 def main():
@@ -240,7 +250,7 @@ def main():
             file = sys.argv[i+1]
         elif sys.argv[i] == '-parked':
             option = 'Parked'
-        elif sys.argv[i] == 'muoneg':
+        elif sys.argv[i] == '-muoneg':
             option = 'MuonEG'
     if file:
         compare(file,option)
