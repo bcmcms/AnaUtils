@@ -30,6 +30,9 @@ def stepx(xs):
 def stepy(ys):
     return np.tile(ys, (2,1)).T.flatten()
 
+def dphi(phi1,phi2):
+    return abs(phi1-phi2).combine(abs(phi1-phi2+(2*np.pi)),min).combine(abs(phi1-phi2-(2*np.pi)),min)
+
 #class HackyTH1(uproot_methods.classes.TH1.Methods, list):
 #    def __init__(self, low, high, values, title=""):
 #        self._fXaxis = types.SimpleNamespace()
@@ -127,7 +130,11 @@ class Hist(object):
             elif errmethod == 'effnorm':
                 level = 0.68
                 total = inplot[0][i]
-                avgwgt = s.ser[i] / total
+                if total == 0:
+                    lower.append(0)
+                    upper.append(0)
+                    continue
+                avgwgt = inplot.ser[i] / total
                 jitter = avgwgt/total
                 passed = s.hs[0][i]
                 alpha = (1 - level)/2
@@ -137,7 +144,7 @@ class Hist(object):
                 upper.append(min(delta*delta,np.power(1-avg,2)))
                 lower.append(min(delta*delta,np.power(avg,2)))
         if errmethod == 'effnorm': s.ser = np.array([lower,upper])
-            
+        
         # A = s.hs[0]
         # eA = np.sqrt(s.ser)
         s.hs[0] = np.divide(s.hs[0],inplot[0], where=inplot[0]!=0)
@@ -171,9 +178,11 @@ class Hist(object):
     ## Creates and returns a pyplot-compatible histogram object
     def make(s,logv=False,htype='bar',color=None,linestyle='solid',error=False,parent=plt):
         if htype=='err':
+            if not color:
+                color = 'k'
             binwidth = s.hs[1][2]-s.hs[1][1]
-            parent.hlines(s.hs[0],s.hs[1][0:-1],s.hs[1][1:],colors='black')
-            plot = parent.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.ser),fmt='.k',
+            parent.hlines(s.hs[0],s.hs[1][0:-1],s.hs[1][1:],colors=color)
+            plot = parent.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.ser),fmt=f".{color}",
                         color=color,linewidth=2,capsize=3)
             if logv:
                 parent.yscale('log')
@@ -357,7 +366,7 @@ class PhysObj(DefaultMunch):
     ## Removes events that are missing, in the passed frame
     def trimto(s,frame,split=False):
         if split:
-            s = s.copy()
+            s = s.deepcopy()
         for elem in s:
             s[elem] = s[elem].loc[frame.index.intersection(s[elem].index)]
         return s
@@ -375,7 +384,7 @@ class PhysObj(DefaultMunch):
     ## Removes particles that fail the passed test, and events if they become empty
     def cut(s,mask,split=False):
         if split:
-            s = s.copy()
+            s = s.deepcopy()
         for elem in s:
             s[elem] = s[elem][mask].dropna(how='all')
         return s

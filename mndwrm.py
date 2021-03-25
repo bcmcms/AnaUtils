@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 #import itertools as it
 #import copy as cp
-from analib import Hist, PhysObj, Event, inc, fstrip, InputConfig#, Hist2D
+from analib import Hist, PhysObj, Event, inc, fstrip, InputConfig, dphi
 import pickle
 import copy as cp
 #from uproot_methods import TLorentzVector, TLorentzVectorArray
@@ -197,7 +197,7 @@ def computedR(jet,thing,nms=['jet','thing']):
     nj = jet.eta.shape[1]
     nt = thing.eta.shape[1]
     ## Create our dR dataframe by populating its first column and naming it accordingly
-    jtdr2 = pd.DataFrame(np.power(jet.eta[1] - thing.eta[1],2) + np.power(jet.phi[1] - thing.phi[1],2)).rename(columns={1:f"{nms[0]} 1 {nms[1]} 1"})
+    jtdr2 = pd.DataFrame(np.power(jet.eta[1] - thing.eta[1],2) + np.power(dphi(jet.phi[1],thing.phi[1]),2)).rename(columns={1:f"{nms[0]} 1 {nms[1]} 1"})
     jtstr = []
     ## Loop over jet x thing combinations
     for j in range(1,nj+1):
@@ -205,7 +205,7 @@ def computedR(jet,thing,nms=['jet','thing']):
             jtstr.append(f"{nms[0]} {j} {nms[1]} {t}")
             if (j+t==2):
                 continue
-            jtdr2[jtstr[-1]] = pd.DataFrame(np.power(jet.eta[j]-thing.eta[t],2) + np.power(jet.phi[j]-thing.phi[t],2))
+            jtdr2[jtstr[-1]] = pd.DataFrame(np.power(jet.eta[j]-thing.eta[t],2) + np.power(dphi(jet.phi[j],thing.phi[t]),2))
     return np.sqrt(jtdr2)
         
 #%%
