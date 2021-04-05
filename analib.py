@@ -389,6 +389,12 @@ class PhysObj(DefaultMunch):
             s[elem] = s[elem][mask].dropna(how='all')
         return s
     
+    def deepcopy(s):
+        tobj = PhysObj(s.name)
+        for prop in s:
+            tobj[prop] = cp.deepcopy(s[prop])
+        return tobj
+    
 
 class Event():
     def __init__(s,*args):
