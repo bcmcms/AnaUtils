@@ -121,7 +121,7 @@ def compare(conf,option,stage):
     with open(conf) as f:
         confd = json.load(f)
         islhe =     confd['islhe']
-        #isdata =    confd['isdata']
+        isdata =    confd['isdata']
         files =     confd['files']
         if type(files) != list:
             files = [files]
@@ -349,7 +349,7 @@ def compare(conf,option,stage):
         sigweight[sigweight < 0.1] = 0.1
         mergedframe['extweight'] = mergedframe['extweight'] * sigweight
     
-    if option == 'Parked': 
+    if option == 'Parked' and not isdata: 
         mergedframe['extweight'] = lumipucalc(mergedframe)
             
     # pickle.dump(evs,open('effevents.p','wb'))
