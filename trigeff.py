@@ -148,7 +148,7 @@ def compare(conf,option,stage):
         numplot = {'pt':    Hist(27,(150,1500)  ,'pT of AK8 jet passing cuts + triggers / passing cuts',f"{option} Ratio",f"Effplots/{name}_pTEfficiencyPlot_{option}_D"),
                    }
     elif len(stage)>1:
-        numplot = {'pt':    Hist(5,(400,650)    ,'pT of AK8 jet passing cuts+triggers / cuts',f"{option} Ratio",f"Seffplots/{name}_{stage}_ptScalePlot"),
+        numplot = {'pt':    Hist(5,(400,650)    ,'pT of AK8 jet passing cuts+triggers / cuts',f"{option} Ratio",f"Seffplots/{name}_{stage}_{option}_ptScalePlot"),
                    'msoft': Hist(6,(80,200)     ,'msoft of AK8 jet passing cuts+triggers / cuts',f"{option} Ratio",f"Seffplots/{name}_{stage}_{option}_msoftScalePlot"),
                    'DDBvL': Hist(4,(.80,1)      ,'DDBvL of AK8 jet passing cuts+triggers / cuts',f"{option} Ratio",f"Seffplots/{name}_{stage}_{option}_ddbvlScalePlot"),
                    }
@@ -161,7 +161,7 @@ def compare(conf,option,stage):
                     's2deepb':  Hist([.4184,.5856,.7527,0.8764,1],None ,'DeepB of 2nd highest DeepB slimjet passing cuts+triggers / cuts',f"{option} Ratio",f"Seffplots/{name}_{stage}_{option}_s2deepbScalePlot"),
                 })
         if stage == "CX":
-            numplot.update({'pt':       Hist(3,(250,400)    ,'pT of AK8 jet passing cuts+triggers / cuts',f"{option} Ratio",f"Seffplots/{name}_{stage}_ptScalePlot"),
+            numplot.update({'pt':       Hist(3,(250,400)    ,'pT of AK8 jet passing cuts+triggers / cuts',f"{option} Ratio",f"Seffplots/{name}_{stage}_{option}_ptScalePlot"),
                             })
         
         # for p in numplot:
@@ -488,8 +488,11 @@ def overlay(stage):
                     upper.append(np.power(C,2) * (np.power(dA[1]/A,2) + np.power(dB[0]/B,2)))
                     rt[st][plot].ser = np.array([lower,upper])
                 rt[st][plot].plot(htype='err')
-            rt.update({"meta":{"x":['AB','ABC','CX'],"y":['pt','msoft','DDBvL','s2pt','s2deepb']}})
-            pickle.dump(rt, open(f"ScaleTensor",'wb'))
+                rt[st][plot][1][0] = 0
+                rt[st][plot][1][-1] = np.inf
+        tt = {"meta":{"AB":rt["AB"]["pt"][1],"ABC":rt["ABC"]["pt"][1],"CX":rt["CX"]["s2deepb"][1]},
+              "AB":rt["AB"]["pt"][0],"ABC":rt["ABC"]["pt"][0],"CX":rt["CX"]["s2deepb"][0]}
+        pickle.dump(tt, open(f"TrigTensor.p",'wb'))
         sys.exit()
     print(f"Merging {stage} plots...")
     pqq = [pickle.load(open(f"Effplots/ParkedSkim_EfficiencyPlot_Parked_{stage}.p",'rb')),
@@ -582,9 +585,7 @@ def main():
         compare(file,option,"A")
         compare(file,option,"B")
         compare(file,option,"C")
-        compare(file,option,"AB")
         compare(file,option,"ABC")
-        compare(file,option,"CX")
     elif over:
         overlay("A")
         overlay("B")

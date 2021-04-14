@@ -188,7 +188,7 @@ class Hist(object):
                 parent.yscale('log')
             return plot
         plot = parent.hist(s.hs[1][:-1],s.hs[1],weights=s.hs[0],
-                        log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=0)
+                        log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=2)
         if error==True:
             parent.fill_between(stepx(s.hs[1]),stepy(s.hs[0]-np.sqrt(s.ser)),stepy(s.hs[0]+np.sqrt(s.ser)),
                              alpha=0.0,hatch='xxxxxx',zorder=2,label='_nolegend_')
