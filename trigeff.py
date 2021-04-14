@@ -490,6 +490,8 @@ def overlay(stage):
                 rt[st][plot].plot(htype='err')
                 rt[st][plot][1][0] = 0
                 rt[st][plot][1][-1] = np.inf
+        # tt = {"meta":{"AB":rt["AB"]["pt"][1],"ABC":rt["ABC"]["pt"][1],"CX":rt["CX"]["pt"][1]},
+        #       "AB":rt["AB"]["pt"][0],"ABC":rt["ABC"]["pt"][0],"CX":rt["CX"]["pt"][0]}
         tt = {"meta":{"AB":rt["AB"]["pt"][1],"ABC":rt["ABC"]["pt"][1],"CX":rt["CX"]["s2deepb"][1]},
               "AB":rt["AB"]["pt"][0],"ABC":rt["ABC"]["pt"][0],"CX":rt["CX"]["s2deepb"][0]}
         pickle.dump(tt, open(f"TrigTensor.p",'wb'))

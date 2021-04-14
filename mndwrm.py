@@ -252,7 +252,55 @@ def loadjets(jets, ev, events,bgweights=False):
 
     return jets, ev
 
-
+def trigtensorcalc(jets,sjets,evv,l1,hlt):
+    ttensor = pickle.load(open('TrigTensor.p','rb'))
+    maxjets = jets.deepcopy()
+    maxjets.cut(jets['pt'].rank(axis=1,method='first',ascending=False) == 1)
+    sjets.cut(abs(sjets.eta) < 2.4)
+    sjets.cut(sjets.pt > 30)
+    sjets.cut(sjets.puId >= 1)
+    sjets.cut(sjets.pt > 140)
+    sjets.cut(sjets.btagDeepB > 0.4184)
+    sjjdr = computedR(maxjets,sjets,['Fatjet','slimjet'])
+    jlist = []
+    for j in range(maxjets.pt.shape[1]):
+        jlist.append(sjjdr.filter(like=f"Fatjet {j+1}"))
+        jlist[j] = jlist[j].rename(columns=lambda x:int(x[-2:]))
+    jlist[0][jlist[0] == 0] = jlist[0]+0.001
+    sjframe = jlist[0][jlist[0] < 0.8].fillna(0)
+    for j in range(1,maxjets.pt.shape[1]):
+        jlist[j][jlist[j] == 0] = jlist[j]+0.001
+        sjframe = sjframe + jlist[j][jlist[j] < 0.8].fillna(0)
+    njets = sjframe.rank(axis=1,method='first',ascending='False').max(axis=1)
+    sj2max = sjframe[sjframe.rank(axis=1,method='first',ascending='False') == 2]
+    
+    evv.trg[np.logical_and.reduce((maxjets.pt.max(axis=1) < 400, maxjets.pt.max(axis=1) >= 250, njets >= 2,
+        np.logical_or(l1.DoubleJet112er2p3_dEta_Max1p6[1],l1.DoubleJet150er2p5[1]),
+        hlt.DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1]))] = "CX"
+    
+    evv.trg[np.logical_and.reduce((maxjets.pt.max(axis=1) >= 400, njets < 2,
+        np.logical_or(hlt.AK8PFJet500[1],hlt.AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1]),
+        l1.SingleJet180[1]))] = "AB"
+    
+    evv.trg[np.logical_and.reduce((maxjets.pt.max(axis=1) >= 400, njets >= 2, np.logical_or(
+        np.logical_and(l1.SingleJet180[1],np.logical_or(hlt.AK8PFJet500[1],hlt.AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1])),
+        np.logical_and(hlt.DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1],
+            np.logical_or(l1.DoubleJet112er2p3_dEta_Max1p6[1],l1.DoubleJet150er2p5[1])))))] = "ABC"
+    
+    idxs = ttensor['meta']['AB']
+    for i in range(len(idxs) - 1):
+        evv.extweight[np.logical_and.reduce(evv.trg == "AB", maxjets.pt.max(axis=1) >= idxs[i], 
+            maxjets.pt.max(axis=1) < idxs[i+1])] *= ttensor["AB"][i]
+    idxs = ttensor['meta']['ABC']
+    for i in range(len(idxs) - 1):
+        evv.extweight[np.logical_and.reduce(evv.trg == "ABC", maxjets.pt.max(axis=1) >= idxs[i], 
+            maxjets.pt.max(axis=1) < idxs[i+1])] *= ttensor["ABC"][i]
+    idxs = ttensor['meta']['CX']
+    for i in range(len(idxs) - 1):
+        evv.extweight[np.logical_and.reduce(evv.trg == "CX", sj2max.max(axis=1) >= idxs[i], 
+            sj2max.max(axis=1) < idxs[i+1])] *= ttensor["CX"][i]
+    evv.extweight[evv.extweight == "X"] *= 1
+        
 #%%
 
 def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
@@ -688,7 +736,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             event.sync()
 
         ## Muon cuts for non-training comparisons
-        if (LOADMODEL) and (not passplots):
+        if (LOADMODEL) and False:#(not passplots):
             muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d')
             muons.ip = abs(muons.dxy / muons.dxyErr)
             muons.eta = abs(muons.eta)
@@ -714,18 +762,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 bmuons[i].cut(bmuons[i].ip > 2)
                 bmuons[i].cut(bmuons[i].ip3d < 0.5)
                 bev[i].sync()
-    
-            # else:
-            #     bmuons = PhysObj('Muon',bgfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d')
-            #     bmuons.eta = abs(bmuons.eta)
-            #     bmuons.ip = abs(bmuons.dxy / bmuons.dxyErr)
-            #     bev.register(bmuons)
-            #     bmuons.cut(muons.softId > 0.9)
-            #     bmuons.cut(abs(muons.eta) < 2.4)
-            #     bmuons.cut(bmuons.pt > 7)
-            #     bmuons.cut(bmuons.ip > 2)
-            #     bmuons.cut(bmuons.ip3d < 0.5)
-            #     bev.sync()
+
         
         ##########################
         # Training-Specific Cuts #
@@ -797,80 +834,10 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         if dataflag != -1:
             for i in range(len(bgjets)):
                 bgsj[i].trimto(bgjets[i].pt)
-                maxjets = bgjets[i].deepcopy()
-                maxjets.cut(bgjets[i]['pt'].rank(axis=1,method='first',ascending=False) == 1)
-                bgsj[i].cut(abs(bgsj[i].eta) < 2.4)
-                bgsj[i].cut(bgsj[i].pt > 30)
-                bgsj[i].cut(bgsj[i].puId >= 1)
-                bgsj[i].cut(bgsj[i].pt > 140)
-                bgsj[i].cut(bgsj[i].btagDeepB > 0.4184)
-                sjjdr = computedR(maxjets,bgsj[i],['Fatjet','slimjet'])
-                jlist = []
-                for j in range(maxjets.pt.shape[1]):
-                    jlist.append(sjjdr.filter(like=f"Fatjet {j+1}"))
-                    jlist[j] = jlist[j].rename(columns=lambda x:int(x[-2:]))
-                jlist[0][jlist[0] == 0] = jlist[0]+0.001
-                sjframe = jlist[0][jlist[0] < 0.8].fillna(0)
-                for j in range(1,maxjets.pt.shape[1]):
-                    jlist[j][jlist[j] == 0] = jlist[j]+0.001
-                    sjframe = sjframe + jlist[j][jlist[j] < 0.8].fillna(0)
-                njets = sjframe.rank(axis=1,method='first',ascending='False').max(axis=1)
-                
-                bgevv[i].trg[np.logical_and.reduce((maxjets.pt.max(axis=1) < 400, maxjets.pt.max(axis=1) >= 250, njets >= 2,
-                    np.logical_or(bgl1[i].DoubleJet112er2p3_dEta_Max1p6[1],bgl1[i].DoubleJet150er2p5[1]),
-                    bghlt[i].DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1]))] = "CX"
-                
-                bgevv[i].trg[np.logical_and.reduce((maxjets.pt.max(axis=1) >= 400, njets < 2,
-                    np.logical_or(bghlt[i].AK8PFJet500[1],bghlt[i].AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1]),
-                    bgl1[i].SingleJet180[1]))] = "AB"
-                
-                bgevv[i].trg[np.logical_and.reduce((maxjets.pt.max(axis=1) >= 400, njets >= 2, np.logical_or(
-                    np.logical_and(bgl1[i].SingleJet180[1],np.logical_or(bghlt[i].AK8PFJet500[1],bghlt[i].AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1])),
-                    np.logical_and(bghlt[i].DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1],
-                        np.logical_or(bgl1[i].DoubleJet112er2p3_dEta_Max1p6[1],bgl1[i].DoubleJet150er2p5[1])))))] = "ABC"
-                
-                bgevv[i].extweight[bgevv[i].trg == "CX"] = bgevv[i].extweight[bgevv[i].trg == "CX"] * 0
-                bgevv[i].extweight[bgevv[i].trg == "AB"] = bgevv[i].extweight[bgevv[i].trg == "AB"] * 0
-                bgevv[i].extweight[bgevv[i].trg == "ABC"]= bgevv[i].extweight[bgevv[i].trg == "ABC"]* 0
-                bgevv[i].extweight[bgevv[i].trg == "X" ] = bgevv[i].extweight[bgevv[i].trg == "X" ] * 0
+                trigtensorcalc(bgjets[i],bgsj[i],bgevv[i],bgl1[i],bghlt[i])
         if dataflag != 1:
             sigsj.trimto(sigjets.pt)
-            maxjets = sigjets.deepcopy()
-            maxjets.cut(sigjets['pt'].rank(axis=1,method='first',ascending=False) == 1)
-            sigsj.cut(abs(sigsj.eta) < 2.4)
-            sigsj.cut(sigsj.pt > 30)
-            sigsj.cut(sigsj.puId >= 1)
-            sigsj.cut(sigsj.pt > 140)
-            sigsj.cut(sigsj.btagDeepB > 0.4184)
-            sjjdr = computedR(maxjets,sigsj,['Fatjet','slimjet'])
-            jlist = []
-            for j in range(maxjets.pt.shape[1]):
-                jlist.append(sjjdr.filter(like=f"Fatjet {j+1}"))
-                jlist[j] = jlist[j].rename(columns=lambda x:int(x[-2:]))
-            jlist[0][jlist[0] == 0] = jlist[0]+0.001
-            sjframe = jlist[0][jlist[0] < 0.8].fillna(0)
-            for j in range(1,maxjets.pt.shape[1]):
-                jlist[j][jlist[j] == 0] = jlist[j]+0.001
-                sjframe = sjframe + jlist[j][jlist[j] < 0.8].fillna(0)
-            njets = sjframe.rank(axis=1,method='first',ascending='False').max(axis=1)
-            
-            sigevv.trg[np.logical_and.reduce((maxjets.pt.max(axis=1) < 400, maxjets.pt.max(axis=1) >= 250, njets >= 2,
-                np.logical_or(sigl1.DoubleJet112er2p3_dEta_Max1p6[1],sigl1.DoubleJet150er2p5[1]),
-                sighlt.DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1]))] = "CX"
-            
-            sigevv.trg[np.logical_and.reduce((maxjets.pt.max(axis=1) >= 400, njets < 2,
-                np.logical_or(sighlt.AK8PFJet500[1],sighlt.AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1]),
-                sigl1.SingleJet180[1]))] = "AB"
-            
-            sigevv.trg[np.logical_and.reduce((maxjets.pt.max(axis=1) >= 400, njets >= 2, np.logical_or(
-                np.logical_and(sigl1.SingleJet180[1],np.logical_or(sighlt.AK8PFJet500[1],sighlt.AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1])),
-                np.logical_and(sighlt.DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1],
-                    np.logical_or(sigl1.DoubleJet112er2p3_dEta_Max1p6[1],sigl1.DoubleJet150er2p5[1])))))] = "ABC"
-            
-            sigevv.extweight[sigevv.trg == "CX"] = sigevv.extweight[sigevv.trg == "CX"] * 0
-            sigevv.extweight[sigevv.trg == "AB"] = sigevv.extweight[sigevv.trg == "AB"] * 0
-            sigevv.extweight[sigevv.trg == "ABC"]= sigevv.extweight[sigevv.trg == "ABC"]* 0
-            sigevv.extweight[sigevv.trg == "X" ] = sigevv.extweight[sigevv.trg == "X" ] * 0
+            trigtensorcalc(sigjets,sigsj,sigevv,sigl1,sighlt)
 
         
         
