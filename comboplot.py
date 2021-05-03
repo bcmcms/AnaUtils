@@ -15,8 +15,8 @@ ftype = 'BG'
 ## Load pickled dictionaries of plots
 arclist = []
 for name in namelist:
-    arclist.append(pickle.load(open(f"Snetplots/{name}.p",'rb')))
-arcdata = pickle.load(open("Dnetplots/ParkedSkim.p",'rb'))
+    arclist.append(pickle.load(open(f"Snetplots/GGH_HPT vs {name}.p",'rb')))
+arcdata = pickle.load(open("Dnetplots/JetHT vs Combined QCD.p",'rb'))
 ## Generate an index list
 ilist = []
 for i in range(nlen):
@@ -54,9 +54,10 @@ for pname in plotnames:
 
 ## Generate a legend for the upcoming plots
 leg = []
+leg.append(f"Parked data ({round(arcdata['vplots']['SGCSVV2'][0].sum())})")
 for i in ilist[::-1]:
     leg.append(f"{namelist[i]} ({round(arclist[i]['vplots']['BGCSVV2'][0].sum())})")
-leg.append(f"Parked data ({round(arcdata['vplots']['SGCSVV2'][0].sum())})")
+
     
 ## Plot each layer of plots, from back to front
 for pname in plotnames:
@@ -64,7 +65,7 @@ for pname in plotnames:
     fig, axis = plt.subplots(2,1,sharex=True,gridspec_kw={'height_ratios':[3,1]})
     for layer in range(nlen-1,-1,-1):
         combodict[pname][layer].make(color=colorlist[layer],htype='bar',parent=axis[0])
-    ratiodict[pname].plot(same=True,color='black',htype='err',parent=axis[1],clean=True,ylim=[-0.5,0.5])
-    arcdata['vplots'][f"SG{pname}"].plot(same=True,legend=leg,color='black',htype='err',parent=axis[0])
+    ratiodict[pname].plot(same=True,color='k',htype='err',parent=axis[1],clean=True,ylim=[-0.5,0.5])
+    arcdata['vplots'][f"SG{pname}"].plot(same=True,legend=leg,color='k',htype='err',parent=axis[0])
     
     #combodict[pname][0].plot(same=True,legend=leg,color=colorlist[0],htype='bar')

@@ -382,11 +382,15 @@ class PhysObj(DefaultMunch):
         return frame
 
     ## Removes particles that fail the passed test, and events if they become empty
-    def cut(s,mask,split=False):
+    def cut(s,mask,split=False,drop=True):
         if split:
             s = s.deepcopy()
         for elem in s:
-            s[elem] = s[elem][mask].dropna(how='all')
+            s[elem] = s[elem][mask]
+            if drop:
+                s[elem] = s[elem].dropna(how='all')
+                ## Comment this out if you don't want to allow object columns to be deleted
+                s[elem] = s[elem].dropna(how='all',axis=1)
         return s
     
     def deepcopy(s):
@@ -473,7 +477,7 @@ class InputConfig(object):
             else: bnormweight = False
             if 'files' in bgdata:
                 s.bgfiles =     bgdata['files']
-                s.bgweight =    bgdata['weight']
+                s.bgweight =    np.array(bgdata['weight'])
             elif 'filepairs' in bgdata:
                 s.bgfiles,s.bgweight = s.expandpairs(bgdata['filepairs'])
             else: raise NameError("Could not find 'files' or 'filepairs' in input file")
