@@ -363,7 +363,7 @@ class PhysObj(DefaultMunch):
         #s.update({key:value})
         return s
 
-    ## Removes events that are missing, in the passed frame
+    ## Removes events that are missing in the passed frame
     def trimto(s,frame,split=False):
         if split:
             s = s.deepcopy()
@@ -464,6 +464,8 @@ class InputConfig(object):
             elif 'filepairs' in sigdata:
                 s.sigfiles,s.sigweight = s.expandpairs(sigdata['filepairs'])
             else: raise NameError("Could not find 'files' or 'filepairs' in input file")
+            if 'isqcd' in sigdata:
+                raise NameError("Signal MC isn't expected to be part of QCD background")
         with open(bgfile) as f:
             bgdata = json.load(f)
             if 'isdata' in bgdata:
@@ -481,6 +483,9 @@ class InputConfig(object):
             elif 'filepairs' in bgdata:
                 s.bgfiles,s.bgweight = s.expandpairs(bgdata['filepairs'])
             else: raise NameError("Could not find 'files' or 'filepairs' in input file")
+            if 'isqcd' in bgdata:
+                s.bgqcd = bgdata['isqcd']
+            else: s.bgqcd = s.bgweight * 0
         if type(s.sigfiles) == str:
             s.sigfiles = [s.sigfiles]
         if type(s.bgfiles) == str:
