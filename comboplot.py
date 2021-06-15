@@ -9,7 +9,7 @@ import numpy as np
 namelist = ['bEnriched','bGen','TTbar','WJets','ZJets','QCDinclusive']
 plotnames = ['pt', 'eta', 'phi', 'mass', 'CSVV2', 'DeepB', 'msoft', 'DDBvL', 
              'H4qvs', 'npvs', 'npvsG', 'mpt', 'meta', 'mip', 'n2b1', 
-             'submass1', 'submass2', 'subtau1', 'subtau2', 'nsv']#,
+             'submass1', 'submass2', 'subtau1', 'subtau2', 'nsv']
              #'mmsum','mptsum','metasum','mqmpt','mqppt','mqmeta','mqpeta','mqmip3d','mqpip3d','mqmsip3d','mqpsip3d','MuSumvJetpT','MuQmvJetpT','MuQpvJetpT']
 colorlist = ['red','orange','yellow','green','skyblue','mediumpurple','plum']
 nlen = len(namelist)

@@ -41,6 +41,8 @@ plt.style.use({'legend.frameon':True,'legend.fontsize':14,'legend.edgecolor':'bl
 import concurrent.futures
 executor = concurrent.futures.ThreadPoolExecutor()
 
+pd.options.mode.chained_assignment = None
+
 ##Controls how many epochs the network will train for
 epochs = 50
 ##The weights LHE segment split data should be merged by
@@ -155,45 +157,24 @@ def tutor(X_train,X_test,Y_train,Y_test):
     print(rsums[winner])
     sys.exit()
 
-## Takes a dataframe containing the 'extweight' 
-def lumipucalc(inframe):
-    for var in ['extweight','mpt','meta','mip','npvsG']:
-        if var not in inframe.columns:
-            raise ValueError(f"Dataframe passed to lumipucalc() with no {var} column")
-    Rtensor = pickle.load(open('MuonRtensor.p',"rb"))
-    Ltensor = pickle.load(open('MuonLtensor.p',"rb"))
-    Rmeta = Rtensor.pop('meta')
-    Lmeta = Ltensor.pop('meta')
-    pd.set_option('mode.chained_assignment',None)
-    for list in Rmeta['x'],Rmeta['y'],Lmeta['x'],Lmeta['y']:
-        list[-1] = 999999
-#    if Rmeta['x'] != Lmeta['x']:
-#        raise ValueError("mismatched tensor axis detected")
+def pucalc(evv,hlt):
+    pvals = uproot.open('PU_ratio_2021_05_26.root').get('PU_ratio').values
+    fvals = uproot.open('PU_ratio_2021_05_26.root').get('PU_ratio_HLT_AK8PFJet330').values
+    for v in range(99):
+        evv.extweight[np.logical_and.reduce((evv.PU == v, hlt.AK8PFJet500, evv.trg != "CX"))] *= pvals[v]
+        evv.extweight[np.logical_and(evv.PU == v, ~np.logical_and(hlt.AK8PFJet500, evv.trg != "CX"))] *= fvals[v]
+    evv.extweight[np.logical_and.reduce((evv.PU >= 99, hlt.AK8PFJet500, evv.trg != "CX"))] *= pvals[99]   
+    evv.extweight[np.logical_and(evv.PU >= 99, ~np.logical_and(hlt.AK8PFJet500, evv.trg != "CX"))] *= fvals[99]
+
+def fastdR(solobj,multobj):
+    seta, sphi = pd.DataFrame(), pd.DataFrame()
+    
+    for c in multobj.eta.columns:
+        seta[c] = solobj.eta[1]
+        sphi[c] = solobj.phi[1]
         
-    for xi in range(len(Rmeta['x'])-1):
-        for yi in range(len(Rmeta['y'])-1):
-            x  = Rmeta['x'][xi]
-            xn = Rmeta['x'][xi+1]
-            y  = Rmeta['y'][yi]
-            yn = Rmeta['y'][yi+1]
-            for b in range(len(Rtensor[x][y]['L'])):
-                inframe['extweight'][(inframe['mpt'] >= x)&(inframe['mpt'] < xn)&\
-                       (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) < 1.5)&\
-                       (inframe['npvsG'] == b+1)] = inframe['extweight'] * Rtensor[x][y]['L'][b] * Ltensor[x][y]['L']
-            
-                inframe['extweight'][(inframe['mpt'] >= x)&(inframe['mpt'] < xn)&\
-                (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) >= 1.5)&\
-                (inframe['npvsG'] == b+1)] = inframe['extweight'] * Rtensor[x][y]['H'][b] * Ltensor[x][y]['H']
-            
-            inframe['extweight'][(inframe['mpt'] >= x)&(inframe['mpt'] < xn)&\
-                       (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) < 1.5)&\
-                       (inframe['npvsG'] > b+1)] = inframe['extweight'] * Rtensor[x][y]['L'][b] * Ltensor[x][y]['L']
-            
-            inframe['extweight'][(inframe['mpt'] >= x)&(inframe['mpt'] < xn)&\
-                (inframe['mip'] >= y)&(inframe['mip'] < yn)&(abs(inframe['meta']) >= 1.5)&\
-                (inframe['npvsG'] > b+1)] = inframe['extweight'] * Rtensor[x][y]['H'][b] * Ltensor[x][y]['H']
-                    
-    return inframe['extweight']
+    dr2 = (seta - multobj.eta)**2 + dphi(sphi, multobj.phi)**2
+    return dr2**.5
 
 def computedR(jet,thing,nms=['jet','thing']):
     print("starting to compute dR")
@@ -232,6 +213,8 @@ def loadjets(jets, ev, events,bgweights=False):
     ev.npvsG = pd.DataFrame(events.array('PV_npvsGood')).rename(columns=inc)
     ev.trg   = pd.DataFrame(events.array('event')).rename(columns=inc)
     ev.trg[1]= 'X'
+    if 'Pileup_nTrueInt' in events:
+        ev.PU    = pd.DataFrame(events.array('Pileup_nTrueInt')).rename(columns=inc)
     
     idxa1 = events.array('FatJet_subJetIdx1')
     idxa2 = events.array('FatJet_subJetIdx2')
@@ -282,11 +265,11 @@ def trigtensorcalc(jets,sj,evv,l1,hlt,isdata=False,dropjets=True):
         else:
             break
             
-    sjjdr = computedR(maxjets,sjets,['Fatjet','slimjet'])
-    jlist = [sjjdr.filter(like=f"Fatjet {1}")]
-    jlist[0] = jlist[0].rename(columns=lambda x:int(x[-2:None]))
+    sjjdr = fastdR(maxjets,sjets)#computedR(maxjets,sjets,['Fatjet','slimjet'])
+    # jlist = [sjjdr.filter(like=f"Fatjet {1}")]
+    # jlist[0] = jlist[0].rename(columns=lambda x:int(x[-2:None]))
     #jlist[0][jlist[0] == 0] = jlist[0]+0.001
-    sjframe = jlist[0][jlist[0] < 0.8]#.fillna(0)
+    sjframe = sjjdr[sjjdr < 0.8]#jlist[0][jlist[0] < 0.8]#.fillna(0)
     # for j in maxjets.pt.columns[1:]:
     #     jlist[j][jlist[j] == 0] = jlist[j]+0.001
     #     sjframe = sjframe + jlist[j][jlist[j] < 0.8].fillna(0)
@@ -484,23 +467,23 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         'nsv':      Hist(12 ,(-1,11)    ,'# of secondary vertices with dR<0.8 to highest pT jet','Fractional Distribution','netplots/nsv'),
         
     }
-    mplots = {
-        'mmsum':    Hist(7  ,(0,70)     ,'Mass of summed muons','Fractional Distribution','netplots/mmsum'),
-        'mptsum':   Hist(110,(0,550)    ,'pT of summed muons','Fractional Distribution','netplots/mptsum'),
-        'metasum':  Hist(15 ,(0,3)      ,'|eta| of summed muons','Fractional Distribution','netplots/metasum'),
-        'mqmpt':    Hist(60 ,(0,300)    ,'pt of - muon','Fractional Distribution','netplots/mqmpt'),
-        'mqppt':    Hist(60 ,(0,300)    ,'pt of + muon','Fractional Distribution','netplots/mqppt'),
-        'mqmeta':   Hist(15 ,(0,3)      ,'|eta| of - muon','Fractional Distribution','netplots/mqmeta'),
-        'mqpeta':   Hist(15 ,(0,3)      ,'|eta| of + muon','Fractional Distribution','netplots/mqpeta'),
-        'mqmip3d':  Hist(20 ,(0,1)      ,'ip3d of - muons','Fractional Distribution','netplots/mqmip3d'),
-        'mqpip3d':  Hist(20 ,(0,1)      ,'ip3d of + muons','Fractional Distribution','netplots/mqpip3d'),
-        'mqmsip3d': Hist(20 ,(0,1)      ,'sip3d of - muons','Fractional Distribution','netplots/mqmip3d'),
-        'mqpsip3d': Hist(20 ,(0,1)      ,'sip3d of + muons','Fractional Distribution','netplots/mqpip3d'),
-        'MuSumvJetpT':  Hist(20, (0,2),'summed muon pT / AK8 Jet pT','Fractional Distribution','netplots/MuSumvJetpT'),
-        'MuQmvJetpT':   Hist(20, (0,2),'- muon pT / AK8 Jet pT','Fractional Distribution','netplots/MuQmvJetpT'),
-        'MuQpvJetpT':   Hist(20, (0,2),'+ muon pT / AK8 Jet pT','Fractional Distribution','netplots/MuQpvJetpT'),
-        }
-    vplots.update(mplots)
+    # mplots = {
+    #     'mmsum':    Hist(7  ,(0,70)     ,'Mass of summed muons','Fractional Distribution','netplots/mmsum'),
+    #     'mptsum':   Hist(110,(0,550)    ,'pT of summed muons','Fractional Distribution','netplots/mptsum'),
+    #     'metasum':  Hist(15 ,(0,3)      ,'|eta| of summed muons','Fractional Distribution','netplots/metasum'),
+    #     'mqmpt':    Hist(60 ,(0,300)    ,'pt of - muon','Fractional Distribution','netplots/mqmpt'),
+    #     'mqppt':    Hist(60 ,(0,300)    ,'pt of + muon','Fractional Distribution','netplots/mqppt'),
+    #     'mqmeta':   Hist(15 ,(0,3)      ,'|eta| of - muon','Fractional Distribution','netplots/mqmeta'),
+    #     'mqpeta':   Hist(15 ,(0,3)      ,'|eta| of + muon','Fractional Distribution','netplots/mqpeta'),
+    #     'mqmip3d':  Hist(20 ,(0,1)      ,'ip3d of - muons','Fractional Distribution','netplots/mqmip3d'),
+    #     'mqpip3d':  Hist(20 ,(0,1)      ,'ip3d of + muons','Fractional Distribution','netplots/mqpip3d'),
+    #     'mqmsip3d': Hist(20 ,(0,1)      ,'sip3d of - muons','Fractional Distribution','netplots/mqmip3d'),
+    #     'mqpsip3d': Hist(20 ,(0,1)      ,'sip3d of + muons','Fractional Distribution','netplots/mqpip3d'),
+    #     'MuSumvJetpT':  Hist(20, (0,2),'summed muon pT / AK8 Jet pT','Fractional Distribution','netplots/MuSumvJetpT'),
+    #     'MuQmvJetpT':   Hist(20, (0,2),'- muon pT / AK8 Jet pT','Fractional Distribution','netplots/MuQmvJetpT'),
+    #     'MuQpvJetpT':   Hist(20, (0,2),'+ muon pT / AK8 Jet pT','Fractional Distribution','netplots/MuQpvJetpT'),
+    #     }
+    # vplots.update(mplots)
     tdict = {}
     prefix = ['BG','SG','RW']
     for plot in vplots:
@@ -837,6 +820,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             fjets = fjets[fjets==4].dropna()
             sigjets.trimto(fjets)
             ev.sync()
+            del jbdr, blist, fjets
             
         ########################
         # Precompute Jet Crush #
@@ -852,7 +836,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         # if (LOADMODEL) and True:#(not passplots):
         #     muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d','charge','mass','phi','sip3d')
         #     muons.ip = abs(muons.dxy / muons.dxyErr)
-        #     muons.eta = abs(muons.eta)
+        #     #muons.eta = abs(muons.eta)
         #     ev.register(muons)
         #     muons.cut(muons.softId > 0.9)
         #     muons.cut(abs(muons.eta) < 2.4)
@@ -861,10 +845,10 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #     muons.cut(abs(muons.ip3d) < 0.5)
         #     ev.sync()
             
-        #     mframe = pd.DataFrame()
-        #     mjdr = computedR(sigjets, muons,['jet','muon'])
-        #     mframe = mjdr.filter(like="jet 1")
-        #     mframe = mframe.rename(columns=lambda x:int(x[-2:None]))
+        #     mframe = fastdR(sigjets, muons)#pd.DataFrame()
+        #     # mjdr = computedR(sigjets, muons,['jet','muon'])
+        #     # mframe = mjdr.filter(like="jet 1")
+        #     # mframe = mframe.rename(columns=lambda x:int(x[-2:None]))
         #     mframe = mframe[muons.pt != 0].dropna(how='all')
         #     muons.jetdr = mframe
         #     muons.cut(muons.jetdr < 0.8)
@@ -911,20 +895,20 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #     for i in range(len(bgjets)):
         #         idx = i#fnum*nlhe + i
         #         bmuons.append(PhysObj('Muon',bgfiles[idx],'softId','eta','pt','dxy','dxyErr','ip3d','charge','mass','phi','sip3d'))
-        #         bmuons[i].eta = abs(bmuons[i].eta)
+        #         #bmuons[i].eta = abs(bmuons[i].eta)
         #         bmuons[i].ip = abs(bmuons[i].dxy / bmuons[i].dxyErr)
         #         bev[i].register(bmuons[i])
         #         bmuons[i].cut(bmuons[i].softId > 0.9)
         #         bmuons[i].cut(abs(bmuons[i].eta) < 2.4)
-        #         bmuons[i].cut(bmuons[i].pt > 7)
+        #         bmuons[i].cut(bmuons[i].pt > 5)
         #         #bmuons[i].cut(bmuons[i].ip > 2)
         #         bmuons[i].cut(abs(bmuons[i].ip3d) < 0.5)
         #         bev[i].sync()
                 
-        #         mframe = pd.DataFrame()
-        #         mjdr = computedR(bgjets[i], bmuons[i],['jet','muon'])
-        #         mframe = mjdr.filter(like="jet 1")
-        #         mframe = mframe.rename(columns=lambda x:int(x[-2:None]))
+        #         mframe = fastdR(bgjets[i], bmuons[i])#pd.DataFrame()
+        #         # mjdr = computedR(bgjets[i], bmuons[i],['jet','muon'])
+        #         # mframe = mjdr.filter(like="jet 1")
+        #         # mframe = mframe.rename(columns=lambda x:int(x[-2:None]))
         #         mframe = mframe[bmuons[i].pt != 0].dropna(how='all')
         #         bmuons[i].jetdr = mframe
         #         bmuons[i].cut(bmuons[i].jetdr < 0.8)
@@ -968,17 +952,17 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         # Secondary Vertex Analysis #
         #############################
         ## Compute jet-vertex dR
-        sjvdr = computedR(sigjets,sigsv,['jet','sv'])
-        sjlist = []
-        nsvframe = pd.DataFrame()
+        # sjvdr = computedR(sigjets,sigsv,['jet','sv'])
+        # sjlist = []
+        nsvframe = fastdR(sigjets,sigsv)#pd.DataFrame()
         ## Loop over jets
-        for j in range(sigjets.eta.columns[-1]):
-            ## Collect vertex dRs for each jet
-            sjlist.append(sjvdr.filter(like=f"jet {j+1}"))
-            sjlist[j] = sjlist[j].rename(columns=lambda x:int(x[9:11]))
-            ## Remove dR >= 0.8, sum number of remaining vertices
-            nsvframe[j+1] = np.sum(sjlist[j][sjlist[j]<0.8].fillna(0)/sjlist[j][sjlist[j]<0.8].fillna(0),axis=1)
-        sigjets.nsv = nsvframe
+        # for j in range(sigjets.eta.columns[-1]):
+        #     ## Collect vertex dRs for each jet
+        #     sjlist.append(sjvdr.filter(like=f"jet {j+1}"))
+        #     sjlist[j] = sjlist[j].rename(columns=lambda x:int(x[9:11]))
+        #     ## Remove dR >= 0.8, sum number of remaining vertices
+        #     nsvframe[j+1] = np.sum(sjlist[j][sjlist[j]<0.8].fillna(0)/sjlist[j][sjlist[j]<0.8].fillna(0),axis=1)
+        sigjets.nsv = nsvframe[nsvframe < 0.8].fillna(0)
         
         # if isLHE:
         for i in range(len(bgjets)):
@@ -986,14 +970,15 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 bgjets[i].nsv = pd.DataFrame()
                 print(f"BG slice {i} had 0 passing events at nsv calc")
                 continue
-            bjvdr = computedR(bgjets[i],bgsv[i],['jet','sv'])
-            bjlist = []
-            nsvframe = pd.DataFrame()
-            for j in range(bgjets[i].eta.columns[-1]):
-                bjlist.append(bjvdr.filter(like=f"jet {j+1}"))
-                bjlist[j] = bjlist[j].rename(columns=lambda x:int(x[9:11]))
-                nsvframe[j+1] = np.sum(bjlist[j][bjlist[j]<0.8].fillna(0)/bjlist[j][bjlist[j]<0.8].fillna(0),axis=1)
-            bgjets[i].nsv = nsvframe
+            # bjvdr = computedR(bgjets[i],bgsv[i],['jet','sv'])
+            # bjlist = []
+            nsvframe = fastdR(bgjets[i],bgsv[i])#pd.DataFrame()
+            # for j in range(bgjets[i].eta.columns[-1]):
+            #     bjlist.append(bjvdr.filter(like=f"jet {j+1}"))
+            #     bjlist[j] = bjlist[j].rename(columns=lambda x:int(x[9:11]))
+            #     nsvframe[j+1] = np.sum(bjlist[j][bjlist[j]<0.8].fillna(0)/bjlist[j][bjlist[j]<0.8].fillna(0),axis=1)
+            bgjets[i].nsv = nsvframe[nsvframe < 0.8].fillna(0)
+            
         # else:
         #     bjvdr = computedR(bgjets,bgsv,['jet','sv'])
         #     bjlist = []
@@ -1003,6 +988,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #         bjlist[j] = bjlist[j].rename(columns=lambda x:int(x[9:11]))
         #         nsvframe[j+1] = np.sum(bjlist[j][bjlist[j]<0.8].fillna(0)/bjlist[j][bjlist[j]<0.8].fillna(0),axis=1)
         #     bgjets.nsv = nsvframe
+        del nsvframe
             
         #######################################
         # Trigger Region Analysis & Weighting #
@@ -1028,37 +1014,52 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         ## HEM 15-16 veto
         if dataflag == True:
             sigevv.cut(np.logical_not(np.logical_and.reduce((sigevv.run > 319077, sigjets.eta < -1.17, 
-                            np.logical_or(sigjets.phi < -0.47, sigjets.phi > 1.97)))))
+                            sigjets.phi < -0.47, sigjets.phi > -1.97))))
             ev.sync()
         if dataflag != True:
             if sigevv.extweight.size:
                 sigevv.extweight[np.logical_and.reduce((sigjets.eta < -1.17, 
-                    np.logical_and(sigjets.phi > -0.47, sigjets.phi < 1.97),
-                    sighlt.AK8PFJet500, sigevv.trg != "CX"))] *= 21.09 / 54.54
+                    np.logical_and(sigjets.phi < -0.47, sigjets.phi > -1.97),
+                    sighlt.AK8PFJet500, sigevv.trg != "CX"))] *= 21.09 / 59.8279
                 sigevv.extweight[np.logical_and.reduce((sigjets.eta < -1.17, 
-                    np.logical_and(sigjets.phi > -0.47, sigjets.phi < 1.97),
-                    np.logical_not(np.logical_and(sighlt.AK8PFJet500, sigevv.trg != "CX"))))] *= 15.80 / 54.54
+                    np.logical_and(sigjets.phi < -0.47, sigjets.phi > -1.97),
+                    np.logical_not(np.logical_and(sighlt.AK8PFJet500, sigevv.trg != "CX"))))] *= 15.80 / 54.5365
         if dataflag != -1:
             for i in range(len(bgevv)):
-                if bghlt[i].AK8PFJet500.size:
+                if bgevv[i].extweight.size:
                     bgevv[i].extweight[np.logical_and.reduce((bgjets[i].eta < -1.17, 
-                        np.logical_and(bgjets[i].phi > -0.47, bgjets[i].phi < 1.97),
-                        bghlt[i].AK8PFJet500, bgevv[i].trg != "CX"))] *= 21.09 / 54.54
+                        np.logical_and(bgjets[i].phi < -0.47, bgjets[i].phi > -1.97),
+                        bghlt[i].AK8PFJet500, bgevv[i].trg != "CX"))] *= 21.09 / 59.8279
                     bgevv[i].extweight[np.logical_and.reduce((bgjets[i].eta < -1.17,
-                        np.logical_and(bgjets[i].phi > -0.47, bgjets[i].phi < 1.97),
-                        np.logical_not(np.logical_and(bghlt[i].AK8PFJet500, bgevv[i].trg != "CX"))))] *= 15.80 / 54.54
+                        np.logical_and(bgjets[i].phi < -0.47, bgjets[i].phi > -1.97),
+                        np.logical_not(np.logical_and(bghlt[i].AK8PFJet500, bgevv[i].trg != "CX"))))] *= 15.80 / 54.5365
         
         for e in [ev] + bev:
             e.sync()
+            
+        ## Luminosity + PU weighting
+        if dataflag != 1 and sigevv.extweight.size:
+            print(f"Dataflag: {dataflag}")
+            sigevv.extweight[np.logical_and(sighlt.AK8PFJet500, sigevv.trg != "CX")] *= 59.8279
+            sigevv.extweight[~np.logical_and(sighlt.AK8PFJet500, sigevv.trg != "CX")] *= 54.5365
+            pucalc(sigevv,sighlt)
+            
+        if dataflag != -1:
+            for i in range(len(bgevv)):
+                if bghlt[i].AK8PFJet500.size:
+                    bgevv[i].extweight[np.logical_and(bghlt[i].AK8PFJet500, bgevv[i].trg != "CX")] *= 59.8279
+                    bgevv[i].extweight[~np.logical_and(bghlt[i].AK8PFJet500, bgevv[i].trg != "CX")] *= 54.5365
+                    pucalc(bgevv[i],bghlt[i])
+                
+        ## PU weighting
         
         ##################################
         # Preparing Neural Net Variables #
         ##################################
-        if LOADMODEL and (not passplots):
+        # if LOADMODEL and (not passplots):
             # bgjetframe['extweight'] = lumipucalc(bgjetframe)
             # bgrawframe['extweight'] = lumipucalc(bgrawframe)
-            for evv in bgevv:
-                evv.extweight *= 54.54
+
         
         bgjetframe = pd.DataFrame()
         extvars = ['event','extweight','npvs','npvsG']
@@ -1496,7 +1497,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         if setname:
             pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/'+setname+'.p', "wb"))
         else: pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/arcdict.p', "wb"))
-    pickle.dump(bgjetframe, open("bgjet.p","wb"))
+    # pickle.dump(bgjetframe, open("bgjet.p","wb"))
 
     
         

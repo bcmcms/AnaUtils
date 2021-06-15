@@ -31,7 +31,13 @@ def stepy(ys):
     return np.tile(ys, (2,1)).T.flatten()
 
 def dphi(phi1,phi2):
-    return abs(phi1-phi2).combine(abs(phi1-phi2+(2*np.pi)),min).combine(abs(phi1-phi2-(2*np.pi)),min)
+    return abs(phi1-phi2).combine(abs(phi1-phi2+(2*np.pi)),np.minimum).combine(abs(phi1-phi2-(2*np.pi)),np.minimum)
+
+class dframe(pd.DataFrame):
+    def __and__(self, other):
+        return np.logical_and(self, other)
+    def __or__(self, other):
+        return np.logical_or(self, other)
 
 #class HackyTH1(uproot_methods.classes.TH1.Methods, list):
 #    def __init__(self, low, high, values, title=""):
