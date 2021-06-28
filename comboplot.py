@@ -4,6 +4,13 @@ import pickle
 import matplotlib.pyplot as plt
 import copy as cp
 import numpy as np
+import sys, os
+
+# from analib import th1f as TH1F
+# from analib import tfile as TFile
+
+from ROOT import TFile
+
 #import numpy as np
 #from analib import Hist
 namelist = ['bEnriched','bGen','TTbar','WJets','ZJets','QCDinclusive']
@@ -63,6 +70,27 @@ for pname in plotnames:
     sigdict[pname].ival = sigdict[pname][0].sum()
     sigdict[pname][0] *= sigdict[pname].mult
     sigdict[pname].xlabel, sigdict[pname].ylabel, sigdict[pname].fname = '','',''
+    
+bgnum, signum = 0,0
+## Create ROOT file for Combine
+os.remove('Combined.root')
+rfile = TFile('Combined.root','UPDATE')
+th1d = arcdata['plots']['DistSte'].toTH1('data_obs', arcdata['vplots']['SGCSVV2'][0].sum())
+th1s = arclist[0]['plots']['DistSte'].toTH1('SignalMC', arclist[0]['vplots']['SGCSVV2'][0].sum())
+signum = arclist[0]['plots']['DistSte'][0][-10:].sum()*arclist[0]['vplots']['SGCSVV2'][0].sum()
+datnum = arcdata['plots']['DistSte'][0][-10:].sum()*arcdata['vplots']['SGCSVV2'][0].sum()
+hdict = {}
+for i in ilist:
+    hdict[i] = arclist[i]['plots']['DistBte'].toTH1(namelist[i]+'BG', arclist[i]['vplots']['BGCSVV2'][0].sum())
+    bgnum += arclist[i]['plots']['DistBte'][0][-10:].sum() * arclist[i]['vplots']['BGCSVV2'][0].sum()
+    
+rfile.Write()
+# th1d.SetDirectory(0)
+# th1s.SetDirectory(0)
+# for key in hdict:
+#     hdict[key].SetDirectory(0)
+rfile.Close()
+
 
 ## Generate a legend for the upcoming plots
 leg = []
@@ -70,6 +98,7 @@ leg.append(f"GGH MC ({round(sigdict['CSVV2'].ival)} * {round(sigdict['CSVV2'].mu
 leg.append(f"JetHT data ({round(arcdata['vplots']['SGCSVV2'][0].sum())})")
 for i in ilist[::-1]:
     leg.append(f"{namelist[i]} ({round(arclist[i]['vplots']['BGCSVV2'][0].sum())})")
+
 
     
 ## Plot each layer of plots, from back to front

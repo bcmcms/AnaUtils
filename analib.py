@@ -20,7 +20,7 @@ import pandas as pd
 #import itertools as it
 import copy as cp
 from munch import DefaultMunch
-# from ROOT import TH1F
+from ROOT import TH1F, TFile
 #import types
 import mplhep as hep
 from scipy.stats import norm
@@ -259,19 +259,18 @@ class Hist(object):
         if s.fname != '':
             plt.savefig(s.fname+'_v')    
             
-    # def toTH1(s,title,scale=1):
-    #     th1 = TH1F(title,title,len(s.hs[0]),s.hs[1][0],s.hs[1][-1])
-    #     for i in range(len(s.hs[0])):
-    #         th1.SetBinContent(i,s.hs[0][i]*scale)
-    #         th1.SetBinError(i,np.sqrt(s.ser[i])*scale)
-    #     return th1
+    def toTH1(s,title,scale=1):
+        th1 = TH1F(title,title,len(s.hs[0]),s.hs[1][0],s.hs[1][-1])
+        for i in range(len(s.hs[0])):
+            th1.SetBinContent(i,s.hs[0][i]*scale)
+            th1.SetBinError(i,np.sqrt(s.ser[i])*scale)
+        return th1
     
-#    def errtoTH1(s,scale=1):
-#        return np.histogram(s.hs[1][12:-5],s.hs[1][12:-4],weights=np.sqrt(s.ser[12:-4])*scale)
-#    
-##    errToTh1 = errtoTH1
-#    def errToTH1(s,scale=1):
-#        return s.errtoTH1(scale)
+    def errtoTH1(s,scale=1):
+        return np.histogram(s.hs[1][12:-5],s.hs[1][12:-4],weights=np.sqrt(s.ser[12:-4])*scale)
+
+    def errToTH1(s,scale=1):
+        return s.errtoTH1(scale)
 
 
 class Hist2d(object):

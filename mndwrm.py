@@ -17,6 +17,7 @@ import pandas as pd
 #import itertools as it
 #import copy as cp
 from analib import Hist, PhysObj, Event, inc, fstrip, InputConfig, dphi
+from analib import dframe as DataFrame
 import pickle
 import copy as cp
 #from uproot_methods import TLorentzVector, TLorentzVectorArray
@@ -161,13 +162,13 @@ def pucalc(evv,hlt):
     pvals = uproot.open('PU_ratio_2021_05_26.root').get('PU_ratio').values
     fvals = uproot.open('PU_ratio_2021_05_26.root').get('PU_ratio_HLT_AK8PFJet330').values
     for v in range(99):
-        evv.extweight[np.logical_and.reduce((evv.PU == v, hlt.AK8PFJet500, evv.trg != "CX"))] *= pvals[v]
-        evv.extweight[np.logical_and(evv.PU == v, ~np.logical_and(hlt.AK8PFJet500, evv.trg != "CX"))] *= fvals[v]
-    evv.extweight[np.logical_and.reduce((evv.PU >= 99, hlt.AK8PFJet500, evv.trg != "CX"))] *= pvals[99]   
-    evv.extweight[np.logical_and(evv.PU >= 99, ~np.logical_and(hlt.AK8PFJet500, evv.trg != "CX"))] *= fvals[99]
+        evv.extweight[(evv.PU == v) & hlt.AK8PFJet500 & (evv.trg != "CX")] *= pvals[v]
+        evv.extweight[(evv.PU == v) & ~(hlt.AK8PFJet500 & (evv.trg != "CX"))] *= fvals[v]
+    evv.extweight[(evv.PU >= 99) & hlt.AK8PFJet500 & (evv.trg != "CX")] *= pvals[99]   
+    evv.extweight[(evv.PU >= 99) & ~(hlt.AK8PFJet500 & (evv.trg != "CX"))] *= fvals[99]
 
 def fastdR(solobj,multobj):
-    seta, sphi = pd.DataFrame(), pd.DataFrame()
+    seta, sphi = DataFrame(), DataFrame()
     
     for c in multobj.eta.columns:
         seta[c] = solobj.eta[1]
@@ -183,8 +184,8 @@ def computedR(jet,thing,nms=['jet','thing']):
     nt = thing.eta.columns
     ## Create our dR dataframe by populating its first column and naming it accordingly
     if 1 in nj and 1 in nt:
-        jtdr2 = pd.DataFrame(np.power(jet.eta[1] - thing.eta[1],2) + np.power(dphi(jet.phi[1],thing.phi[1]),2)).rename(columns={1:f"{nms[0]} 1 {nms[1]} 1"})
-    else: jtdr2 = pd.DataFrame()
+        jtdr2 = DataFrame(np.power(jet.eta[1] - thing.eta[1],2) + np.power(dphi(jet.phi[1],thing.phi[1]),2)).rename(columns={1:f"{nms[0]} 1 {nms[1]} 1"})
+    else: jtdr2 = DataFrame()
     jtstr = []
     ## Loop over jet x thing combinations
     for j in nj:
@@ -196,25 +197,25 @@ def computedR(jet,thing,nms=['jet','thing']):
     return np.sqrt(jtdr2)
 
 def loadjets(jets, ev, events,bgweights=False):
-    jets.eta= pd.DataFrame(events.array('FatJet_eta')).rename(columns=inc)
-    jets.phi= pd.DataFrame(events.array('FatJet_phi')).rename(columns=inc)
-    jets.pt = pd.DataFrame(events.array('FatJet_pt')).rename(columns=inc)
-    jets.mass=pd.DataFrame(events.array('FatJet_mass')).rename(columns=inc)
-    jets.CSVV2 = pd.DataFrame(events.array('FatJet_btagCSVV2')).rename(columns=inc)
-    jets.DeepB = pd.DataFrame(events.array('FatJet_btagDeepB')).rename(columns=inc)
-    jets.DDBvL = pd.DataFrame(events.array('FatJet_btagDDBvL')).rename(columns=inc)
-    jets.msoft = pd.DataFrame(events.array('FatJet_msoftdrop')).rename(columns=inc)
-    jets.H4qvs = pd.DataFrame(events.array('FatJet_deepTagMD_H4qvsQCD')).rename(columns=inc)
-    jets.n2b1  = pd.DataFrame(events.array('FatJet_n2b1')).rename(columns=inc)
+    jets.eta= DataFrame(events.array('FatJet_eta')).rename(columns=inc)
+    jets.phi= DataFrame(events.array('FatJet_phi')).rename(columns=inc)
+    jets.pt = DataFrame(events.array('FatJet_pt')).rename(columns=inc)
+    jets.mass=DataFrame(events.array('FatJet_mass')).rename(columns=inc)
+    jets.CSVV2 = DataFrame(events.array('FatJet_btagCSVV2')).rename(columns=inc)
+    jets.DeepB = DataFrame(events.array('FatJet_btagDeepB')).rename(columns=inc)
+    jets.DDBvL = DataFrame(events.array('FatJet_btagDDBvL')).rename(columns=inc)
+    jets.msoft = DataFrame(events.array('FatJet_msoftdrop')).rename(columns=inc)
+    jets.H4qvs = DataFrame(events.array('FatJet_deepTagMD_H4qvsQCD')).rename(columns=inc)
+    jets.n2b1  = DataFrame(events.array('FatJet_n2b1')).rename(columns=inc)
     jets.n2b1[jets.n2b1 < -5] = -2
 
-    ev.event = pd.DataFrame(events.array('event')).rename(columns=inc)
-    ev.npvs  = pd.DataFrame(events.array('PV_npvs')).rename(columns=inc)
-    ev.npvsG = pd.DataFrame(events.array('PV_npvsGood')).rename(columns=inc)
-    ev.trg   = pd.DataFrame(events.array('event')).rename(columns=inc)
+    ev.event = DataFrame(events.array('event')).rename(columns=inc)
+    ev.npvs  = DataFrame(events.array('PV_npvs')).rename(columns=inc)
+    ev.npvsG = DataFrame(events.array('PV_npvsGood')).rename(columns=inc)
+    ev.trg   = DataFrame(events.array('event')).rename(columns=inc)
     ev.trg[1]= 'X'
     if 'Pileup_nTrueInt' in events:
-        ev.PU    = pd.DataFrame(events.array('Pileup_nTrueInt')).rename(columns=inc)
+        ev.PU    = DataFrame(events.array('Pileup_nTrueInt')).rename(columns=inc)
     
     idxa1 = events.array('FatJet_subJetIdx1')
     idxa2 = events.array('FatJet_subJetIdx2')
@@ -222,20 +223,20 @@ def loadjets(jets, ev, events,bgweights=False):
     subtau  = events.array('SubJet_tau1')
     submass = submass.pad(submass.counts.max()+1).fillna(0)
     subtau  = subtau.pad(subtau.counts.max()+1).fillna(0)
-    jets.submass1 = pd.DataFrame(submass[idxa1]).rename(columns=inc)
-    jets.submass2 = pd.DataFrame(submass[idxa2]).rename(columns=inc)
-    jets.subtau1  = pd.DataFrame(subtau[ idxa1]).rename(columns=inc)
-    jets.subtau2  = pd.DataFrame(subtau[ idxa2]).rename(columns=inc)
+    jets.submass1 = DataFrame(submass[idxa1]).rename(columns=inc)
+    jets.submass2 = DataFrame(submass[idxa2]).rename(columns=inc)
+    jets.subtau1  = DataFrame(subtau[ idxa1]).rename(columns=inc)
+    jets.subtau2  = DataFrame(subtau[ idxa2]).rename(columns=inc)
     del idxa1, idxa2, submass, subtau
     
     ev.extweight = ev.event / ev.event
     if bgweights:
-        ev.HT = pd.DataFrame(events.array('LHE_HT')).rename(columns=inc)
+        ev.HT = DataFrame(events.array('LHE_HT')).rename(columns=inc)
         
-        pdgid = pd.DataFrame(events.array('GenPart_pdgId')).rename(columns=inc)
-        pdgpt = pd.DataFrame(events.array('GenPart_pt')).rename(columns=inc)
+        pdgid = DataFrame(events.array('GenPart_pdgId')).rename(columns=inc)
+        pdgpt = DataFrame(events.array('GenPart_pt')).rename(columns=inc)
         pdgframe = np.logical_and(pdgid == 5, pdgpt > 15)
-        ev.nGprt = pd.DataFrame(pdgframe[pdgframe].sum(axis=1)).rename(columns=inc)
+        ev.nGprt = DataFrame(pdgframe[pdgframe].sum(axis=1)).rename(columns=inc)
         
     else:
         ev.HT = ev.event * 6000 / ev.event
@@ -252,7 +253,7 @@ def trigtensorcalc(jets,sj,evv,l1,hlt,isdata=False,dropjets=True):
             if len(maxjets.columns) > 1:
                 maxjets.cut(jets['pt'].rank(axis=1,method='first',ascending=False) == 1)
                 for elem in ['pt','eta','phi']:
-                    maxjets[elem] = pd.DataFrame(maxjets[elem].max(axis=1)).rename(columns=inc)
+                    maxjets[elem] = DataFrame(maxjets[elem].max(axis=1)).rename(columns=inc)
             sjets.cut(abs(sjets.eta) < 2.4,drop=dropjets)
             # sjets.cut(sjets.pt > 30)
             sjets.cut(sjets.puId >= 1,drop=dropjets)
@@ -278,32 +279,29 @@ def trigtensorcalc(jets,sj,evv,l1,hlt,isdata=False,dropjets=True):
     sj2maxb = sjets.btagDeepB[sjframe > 0]
     sj2maxb = sj2maxb[sj2maxb.rank(axis=1,method='first',ascending=False) == 2].max(axis=1).reindex_like(evv.trg)
     
-    evv.trg[np.logical_and.reduce((maxjets.pt[1] < 400, maxjets.pt[1] >= 250, njets >= 2,
-        np.logical_or(l1.DoubleJet112er2p3_dEta_Max1p6[1],l1.DoubleJet150er2p5[1]),
-        hlt.DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1]))] = "CX"
+    evv.trg[(maxjets.pt[1] < 400) & (maxjets.pt[1] >= 250) & (njets >= 2) &
+        (l1.DoubleJet112er2p3_dEta_Max1p6[1] | l1.DoubleJet150er2p5[1]) &
+        hlt.DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1]] = "CX"
     
-    evv.trg[np.logical_and.reduce((maxjets.pt[1] >= 400, njets < 2,
-        np.logical_or(hlt.AK8PFJet500[1],hlt.AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1]),
-        l1.SingleJet180[1]))] = "AB"
+    evv.trg[(maxjets.pt[1] >= 400) & (njets < 2) &
+        (hlt.AK8PFJet500[1] | hlt.AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1]) &
+        l1.SingleJet180[1]] = "AB"
     
-    evv.trg[np.logical_and.reduce((maxjets.pt[1] >= 400, njets >= 2, np.logical_or(
-        np.logical_and(l1.SingleJet180[1],np.logical_or(hlt.AK8PFJet500[1],hlt.AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1])),
-        np.logical_and(hlt.DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1],
-            np.logical_or(l1.DoubleJet112er2p3_dEta_Max1p6[1],l1.DoubleJet150er2p5[1])))))] = "ABC"
+    evv.trg[(maxjets.pt[1] >= 400) & (njets >= 2) &
+        ((l1.SingleJet180[1] & (hlt.AK8PFJet500[1] | hlt.AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1])) |
+        (hlt.DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1] &
+            (l1.DoubleJet112er2p3_dEta_Max1p6[1] | l1.DoubleJet150er2p5[1])))] = "ABC"
     
     if not isdata:
         idxs = ttensor['meta']['AB']
         for i in range(len(idxs) - 1):
-            evv.extweight[np.logical_and.reduce((evv.trg[1] == "AB", maxjets.pt[1] >= idxs[i], 
-                maxjets.pt[1] < idxs[i+1]))] *= ttensor["AB"][i]
+            evv.extweight[(evv.trg[1] == "AB") & (maxjets.pt[1] >= idxs[i]) & (maxjets.pt[1] < idxs[i+1])] *= ttensor["AB"][i]
         idxs = ttensor['meta']['ABC']
         for i in range(len(idxs) - 1):
-            evv.extweight[np.logical_and.reduce((evv.trg[1] == "ABC", maxjets.pt[1] >= idxs[i], 
-                maxjets.pt[1] < idxs[i+1]))] *= ttensor["ABC"][i]
+            evv.extweight[(evv.trg[1] == "ABC") & (maxjets.pt[1] >= idxs[i]) & (maxjets.pt[1] < idxs[i+1])] *= ttensor["ABC"][i]
         idxs = ttensor['meta']['CX']
         for i in range(len(idxs) - 1):
-            evv.extweight[np.logical_and.reduce((evv.trg[1] == "CX", sj2maxb >= idxs[i], 
-                sj2maxb < idxs[i+1]))] *= ttensor["CX"][i]     
+            evv.extweight[(evv.trg[1] == "CX") & (sj2maxb >= idxs[i]) & (sj2maxb < idxs[i+1])] *= ttensor["CX"][i]     
     evv.cut(evv.trg != "X")
     # evv.extweight[evv.trg[1] == "X"] *= 0
 
@@ -625,36 +623,36 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             ## from the GenPart arrays, then removes all particles 
             ## that are not bs after resizing the pdgid array to be a valid mask
             
-            bs.oeta = pd.DataFrame(sigevents.array('GenPart_eta')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
-            bs.ophi = pd.DataFrame(sigevents.array('GenPart_phi')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
-            bs.opt  = pd.DataFrame(sigevents.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+            bs.oeta = DataFrame(sigevents.array('GenPart_eta')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+            bs.ophi = DataFrame(sigevents.array('GenPart_phi')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+            bs.opt  = DataFrame(sigevents.array('GenPart_pt' )[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
             
             ## Test b order corresponds to As
-            testbs = pd.DataFrame(sigevents.array('GenPart_genPartIdxMother')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
+            testbs = DataFrame(sigevents.array('GenPart_genPartIdxMother')[abs(parida)==Aid][abs(pdgida)[abs(parida)==Aid]==5]).rename(columns=inc)
             ## The first term checks b4 has greater idx than b1, the last two check that the bs are paired
             if ((testbs[4]-testbs[1]).min() <= 0) or ((abs(testbs[2]-testbs[1]) + abs(testbs[4])-testbs[3]).min() != 0):
                 print('b to A ordering violated - time to do it the hard way')
                 sys.exit()
         
             As = PhysObj('As')    
-            As.oeta = pd.DataFrame(sigevents.array('GenPart_eta', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
-            As.ophi = pd.DataFrame(sigevents.array('GenPart_phi', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
-            As.opt =  pd.DataFrame(sigevents.array('GenPart_pt' , executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
-            As.omass =pd.DataFrame(sigevents.array('GenPart_mass', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+            As.oeta = DataFrame(sigevents.array('GenPart_eta', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+            As.ophi = DataFrame(sigevents.array('GenPart_phi', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+            As.opt =  DataFrame(sigevents.array('GenPart_pt' , executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
+            As.omass =DataFrame(sigevents.array('GenPart_mass', executor=executor)[abs(parida)==25][abs(pdgida)[abs(parida)==25]==Aid]).rename(columns=inc)
             
             higgs = PhysObj('higgs')    
-            higgs.eta = pd.DataFrame(sigevents.array('GenPart_eta', executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
-            higgs.phi = pd.DataFrame(sigevents.array('GenPart_phi', executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
-            higgs.pt =  pd.DataFrame(sigevents.array('GenPart_pt' , executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
+            higgs.eta = DataFrame(sigevents.array('GenPart_eta', executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
+            higgs.phi = DataFrame(sigevents.array('GenPart_phi', executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
+            higgs.pt =  DataFrame(sigevents.array('GenPart_pt' , executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
             
             slimjets = PhysObj('slimjets')
-            slimjets.eta= pd.DataFrame(sigevents.array('Jet_eta', executor=executor)).rename(columns=inc)
-            slimjets.phi= pd.DataFrame(sigevents.array('Jet_phi', executor=executor)).rename(columns=inc)
-            slimjets.pt = pd.DataFrame(sigevents.array('Jet_pt' , executor=executor)).rename(columns=inc)
-            slimjets.mass=pd.DataFrame(sigevents.array('Jet_mass', executor=executor)).rename(columns=inc)
-            slimjets.DeepB = pd.DataFrame(sigevents.array('Jet_btagDeepB', executor=executor)).rename(columns=inc)
-            slimjets.DeepFB= pd.DataFrame(sigevents.array('Jet_btagDeepFlavB', executor=executor)).rename(columns=inc)
-            slimjets.puid = pd.DataFrame(sigevents.array('Jet_puId', executor=executor)).rename(columns=inc)
+            slimjets.eta= DataFrame(sigevents.array('Jet_eta', executor=executor)).rename(columns=inc)
+            slimjets.phi= DataFrame(sigevents.array('Jet_phi', executor=executor)).rename(columns=inc)
+            slimjets.pt = DataFrame(sigevents.array('Jet_pt' , executor=executor)).rename(columns=inc)
+            slimjets.mass=DataFrame(sigevents.array('Jet_mass', executor=executor)).rename(columns=inc)
+            slimjets.DeepB = DataFrame(sigevents.array('Jet_btagDeepB', executor=executor)).rename(columns=inc)
+            slimjets.DeepFB= DataFrame(sigevents.array('Jet_btagDeepFlavB', executor=executor)).rename(columns=inc)
+            slimjets.puid = DataFrame(sigevents.array('Jet_puId', executor=executor)).rename(columns=inc)
         
 
             ## Figure out how many bs and jets there are
@@ -666,20 +664,20 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             
             ## Create sorted versions of A values by pt
             for prop in ['eta','phi','pt','mass']:
-                As[prop] = pd.DataFrame()
+                As[prop] = DataFrame()
                 for i in range(1,3):
                     As[prop][i] = As['o'+prop][As.opt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
                 ## Clean up original ordered dataframes; we don't really need them
                 #del As['o'+prop]
             
             ## Reorder out b dataframes to match sorted A parents
-            tframe = pd.DataFrame()
+            tframe = DataFrame()
             tframe[1] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[1]
             tframe[2] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[1]
             tframe[3] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[2]
             tframe[4] = (As.opt.rank(axis=1,ascending=False,method='first')==1)[2]
             for prop in ['eta','phi','pt']:
-                bs[prop] = pd.DataFrame()
+                bs[prop] = DataFrame()
                 bs[prop][1] = bs['o'+prop][tframe][1].dropna().append(bs['o'+prop][tframe][3].dropna()).sort_index()
                 bs[prop][2] = bs['o'+prop][tframe][2].dropna().append(bs['o'+prop][tframe][4].dropna()).sort_index()
                 bs[prop][3] = bs['o'+prop][~tframe][1].dropna().append(bs['o'+prop][~tframe][3].dropna()).sort_index()
@@ -689,8 +687,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             
 #           ## Sort our b dataframes in descending order of pt
 #           for prop in ['spt','seta','sphi']:
-#               bs[prop] = pd.DataFrame()
-#           #bs.spt, bs.seta, bs.sphi = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
+#               bs[prop] = DataFrame()
+#           #bs.spt, bs.seta, bs.sphi = DataFrame(), DataFrame(), DataFrame()
 #               for i in range(1,nb+1):
 #                   bs[prop][i] = bs[prop[1:]][bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
 #               #bs.seta[i] = bs.eta[bs.pt.rank(axis=1,ascending=False,method='first')==i].max(axis=1)
@@ -751,8 +749,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             ## Apply data cuts
             with open(JSONNAME) as f:
                 jdata = json.load(f)
-            sigevv.run = pd.DataFrame(sigevents.array('run')).rename(columns=inc)
-            sigevv.lb = pd.DataFrame(sigevents.array('luminosityBlock')).rename(columns=inc)
+            sigevv.run = DataFrame(sigevents.array('run')).rename(columns=inc)
+            sigevv.lb = DataFrame(sigevents.array('luminosityBlock')).rename(columns=inc)
             ev.sync()
 
             ## Only events that are in keys are kept
@@ -761,12 +759,12 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 sigevv[elem]=sigevv[elem].astype(int)
             
             ## Test remaining events for inclusion
-            tframe = pd.DataFrame()
+            tframe = DataFrame()
             tframe['lb'] = sigevv.lb[1]
             tframe['run'] = sigevv.run[1]
             def fun(r,lb):
                 return any([lb in range(a[0],a[1]+1) for a in jdata[str(r)] ])
-            truthframe = pd.DataFrame([fun(r,lb) for r,lb in zip(sigevv.run[1].values,sigevv.lb[1].values)],index=sigevv.run.index,columns=[1])
+            truthframe = DataFrame([fun(r,lb) for r,lb in zip(sigevv.run[1].values,sigevv.lb[1].values)],index=sigevv.run.index,columns=[1])
             sigevv.cut(truthframe == True)
             ev.sync()
 
@@ -829,7 +827,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         for jets in bgjets + [sigjets]:
             jets.cut(jets.pt.rank(axis=1,method='first',ascending=False) == 1)
             for prop in jets:
-                jets[prop] = pd.DataFrame(jets[prop].max(axis=1)).rename(columns=inc)
+                jets[prop] = DataFrame(jets[prop].max(axis=1)).rename(columns=inc)
         
         
         # ## Special region-selection muon cut logic
@@ -845,7 +843,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #     muons.cut(abs(muons.ip3d) < 0.5)
         #     ev.sync()
             
-        #     mframe = fastdR(sigjets, muons)#pd.DataFrame()
+        #     mframe = fastdR(sigjets, muons)#DataFrame()
         #     # mjdr = computedR(sigjets, muons,['jet','muon'])
         #     # mframe = mjdr.filter(like="jet 1")
         #     # mframe = mframe.rename(columns=lambda x:int(x[-2:None]))
@@ -869,22 +867,22 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #             mmuons.eta.sum(axis=1),
         #             mmuons.phi.sum(axis=1),
         #             mmuons.mass.sum(axis=1))
-        #     msum = pd.DataFrame((pTL + mTL).mass).rename(columns=inc)
-        #     ptsum = pd.DataFrame((pTL + mTL).pt).rename(columns=inc)
-        #     etasum = pd.DataFrame((pTL + mTL).eta).rename(columns=inc)
+        #     msum = DataFrame((pTL + mTL).mass).rename(columns=inc)
+        #     ptsum = DataFrame((pTL + mTL).pt).rename(columns=inc)
+        #     etasum = DataFrame((pTL + mTL).eta).rename(columns=inc)
         #     for frame in [msum, ptsum, etasum]:
         #         frame.index = mmuons.pt.index
         #     sigevv.mmsum = msum[msum > 12].dropna()
         #     sigevv.mptsum = ptsum.dropna()
         #     sigevv.metasum = etasum.dropna()
-        #     sigevv.mqmpt = pd.DataFrame(mmuons.pt.sum(axis=1)).rename(columns=inc)
-        #     sigevv.mqppt = pd.DataFrame(pmuons.pt.sum(axis=1)).rename(columns=inc)
-        #     sigevv.mqmeta = pd.DataFrame(mmuons.eta.sum(axis=1)).rename(columns=inc)
-        #     sigevv.mqpeta = pd.DataFrame(pmuons.eta.sum(axis=1)).rename(columns=inc)
-        #     sigevv.mqmip3d = pd.DataFrame(mmuons.ip3d.sum(axis=1)).rename(columns=inc)
-        #     sigevv.mqpip3d = pd.DataFrame(pmuons.ip3d.sum(axis=1)).rename(columns=inc)
-        #     sigevv.mqmsip3d = pd.DataFrame(mmuons.sip3d.sum(axis=1)).rename(columns=inc)
-        #     sigevv.mqpsip3d = pd.DataFrame(pmuons.sip3d.sum(axis=1)).rename(columns=inc)
+        #     sigevv.mqmpt = DataFrame(mmuons.pt.sum(axis=1)).rename(columns=inc)
+        #     sigevv.mqppt = DataFrame(pmuons.pt.sum(axis=1)).rename(columns=inc)
+        #     sigevv.mqmeta = DataFrame(mmuons.eta.sum(axis=1)).rename(columns=inc)
+        #     sigevv.mqpeta = DataFrame(pmuons.eta.sum(axis=1)).rename(columns=inc)
+        #     sigevv.mqmip3d = DataFrame(mmuons.ip3d.sum(axis=1)).rename(columns=inc)
+        #     sigevv.mqpip3d = DataFrame(pmuons.ip3d.sum(axis=1)).rename(columns=inc)
+        #     sigevv.mqmsip3d = DataFrame(mmuons.sip3d.sum(axis=1)).rename(columns=inc)
+        #     sigevv.mqpsip3d = DataFrame(pmuons.sip3d.sum(axis=1)).rename(columns=inc)
 
         #     ev.sync()
         #     del pmuons, mmuons, msum, pTL, mTL
@@ -905,7 +903,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #         bmuons[i].cut(abs(bmuons[i].ip3d) < 0.5)
         #         bev[i].sync()
                 
-        #         mframe = fastdR(bgjets[i], bmuons[i])#pd.DataFrame()
+        #         mframe = fastdR(bgjets[i], bmuons[i])#DataFrame()
         #         # mjdr = computedR(bgjets[i], bmuons[i],['jet','muon'])
         #         # mframe = mjdr.filter(like="jet 1")
         #         # mframe = mframe.rename(columns=lambda x:int(x[-2:None]))
@@ -928,22 +926,22 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #                 mmuons.eta.sum(axis=1),
         #                 mmuons.phi.sum(axis=1),
         #                 mmuons.mass.sum(axis=1))
-        #         msum = pd.DataFrame((pTL + mTL).mass).rename(columns=inc)
-        #         ptsum = pd.DataFrame((pTL + mTL).pt).rename(columns=inc)
-        #         etasum = pd.DataFrame((pTL + mTL).eta).rename(columns=inc)
+        #         msum = DataFrame((pTL + mTL).mass).rename(columns=inc)
+        #         ptsum = DataFrame((pTL + mTL).pt).rename(columns=inc)
+        #         etasum = DataFrame((pTL + mTL).eta).rename(columns=inc)
         #         for frame in [msum, ptsum, etasum]:
         #             frame.index = mmuons.pt.index
         #         bgevv[i].mmsum = msum[msum > 12].dropna()
         #         bgevv[i].mptsum = ptsum.dropna()
         #         bgevv[i].metasum = etasum.dropna()
-        #         bgevv[i].mqmpt = pd.DataFrame(mmuons.pt.sum(axis=1)).rename(columns=inc)
-        #         bgevv[i].mqppt = pd.DataFrame(pmuons.pt.sum(axis=1)).rename(columns=inc)
-        #         bgevv[i].mqmeta = pd.DataFrame(mmuons.eta.sum(axis=1)).rename(columns=inc)
-        #         bgevv[i].mqpeta = pd.DataFrame(pmuons.eta.sum(axis=1)).rename(columns=inc)
-        #         bgevv[i].mqmip3d = pd.DataFrame(mmuons.ip3d.sum(axis=1)).rename(columns=inc)
-        #         bgevv[i].mqpip3d = pd.DataFrame(pmuons.ip3d.sum(axis=1)).rename(columns=inc)
-        #         bgevv[i].mqmsip3d = pd.DataFrame(mmuons.sip3d.sum(axis=1)).rename(columns=inc)
-        #         bgevv[i].mqpsip3d = pd.DataFrame(pmuons.sip3d.sum(axis=1)).rename(columns=inc)
+        #         bgevv[i].mqmpt = DataFrame(mmuons.pt.sum(axis=1)).rename(columns=inc)
+        #         bgevv[i].mqppt = DataFrame(pmuons.pt.sum(axis=1)).rename(columns=inc)
+        #         bgevv[i].mqmeta = DataFrame(mmuons.eta.sum(axis=1)).rename(columns=inc)
+        #         bgevv[i].mqpeta = DataFrame(pmuons.eta.sum(axis=1)).rename(columns=inc)
+        #         bgevv[i].mqmip3d = DataFrame(mmuons.ip3d.sum(axis=1)).rename(columns=inc)
+        #         bgevv[i].mqpip3d = DataFrame(pmuons.ip3d.sum(axis=1)).rename(columns=inc)
+        #         bgevv[i].mqmsip3d = DataFrame(mmuons.sip3d.sum(axis=1)).rename(columns=inc)
+        #         bgevv[i].mqpsip3d = DataFrame(pmuons.sip3d.sum(axis=1)).rename(columns=inc)
                 
         #         bev[i].sync()
         #         del pmuons, mmuons, msum, pTL, mTL
@@ -954,7 +952,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         ## Compute jet-vertex dR
         # sjvdr = computedR(sigjets,sigsv,['jet','sv'])
         # sjlist = []
-        nsvframe = fastdR(sigjets,sigsv)#pd.DataFrame()
+        nsvframe = fastdR(sigjets,sigsv)#DataFrame()
         ## Loop over jets
         # for j in range(sigjets.eta.columns[-1]):
         #     ## Collect vertex dRs for each jet
@@ -967,12 +965,12 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         # if isLHE:
         for i in range(len(bgjets)):
             if bgjets[i].pt.size <= 0:
-                bgjets[i].nsv = pd.DataFrame()
+                bgjets[i].nsv = DataFrame()
                 print(f"BG slice {i} had 0 passing events at nsv calc")
                 continue
             # bjvdr = computedR(bgjets[i],bgsv[i],['jet','sv'])
             # bjlist = []
-            nsvframe = fastdR(bgjets[i],bgsv[i])#pd.DataFrame()
+            nsvframe = fastdR(bgjets[i],bgsv[i])#DataFrame()
             # for j in range(bgjets[i].eta.columns[-1]):
             #     bjlist.append(bjvdr.filter(like=f"jet {j+1}"))
             #     bjlist[j] = bjlist[j].rename(columns=lambda x:int(x[9:11]))
@@ -982,7 +980,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         # else:
         #     bjvdr = computedR(bgjets,bgsv,['jet','sv'])
         #     bjlist = []
-        #     nsvframe = pd.DataFrame()
+        #     nsvframe = DataFrame()
         #     for j in range(bgjets.eta.shape[1]):
         #         bjlist.append(bjvdr.filter(like=f"jet {j+1}"))
         #         bjlist[j] = bjlist[j].rename(columns=lambda x:int(x[9:11]))
@@ -1013,26 +1011,21 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             
         ## HEM 15-16 veto
         if dataflag == True:
-            sigevv.cut(np.logical_not(np.logical_and.reduce((sigevv.run > 319077, sigjets.eta < -1.17, 
-                            sigjets.phi < -0.47, sigjets.phi > -1.97))))
+            sigevv.cut(~((sigevv.run > 319077) & (sigjets.eta < -1.17) & (sigjets.phi < -0.47) & (sigjets.phi > -1.97)))
             ev.sync()
         if dataflag != True:
             if sigevv.extweight.size:
-                sigevv.extweight[np.logical_and.reduce((sigjets.eta < -1.17, 
-                    np.logical_and(sigjets.phi < -0.47, sigjets.phi > -1.97),
-                    sighlt.AK8PFJet500, sigevv.trg != "CX"))] *= 21.09 / 59.8279
-                sigevv.extweight[np.logical_and.reduce((sigjets.eta < -1.17, 
-                    np.logical_and(sigjets.phi < -0.47, sigjets.phi > -1.97),
-                    np.logical_not(np.logical_and(sighlt.AK8PFJet500, sigevv.trg != "CX"))))] *= 15.80 / 54.5365
+                sigevv.extweight[(sigjets.eta < -1.17) & (sigjets.phi < -0.47) & (sigjets.phi > -1.97) &
+                    sighlt.AK8PFJet500 & (sigevv.trg != "CX")] *= 21.09 / 59.8279
+                sigevv.extweight[(sigjets.eta < -1.17) & (sigjets.phi < -0.47) & (sigjets.phi > -1.97) &
+                    ~(sighlt.AK8PFJet500 & (sigevv.trg != "CX"))] *= 15.80 / 54.5365
         if dataflag != -1:
             for i in range(len(bgevv)):
                 if bgevv[i].extweight.size:
-                    bgevv[i].extweight[np.logical_and.reduce((bgjets[i].eta < -1.17, 
-                        np.logical_and(bgjets[i].phi < -0.47, bgjets[i].phi > -1.97),
-                        bghlt[i].AK8PFJet500, bgevv[i].trg != "CX"))] *= 21.09 / 59.8279
-                    bgevv[i].extweight[np.logical_and.reduce((bgjets[i].eta < -1.17,
-                        np.logical_and(bgjets[i].phi < -0.47, bgjets[i].phi > -1.97),
-                        np.logical_not(np.logical_and(bghlt[i].AK8PFJet500, bgevv[i].trg != "CX"))))] *= 15.80 / 54.5365
+                    bgevv[i].extweight[(bgjets[i].eta < -1.17) & (bgjets[i].phi < -0.47) & (bgjets[i].phi > -1.97) &
+                        bghlt[i].AK8PFJet500 & (bgevv[i].trg != "CX")] *= 21.09 / 59.8279
+                    bgevv[i].extweight[(bgjets[i].eta < -1.17) & (bgjets[i].phi < -0.47) & (bgjets[i].phi > -1.97) &
+                        ~(bghlt[i].AK8PFJet500 & (bgevv[i].trg != "CX"))] *= 15.80 / 54.5365
         
         for e in [ev] + bev:
             e.sync()
@@ -1040,15 +1033,15 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         ## Luminosity + PU weighting
         if dataflag != 1 and sigevv.extweight.size:
             print(f"Dataflag: {dataflag}")
-            sigevv.extweight[np.logical_and(sighlt.AK8PFJet500, sigevv.trg != "CX")] *= 59.8279
-            sigevv.extweight[~np.logical_and(sighlt.AK8PFJet500, sigevv.trg != "CX")] *= 54.5365
+            sigevv.extweight[sighlt.AK8PFJet500 & (sigevv.trg != "CX")] *= 59.8279
+            sigevv.extweight[~(sighlt.AK8PFJet500 & (sigevv.trg != "CX"))] *= 54.5365
             pucalc(sigevv,sighlt)
             
         if dataflag != -1:
             for i in range(len(bgevv)):
                 if bghlt[i].AK8PFJet500.size:
-                    bgevv[i].extweight[np.logical_and(bghlt[i].AK8PFJet500, bgevv[i].trg != "CX")] *= 59.8279
-                    bgevv[i].extweight[~np.logical_and(bghlt[i].AK8PFJet500, bgevv[i].trg != "CX")] *= 54.5365
+                    bgevv[i].extweight[bghlt[i].AK8PFJet500 & (bgevv[i].trg != "CX")] *= 59.8279
+                    bgevv[i].extweight[~(bghlt[i].AK8PFJet500 & (bgevv[i].trg != "CX"))] *= 54.5365
                     pucalc(bgevv[i],bghlt[i])
                 
         ## PU weighting
@@ -1061,7 +1054,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             # bgrawframe['extweight'] = lumipucalc(bgrawframe)
 
         
-        bgjetframe = pd.DataFrame()
+        bgjetframe = DataFrame()
         extvars = ['event','extweight','npvs','npvsG']
         if LOADMODEL and False:#(not passplots):
             muvars = ['mpt','meta','mip']
@@ -1072,8 +1065,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             wtpieces = []
             
             for i in range(nlhe):
-                tempframe = pd.DataFrame()
-                twgtframe = pd.DataFrame()
+                tempframe = DataFrame()
+                twgtframe = DataFrame()
                 for prop in netvars + ['phi']:
                     twgtframe[prop] = bgjets[i][prop][bgjets[i]['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
                 for prop in extvars + muvars:
@@ -1142,7 +1135,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         
         #nbg = bgtrnframe.shape[0]
             
-        sigjetframe = pd.DataFrame()
+        sigjetframe = DataFrame()
         for prop in netvars + ['phi']:
             sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
         for prop in extvars + muvars:
@@ -1293,7 +1286,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             plots['DistBte'].fill(distbtt,W_inputs[Y_inputs==0])
             
             ## Store the output confidence values and their weights
-            distsf = pd.DataFrame(diststt)
+            distsf = DataFrame(diststt)
             distsf['W'] = W_inputs[Y_inputs==1].reset_index(drop=True)
             ## Sort both of them together by the confidence values
             distsf = distsf.sort_values(by=[0])
@@ -1311,9 +1304,9 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             plots["SensB"].fill(distbtt,W_inputs[Y_inputs==0])
 
         elif not passplots:
-            hist = pd.DataFrame(history.history)
+            hist = DataFrame(history.history)
             #for h in history:
-                #hist = pd.concat([hist,pd.DataFrame(h.history)],ignore_index=True)
+                #hist = pd.concat([hist,DataFrame(h.history)],ignore_index=True)
             hist['epoch'] = history.epoch
             plots['LossvEpoch'][0]=hist['loss']
             if 'acc' in hist.columns:
@@ -1395,7 +1388,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             p.ival = sum(p[0])
             p.ndivide(sum(p[0]))
         
-    if dataflag == True:
+    if False:#dataflag == True:
         for i in range(len(plots['DistSte'][0])):
             if plots['DistSte'][1][i] >= passnum:
                 plots['DistSte'][0][i] = 0
