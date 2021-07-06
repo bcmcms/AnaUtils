@@ -952,6 +952,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         ## Compute jet-vertex dR
         # sjvdr = computedR(sigjets,sigsv,['jet','sv'])
         # sjlist = []
+        
         nsvframe = fastdR(sigjets,sigsv)#DataFrame()
         ## Loop over jets
         # for j in range(sigjets.eta.columns[-1]):
@@ -960,7 +961,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #     sjlist[j] = sjlist[j].rename(columns=lambda x:int(x[9:11]))
         #     ## Remove dR >= 0.8, sum number of remaining vertices
         #     nsvframe[j+1] = np.sum(sjlist[j][sjlist[j]<0.8].fillna(0)/sjlist[j][sjlist[j]<0.8].fillna(0),axis=1)
-        sigjets.nsv = nsvframe[nsvframe < 0.8].fillna(0)
+        sigjets.nsv = DataFrame()
+        sigjets.nsv[1] = np.sum(nsvframe[nsvframe < 0.8].fillna(0)/nsvframe[nsvframe < 0.8].fillna(0),axis=1)
         
         # if isLHE:
         for i in range(len(bgjets)):
@@ -975,7 +977,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             #     bjlist.append(bjvdr.filter(like=f"jet {j+1}"))
             #     bjlist[j] = bjlist[j].rename(columns=lambda x:int(x[9:11]))
             #     nsvframe[j+1] = np.sum(bjlist[j][bjlist[j]<0.8].fillna(0)/bjlist[j][bjlist[j]<0.8].fillna(0),axis=1)
-            bgjets[i].nsv = nsvframe[nsvframe < 0.8].fillna(0)
+            bgjets[i].nsv = DataFrame()
+            bgjets[i].nsv[1] = np.sum(nsvframe[nsvframe < 0.8].fillna(0)/nsvframe[nsvframe < 0.8].fillna(0),axis=1)
             
         # else:
         #     bjvdr = computedR(bgjets,bgsv,['jet','sv'])
@@ -1252,7 +1255,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             test_loss, test_acc = model.evaluate(X_test, Y_test)
             print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
     
-        passnum = 0.8
+        passnum = 0.6
         ##################################
         # Analyzing and Plotting Outputs #
         ##################################
@@ -1388,7 +1391,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             p.ival = sum(p[0])
             p.ndivide(sum(p[0]))
         
-    if False:#dataflag == True:
+    if dataflag == True:
         for i in range(len(plots['DistSte'][0])):
             if plots['DistSte'][1][i] >= passnum:
                 plots['DistSte'][0][i] = 0

@@ -20,7 +20,7 @@ import pandas as pd
 #import itertools as it
 import copy as cp
 from munch import DefaultMunch
-from ROOT import TH1F, TFile
+# from ROOT import TH1F, TFile
 #import types
 import mplhep as hep
 from scipy.stats import norm
@@ -191,7 +191,7 @@ class Hist(object):
             plot = parent.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.ser),fmt=f".{color}",
                         color=color,linewidth=2,capsize=3)
             if logv:
-                parent.yscale('log')
+                parent.set_yscale('log')
             return plot
         plot = parent.hist(s.hs[1][:-1],s.hs[1],weights=s.hs[0],
                         log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=2)
@@ -218,7 +218,7 @@ class Hist(object):
             args['parent'].grid(True)
             if not clean: hep.cms.label(loc=0,year='2018',ax=args['parent'])
             if legend:
-                args['parent'].legend(legend,loc=0)
+                args['parent'].legend(legend,loc=8)
             if ylim:
                 args['parent'].set_ylim(ylim)
             if s.xlabel != '':
@@ -229,7 +229,7 @@ class Hist(object):
             plt.grid(True)
             hep.cms.label(loc=0,year='2018')
             if legend:
-                 plt.legend(legend,loc=0)
+                 plt.legend(legend,loc=8)
             if ylim:
                 plt.ylim(ylim)
             if s.xlabel != '':
@@ -259,18 +259,18 @@ class Hist(object):
         if s.fname != '':
             plt.savefig(s.fname+'_v')    
             
-    def toTH1(s,title,scale=1):
-        th1 = TH1F(title,title,len(s.hs[0]),s.hs[1][0],s.hs[1][-1])
-        for i in range(len(s.hs[0])):
-            th1.SetBinContent(i,s.hs[0][i]*scale)
-            th1.SetBinError(i,np.sqrt(s.ser[i])*scale)
-        return th1
+    # def toTH1(s,title,scale=1):
+    #     th1 = TH1F(title,title,len(s.hs[0]),s.hs[1][0],s.hs[1][-1])
+    #     for i in range(len(s.hs[0])):
+    #         th1.SetBinContent(i,s.hs[0][i]*scale)
+    #         th1.SetBinError(i,np.sqrt(s.ser[i])*scale)
+    #     return th1
     
-    def errtoTH1(s,scale=1):
-        return np.histogram(s.hs[1][12:-5],s.hs[1][12:-4],weights=np.sqrt(s.ser[12:-4])*scale)
+    # def errtoTH1(s,scale=1):
+    #     return np.histogram(s.hs[1][12:-5],s.hs[1][12:-4],weights=np.sqrt(s.ser[12:-4])*scale)
 
-    def errToTH1(s,scale=1):
-        return s.errtoTH1(scale)
+    # def errToTH1(s,scale=1):
+    #     return s.errtoTH1(scale)
 
 
 class Hist2d(object):
