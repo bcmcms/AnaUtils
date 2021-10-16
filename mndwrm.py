@@ -35,6 +35,7 @@ from uproot_methods import TLorentzVectorArray as TLVA
 from scipy.stats import spearmanr
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform as squareform
+import re, pdb
 
 import mplhep as hep
 plt.style.use([hep.style.ROOT,hep.style.CMS]) # For now ROOT defaults to CMS
@@ -50,17 +51,8 @@ pd.options.mode.chained_assignment = None
 
 ##Controls how many epochs the network will train for
 epochs = 50
-##The weights LHE segment split data should be merged by
-#lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401] # old bg
-#lheweights = [1.0,0.33,0.034,0.034,0.024,0.0024,0.00044] #bEnriched bg
-#lheweights = [1,0.259,0.0515,0.01666,0.00905,0.003594,0.001401,1.0,0.33,0.034,0.034,0.024,0.0024,0.00044]
-#nlhe = len(lheweights)
-##Controls whether a network is trained up or loaded from disc
-#LOADMODEL = True
-##Switches tutoring mode on or off
-#TUTOR = False
-##Switches whether training statistics are reported or suppressed (for easier to read debugging)
-#VERBOSE=False
+##Toggles experimental subnet training code
+subnet = False
 ##Switches whether weights are loaded and applied to the post-training statistics,
 ##and what data file they expect to be associated with
 #POSTWEIGHT = True
@@ -97,7 +89,6 @@ def binary_focal_loss(alpha=.25, gamma=2.):
                -K.mean((1 - alpha) * K.pow(pt_0, gamma) * K.log(1. - pt_0))
 
     return binary_focal_loss_fixed
-
 
 def tutor(X_train,X_test,Y_train,Y_test):
     records = {}
@@ -322,7 +313,120 @@ def senscalc(sigv, bgv, sigw):
         edges.append(sensf[sensf['bin'] == i-1][0].max())
     return edges
 
+def distance_corr(var_1, var_2, normedweight, power=1):
+    """
+    https://github.com/gkasieczka/DisCo
+    var_1: First variable to decorrelate (eg mass)
+    var_2: Second variable to decorrelate (eg classifier output)
+    normedweight: Per-example weight. Sum of weights should add up to N (where N is the number of examples)
+    power: Exponent used in calculating the distance correlation
 
+    va1_1, var_2 and normedweight should all be 1D tf tensors with the same number of entries
+
+    Usage: Add to your loss function. total_loss = BCE_loss + lambda * distance_corr
+    """
+    # import pdb; pdb.set_trace()
+    xx = tf.reshape(var_1, [-1, 1])
+    xx = tf.tile(xx, [1, tf.size(var_1)])
+    xx = tf.reshape(xx, [tf.size(var_1), tf.size(var_1)])
+
+    yy = tf.transpose(xx)
+    amat = tf.abs(xx-yy)
+
+    xx = tf.reshape(var_2, [-1, 1])
+    xx = tf.tile(xx, [1, tf.size(var_2)])
+    xx = tf.reshape(xx, [tf.size(var_2), tf.size(var_2)])
+
+    yy = tf.transpose(xx)
+    bmat = tf.abs(xx-yy)
+
+    amatavg = tf.reduce_mean(amat*normedweight, axis=1)
+    bmatavg = tf.reduce_mean(bmat*normedweight, axis=1)
+
+    minuend_1 = tf.tile(amatavg, [tf.size(var_1)])
+    minuend_1 = tf.reshape(minuend_1, [tf.size(var_1), tf.size(var_1)])
+    minuend_2 = tf.transpose(minuend_1)
+    Amat = amat-minuend_1-minuend_2+tf.reduce_mean(amatavg*normedweight)
+    # Amat = K.clip(Amat,K.epsilon(),1)
+
+    minuend_1 = tf.tile(bmatavg, [tf.size(var_2)])
+    minuend_1 = tf.reshape(minuend_1, [tf.size(var_2), tf.size(var_2)])
+    minuend_2 = tf.transpose(minuend_1)
+    Bmat = bmat-minuend_1-minuend_2+tf.reduce_mean(bmatavg*normedweight)
+    # Bmat = K.clip(Bmat,K.epsilon(),1)
+
+    ABavg = tf.reduce_mean(Amat*Bmat*normedweight,axis=1)
+    AAavg = tf.reduce_mean(Amat*Amat*normedweight,axis=1)
+    BBavg = tf.reduce_mean(Bmat*Bmat*normedweight,axis=1)
+
+    if power==1:
+        dCorr = tf.reduce_mean(ABavg*normedweight)/tf.sqrt(tf.reduce_mean(AAavg*normedweight)*tf.reduce_mean(BBavg*normedweight))
+    elif power==2:
+        dCorr = (tf.reduce_mean(ABavg*normedweight))**2/(tf.reduce_mean(AAavg*normedweight)*tf.reduce_mean(BBavg*normedweight))
+    else:
+        dCorr = (tf.reduce_mean(ABavg*normedweight)/tf.sqrt(tf.reduce_mean(AAavg*normedweight)*tf.reduce_mean(BBavg*normedweight)))**power
+    return dCorr
+
+def disco_focal_loss(alpha=.25, gamma=2.,lamb=.1):
+    """
+    Binary form of focal loss.
+      FL(p_t) = -alpha * (1 - p_t)**gamma * log(p_t)
+      where p = sigmoid(x), p_t = p or 1 - p depending on if the label is 1 or 0, respectively.
+    References:
+        https://arxiv.org/pdf/1708.02002.pdf
+    Usage:
+     model.compile(loss=[binary_focal_loss(alpha=.25, gamma=2)], metrics=["accuracy"], optimizer=adam)
+    """
+    def disco_focal_loss_fixed(y_true, y_pred):
+        """
+        :param y_true: A tensor of the same shape as `y_pred`
+        :param y_pred:  A tensor resulting from a sigmoid
+        :return: Output tensor.
+        """
+        # import pdb; pdb.set_trace()
+        target = tf.reshape(y_pred[:,   1:2], [-1,1])
+        y_pred = tf.reshape(y_pred[:,   :1], [-1,1])
+        # y_pred = K.clip(y_pred,K.epsilon(),1)
+        # target = K.clip(target,K.epsilon(),1)
+        normedweight = tf.ones_like(target)
+
+
+        pt_1 = tf.where(tf.equal(y_true, 1), y_pred, tf.ones_like(y_pred))
+        pt_0 = tf.where(tf.equal(y_true, 0), y_pred, tf.zeros_like(y_pred))
+
+        epsilon = K.epsilon()
+        # clip to prevent NaN's and Inf's
+        pt_1 = K.clip(pt_1, epsilon, 1. - epsilon)
+        pt_0 = K.clip(pt_0, epsilon, 1. - epsilon)
+
+        FLout = -K.mean(alpha * K.pow(1. - pt_1, gamma) * K.log(pt_1)) \
+               -K.mean((1 - alpha) * K.pow(pt_0, gamma) * K.log(1. - pt_0))
+
+        DCout = distance_corr(target,y_pred,normedweight,1)
+        print("Debug:")
+        tf.print(FLout, " - ", lamb*DCout, output_stream=sys.stdout)
+        print("-----")
+        try:
+            tf.debugging.assert_all_finite(DCout,'fuck')
+        except: pdb.set_trace()
+
+
+        return FLout + lamb*DCout
+
+    return disco_focal_loss_fixed
+
+def submodel(ndim):
+    layerin = keras.layers.Input(shape=(ndim,),name='layerin')
+    layer = keras.layers.Dense(8, activation=tf.nn.relu) (layerin)
+    layer = keras.layers.Dense(8, activation=tf.nn.relu) (layer)
+    layer = keras.layers.Dense(8, activation=tf.nn.relu) (layer)
+    layerout = keras.layers.Dense(1, activation=tf.nn.sigmoid) (layer)
+
+    lossin = keras.layers.Input(shape=(1,),name='lossin')
+    out = keras.layers.concatenate([layerout,lossin], name='out')
+
+    model = keras.models.Model(inputs=[layerin,lossin],outputs=out,name='model')
+    return model
 
 #%%
 
@@ -346,14 +450,17 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             lheweights = np.divide(ic.bgweight, ic.size)
     else: isLHE=False
 
-    netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','n2b1','submass1','submass2','subtau1','subtau2','nsv']
+    # netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','n2b1','submass1','submass2','subtau1','subtau2','nsv']
+    # netvars = ['pt','eta','CSVV2','DeepB','nsv']
+    # netvars = ['H4qvs','n2b1','submass1','subtau1']
+    netvars = ['mass','msoft','DDBvL','submass2','subtau2']
     l1vars = ['SingleJet180','Mu7_EG23er2p5','Mu7_LooseIsoEG20er2p5','Mu20_EG10er2p5','SingleMu22',
               'SingleMu25','DoubleJet112er2p3_dEta_Max1p6','DoubleJet150er2p5']
     hltvars = ['AK8PFJet500','Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ','Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL',
                'Mu27_Ele37_CaloIdL_MW','Mu37_Ele27_CaloIdL_MW',
                'AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4',
                'DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71']
-    slimvars = ['pt','eta','phi','btagDeepB','puId']
+    slimvars = ['pt','eta','phi','btagDeepB','btagDeepFlavB','puId']
 
 
     ###################
@@ -391,16 +498,30 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
     l3 = 8
     alpha = 0.5
     gamma = 2.2
-    model = keras.Sequential([
-            keras.layers.Dense(l1, activation=tf.nn.relu,input_shape=(len(netvars),)),
-            keras.layers.Dense(l2, activation=tf.nn.relu),
-            keras.layers.Dense(l3, activation=tf.nn.relu),
-            keras.layers.Dense(1, activation=tf.nn.sigmoid),
-            ])
-    optimizer  = keras.optimizers.Adam(learning_rate=0.01)
-    model.compile(optimizer=optimizer,
-                  loss=[binary_focal_loss(alpha, gamma)],
+    if subnet:
+        lamb = 0.01
+        mname = "B"
+        sname = "B"
+        disconame = 'C'
+        model = submodel(5)
+        optimizer  = keras.optimizers.Adam(learning_rate=0.01)
+        model.compile(optimizer=optimizer,
+                  loss=[disco_focal_loss(alpha, gamma, lamb)],
                   metrics=['accuracy'])
+    else:
+        mname = "C"#"weighted"
+        sname = "C"#"weightedscaler"
+        disconame = 'C'
+        model = keras.Sequential([
+                keras.layers.Dense(l1, activation=tf.nn.relu,input_shape=(len(netvars),)),
+                keras.layers.Dense(l2, activation=tf.nn.relu),
+                keras.layers.Dense(l3, activation=tf.nn.relu),
+                keras.layers.Dense(1, activation=tf.nn.sigmoid),
+                ])
+        optimizer  = keras.optimizers.Adam(learning_rate=0.01)
+        model.compile(optimizer=optimizer,
+                      loss=[binary_focal_loss(alpha, gamma)],
+                      metrics=['accuracy'])
     scaler = MinMaxScaler()
 
 
@@ -481,7 +602,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         "subtau1":  Hist(20 ,(0,.5)     ,'subtau1 for 1st subjet of highest pT jet','Fractional Distribution','netplots/subtau1'),
         "subtau2":  Hist(20 ,(0,.5)     ,'subtau1 for 2nd subjet of highest pT jet','Fractional Distribution','netplots/subtau2'),
         'nsv':      Hist(12 ,(-1,11)    ,'# of secondary vertices with dR<0.8 to highest pT jet','Fractional Distribution','netplots/nsv'),
-        'nlep':     Hist(15 ,(0,15)     ,'# of leptons passing cuts','Distribution','netplots/nlep'),
+        'nlep':     Hist(5 ,(-0.5,4.5)     ,'# of leptons passing cuts','Distribution','netplots/nlep'),
         "metpt":    Hist(29 ,(30,300)   ,'MET pT','Fractional Distribution','netplots/metpt'),
 
     }
@@ -581,7 +702,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 bgevents.append(uproot.open(bgfiles[i]).get('Events'))
         else:
             bgf = uproot.open(bgfiles[fnum])
-            bgevents = bgf.get('Events')
+            bgevents = [bgf.get('Events')]
         sigf = uproot.open(sigfiles[fnum])
         sigevents = sigf.get('Events')
 
@@ -615,9 +736,9 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
 
         else:
             if dataflag == -1:
-                bgjets, bgevv = loadjets(PhysObj('bgjets'),PhysObj("bgev"),bgevents)
+                bgjets, bgevv = loadjets(PhysObj('bgjets'),PhysObj("bgev"),bgevents[0])
             else:
-                bgjets, bgevv = loadjets(PhysObj('bgjets'),PhysObj("bgev"),bgevents,True)
+                bgjets, bgevv = loadjets(PhysObj('bgjets'),PhysObj("bgev"),bgevents[0],True)
                 bgevv['extweight'] *= ic.bgweight[fnum]
             bgjets = [bgjets]
             bgevv = [bgevv]
@@ -662,14 +783,14 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             higgs.phi = DataFrame(sigevents.array('GenPart_phi', executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
             higgs.pt =  DataFrame(sigevents.array('GenPart_pt' , executor=executor)[abs(parida)!=25][abs(pdgida)[abs(parida)!=25]==25]).rename(columns=inc)
 
-            slimjets = PhysObj('slimjets')
-            slimjets.eta= DataFrame(sigevents.array('Jet_eta', executor=executor)).rename(columns=inc)
-            slimjets.phi= DataFrame(sigevents.array('Jet_phi', executor=executor)).rename(columns=inc)
-            slimjets.pt = DataFrame(sigevents.array('Jet_pt' , executor=executor)).rename(columns=inc)
-            slimjets.mass=DataFrame(sigevents.array('Jet_mass', executor=executor)).rename(columns=inc)
-            slimjets.DeepB = DataFrame(sigevents.array('Jet_btagDeepB', executor=executor)).rename(columns=inc)
-            slimjets.DeepFB= DataFrame(sigevents.array('Jet_btagDeepFlavB', executor=executor)).rename(columns=inc)
-            slimjets.puid = DataFrame(sigevents.array('Jet_puId', executor=executor)).rename(columns=inc)
+            # slimjets = PhysObj('slimjets')
+            # slimjets.eta= DataFrame(sigevents.array('Jet_eta', executor=executor)).rename(columns=inc)
+            # slimjets.phi= DataFrame(sigevents.array('Jet_phi', executor=executor)).rename(columns=inc)
+            # slimjets.pt = DataFrame(sigevents.array('Jet_pt' , executor=executor)).rename(columns=inc)
+            # slimjets.mass=DataFrame(sigevents.array('Jet_mass', executor=executor)).rename(columns=inc)
+            # slimjets.DeepB = DataFrame(sigevents.array('Jet_btagDeepB', executor=executor)).rename(columns=inc)
+            # slimjets.DeepFB= DataFrame(sigevents.array('Jet_btagDeepFlavB', executor=executor)).rename(columns=inc)
+            # slimjets.puid = DataFrame(sigevents.array('Jet_puId', executor=executor)).rename(columns=inc)
 
 
             ## Figure out how many bs and jets there are
@@ -713,7 +834,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
 
 #           plots['genAmass'].dfill(As.mass)
 
-            ev = Event(bs,sigjets,As,higgs,sigsv)
+            ev = Event(bs,sigjets,As,higgs,sigsv,sigevv,sigl1,sighlt)
         else:
             ev = Event(sigjets,sigsv,sigevv,sigl1,sighlt)
 
@@ -747,10 +868,10 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             bs.cut(bs.pt>5)
             bs.cut(abs(bs.eta)<2.4)
             ev.sync()
-            slimjets.cut(slimjets.DeepB > 0.1241)
-            slimjets.cut(slimjets.DeepFB > 0.277)
-            slimjets.cut(slimjets.puid > 0)
-            slimjets.trimto(sigjets.eta)
+            sigsj.cut(sigsj.btagDeepB > 0.1241)
+            sigsj.cut(sigsj.btagDeepFlavB > 0.277)
+            sigsj.cut(sigsj.puId > 0)
+            sigsj.trimto(sigjets.eta)
 
         #####################
         # Non-Training Cuts #
@@ -829,9 +950,10 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 blist[b] = blist[b][blist[b].rank(axis=1,method='first') == 1]
                 blist[b] = blist[b].rename(columns=lambda x:int(x[4:6]))
 
-            fjets = blist[0][np.isfinite(blist[0]<0.8)].fillna(0)
+            fjets = blist[0]<0.8
+            fjets = fjets.astype(int)
             for i in range(1,4):
-                fjets = fjets + np.isfinite(blist[i][blist[i]<0.8])
+                fjets = fjets + (blist[i]<0.8)
             fjets = fjets.max(axis=1)
             fjets = fjets[fjets==4].dropna()
             sigjets.trimto(fjets)
@@ -847,57 +969,110 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             for prop in jets:
                 jets[prop] = DataFrame(jets[prop].max(axis=1)).rename(columns=inc)
 
+        # # Special region-selection muon cut logic
+        # if (LOADMODEL) and True:#(not passplots):
+        #     muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d','charge','mass','phi','sip3d','mediumId','miniPFRelIso_all')
+        #     muons.ip = abs(muons.dxy / muons.dxyErr)
+        #     mframe = fastdR(sigjets, muons)
+        #     mframe = mframe[muons.pt != 0].dropna(how='all')
+        #     muons.jetdr = mframe
+        #     muons.trimto(sigjets.pt)
+        #     Event(muons).sync()
 
-        # Special region-selection muon cut logic
-        if (LOADMODEL) and True:#(not passplots):
-            muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d','charge','mass','phi','sip3d','mediumId','miniPFRelIso_all')
-            muons.ip = abs(muons.dxy / muons.dxyErr)
-            mframe = fastdR(sigjets, muons)
-            mframe = mframe[muons.pt != 0].dropna(how='all')
-            muons.jetdr = mframe
-            muons.trimto(sigjets.pt)
+        #     bmuons = []
+        #     for i in range(len(bgjets)):
+        #         bmuons.append(PhysObj('Muon',bgfiles[i],'softId','eta','pt','dxy','dxyErr','ip3d','charge','mass','phi','sip3d','mediumId','miniPFRelIso_all'))
+        #         bmuons[i].ip = abs(bmuons[i].dxy / bmuons[i].dxyErr)
+        #         mframe = fastdR(bgjets[i], bmuons[i])
+        #         mframe = mframe[bmuons[i].pt != 0].dropna(how='all')
+        #         bmuons[i].jetdr = mframe
+        #         bmuons[i].trimto(bgjets[i].pt)
+        #         Event(bmuons[i]).sync()
 
-            bmuons = []
-            for i in range(len(bgjets)):
-                bmuons.append(PhysObj('Muon',bgfiles[i],'softId','eta','pt','dxy','dxyErr','ip3d','charge','mass','phi','sip3d','mediumId','miniPFRelIso_all'))
-                bmuons[i].ip = abs(bmuons[i].dxy / bmuons[i].dxyErr)
-                mframe = fastdR(bgjets[i], bmuons[i])
-                mframe = mframe[bmuons[i].pt != 0].dropna(how='all')
-                bmuons[i].jetdr = mframe
-                bmuons[i].trimto(bgjets[i].pt)
+        #     for muon in bmuons + [muons]:
+        #         muon.eta = abs(muon.eta)
+        #         muon.cut(muon.pt > 30)
+        #         muon.cut(abs(muon.eta) < 2.4)
+        #         muon.cut(muon.mediumId > 0.9)
+        #         muon.cut(muon.miniPFRelIso_all < 0.2)
+        #         muon.cut(abs(muon.sip3d) < 4.0)
+        #         muon.cut(muon.jetdr > 0.8)
 
-            for muon in bmuons + [muons]:
-                muon.eta = abs(muon.eta)
-                muon.cut(muon.pt > 30)
-                muon.cut(abs(muon.eta) < 2.4)
-                muon.cut(muon.mediumId > 0.9)
-                muon.cut(muon.miniPFRelIso_all < 0.2)
-                muon.cut(abs(muon.sip3d) < 4.0)
-                muon.cut(muon.jetdr > 0.8)
+        #     elecs = PhysObj('Electron',sigfiles[fnum],'pt','eta','miniPFRelIso_all','sip3d')
+        #     eframe = fastdR(sigjets, muons)
+        #     elecs.jetdr = eframe[elecs.pt != 0].dropna(how='all')
 
-            elecs = PhysObj('Electron',sigfiles[fnum],'pt','eta','miniPFRelIso_all','sip3d')
-            eframe = fastdR(sigjets, muons)
-            elecs.jetdr = eframe[elecs.pt != 0].dropna(how='all')
-            elecs.trimto(sigjets.pt)
+        #     eledoc = sigevents.get("Electron_vidNestedWPBitmap").title.decode()
+        #     elearr = sigevents.array("Electron_vidNestedWPBitmap")
+        #     mats = re.search(r'\((.*?)\)',eledoc).groups()
+        #     eleCuts = mats[0].split(",")
+        #     nbit = int(re.findall(r'(\d+) bits',eledoc)[0])
+        #     testbit = (1<<nbit)-1
+        #     elebits = DataFrame()
+        #     skipflag = False
+        #     # newID = { k:False for k ,v in  dict_eleID.items() }
+        #     for i, c in enumerate(eleCuts):
+        #         if c == 'GsfEleRelPFIsoScaledCut':
+        #             skipflag=True
+        #             continue
+        #         ibit = elearr  >> (nbit * i) & testbit
+        #         elebits[i+1-skipflag] = ibit
+        #     bitframe, tempframe = DataFrame(), DataFrame()
+        #     for i in range(elecs.pt.shape[1]):
+        #         for c in elebits.columns:
+        #             tempframe[c] = elebits[c].str[i]
+        #         bitframe[i+1] = tempframe.min(axis=1)
+        #     elecs.bitframe = bitframe
 
-            belecs = []
-            for i in range(len(bgjets)):
-                belecs.append(PhysObj('Electron',sigfiles[fnum],'pt','eta','miniPFRelIso_all','sip3d'))
-                eframe = fastdR(bgjets[i], bmuons[i])
-                belecs[i].jetdr = eframe[belecs[i].pt != 0].dropna(how='all')
-                belecs[i].trimto(bgjets[i].pt)
 
-            for elec in [elecs] + belecs:
-                elec.eta = abs(elec.eta)
-                elec.cut(elec.pt > 30)
-                elec.cut(abs(elec.eta) < 2.5)
-                elec.cut(elec.miniPFRelIso_all < 0.1)
-                elec.cut(abs(elec.sip3d) < 4.0)
-                elec.cut(elec.jetdr > 0.8)
+        #     elecs.trimto(sigjets.pt)
+        #     Event(elecs).sync()
 
-        sigevv.nlep = DataFrame(np.isfinite(muons.pt).sum(axis=1).add(np.isfinite(elecs.pt).sum(axis=1),fill_value=0)).rename(columns=inc)
-        for i in range(len(bgjets)):
-            bgevv[i].nlep = DataFrame(np.isfinite(bmuons[i].pt).sum(axis=1).add(np.isfinite(belecs[i].pt).sum(axis=1),fill_value=0)).rename(columns=inc)
+        #     belecs = []
+        #     for i in range(len(bgjets)):
+        #         belecs.append(PhysObj('Electron',sigfiles[fnum],'pt','eta','miniPFRelIso_all','sip3d'))
+        #         eframe = fastdR(bgjets[i], bmuons[i])
+        #         belecs[i].jetdr = eframe[belecs[i].pt != 0].dropna(how='all')
+
+        #         eledoc = bgevents[i].get("Electron_vidNestedWPBitmap").title.decode()
+        #         elearr = bgevents[i].array("Electron_vidNestedWPBitmap")
+        #         mats = re.search(r'\((.*?)\)',eledoc).groups()
+        #         eleCuts = mats[0].split(",")
+        #         nbit = int(re.findall(r'(\d+) bits',eledoc)[0])
+        #         testbit = (1<<nbit)-1
+        #         elebits = DataFrame()
+        #         skipflag = False
+        #         # newID = { k:False for k ,v in  dict_eleID.items() }
+        #         for j, c in enumerate(eleCuts):
+        #             if c == 'GsfEleRelPFIsoScaledCut':
+        #                 skipflag=True
+        #                 continue
+        #             ibit = elearr  >> (nbit * j) & testbit
+        #             elebits[j+1-skipflag] = ibit
+        #         bitframe, tempframe = DataFrame(), DataFrame()
+        #         for j in range(belecs[i].pt.shape[1]):
+        #             for c in elebits.columns:
+        #                 tempframe[c] = elebits[c].str[j]
+        #             bitframe[j+1] = tempframe.min(axis=1)
+        #         belecs[i].bitframe = bitframe
+
+        #         belecs[i].trimto(bgjets[i].pt)
+        #         Event(belecs[i]).sync()
+
+        #     for elec in [elecs] + belecs:
+        #         elec.cut(elec.bitframe == 4)
+        #         elec.eta = abs(elec.eta)
+        #         elec.cut(elec.pt > 30)
+        #         elec.cut(abs(elec.eta) < 2.5)
+        #         elec.cut(elec.miniPFRelIso_all < 0.1)
+        #         elec.cut(abs(elec.sip3d) < 4.0)
+        #         elec.cut(elec.jetdr > 0.8)
+
+        # sigevv.nlep = DataFrame(np.isfinite(muons.pt).sum(axis=1).add(np.isfinite(elecs.pt).sum(axis=1),fill_value=0)).rename(columns=inc)
+        # sigevv.cut(sigevv.nlep > 0)
+        # for i in range(len(bgjets)):
+        #     bgevv[i].nlep = DataFrame(np.isfinite(bmuons[i].pt).sum(axis=1).add(np.isfinite(belecs[i].pt).sum(axis=1),fill_value=0)).rename(columns=inc)
+        #     bgevv[i].cut(bgevv[i].nlep > 0)
 
         for e in [ev] + bev:
             e.sync()
@@ -919,7 +1094,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #     ## Remove dR >= 0.8, sum number of remaining vertices
         #     nsvframe[j+1] = np.sum(sjlist[j][sjlist[j]<0.8].fillna(0)/sjlist[j][sjlist[j]<0.8].fillna(0),axis=1)
         sigjets.nsv = DataFrame()
-        sigjets.nsv[1] = np.sum(np.isfinite(nsvframe[nsvframe < 0.8]),axis=1)
+        sigjets.nsv[1] = np.sum(nsvframe < 0.8,axis=1)
 
         # if isLHE:
         for i in range(len(bgjets)):
@@ -935,7 +1110,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             #     bjlist[j] = bjlist[j].rename(columns=lambda x:int(x[9:11]))
             #     nsvframe[j+1] = np.sum(bjlist[j][bjlist[j]<0.8].fillna(0)/bjlist[j][bjlist[j]<0.8].fillna(0),axis=1)
             bgjets[i].nsv = DataFrame()
-            bgjets[i].nsv[1] = np.sum(np.isfinite(nsvframe[nsvframe < 0.8]),axis=1)
+            bgjets[i].nsv[1] = np.sum(nsvframe < 0.8,axis=1)
 
         # else:
         #     bjvdr = computedR(bgjets,bgsv,['jet','sv'])
@@ -956,10 +1131,11 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             e.sync()
 
         for i in range(len(bgjets)):
-            bgsj[i].trimto(bgjets[i].pt)
-            if dataflag != -1:
-                trigtensorcalc(bgjets[i],bgsj[i],bgevv[i],bgl1[i],bghlt[i])
-            else: trigtensorcalc(bgjets[i],bgsj[i],bgevv[i],bgl1[i],bghlt[i],isdata=True)
+            if bgjets[i].pt.shape[0]:
+                bgsj[i].trimto(bgjets[i].pt)
+                if dataflag != -1:
+                    trigtensorcalc(bgjets[i],bgsj[i],bgevv[i],bgl1[i],bghlt[i])
+                else: trigtensorcalc(bgjets[i],bgsj[i],bgevv[i],bgl1[i],bghlt[i],isdata=True)
 
         sigsj.trimto(sigjets.pt)
         if dataflag != 1:
@@ -1016,14 +1192,22 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
 
         bgjetframe = DataFrame()
         extvars = ['event','extweight','npvs','npvsG']
-        if LOADMODEL and True:#(not passplots):
+        if 'pt' in netvars: ptfix = ['phi']
+        else: ptfix = ['phi','pt']
+        if LOADMODEL and False:#(not passplots):
             muvars = ['pt','eta','miniPFRelIso_all','sip3d','jetdr']
             elvars = ['e' + x for x in muvars]
             muvars = ['m' + x for x in muvars]
             extvars += ['nlep','metpt']
+            for obj in [muons] + [elecs]:
+                obj.trimto(sigjets.pt)
+            for i in range(len(bgjets)):
+                bmuons[i].trimto(bgjets[i].pt)
+                belecs[i].trimto(bgjets[i].pt)
         else:
             muvars = []
             elvars = muvars
+            extvars += ['metpt']
         if isLHE:
             bgpieces = []
             wtpieces = []
@@ -1031,7 +1215,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             for i in range(nlhe):
                 tempframe = DataFrame()
                 twgtframe = DataFrame()
-                for prop in netvars + ['phi']:
+                for prop in netvars + ptfix:
                     twgtframe[prop] = bgjets[i][prop][bgjets[i]['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
                 for prop in extvars:
                     twgtframe[prop] = bgevv[i][prop].max(axis=1)
@@ -1039,7 +1223,6 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                     twgtframe[prop] = bmuons[i][prop[1:]][bmuons[i]['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
                 for prop in elvars:
                     twgtframe[prop] = belecs[i][prop[1:]][belecs[i]['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
-
                 if 'eta' in netvars:
                     twgtframe['eta'] = abs(twgtframe['eta'])
 
@@ -1051,14 +1234,14 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 wtpieces.append(twgtframe)
             bgjetframe = pd.concat(bgpieces,ignore_index=True)
             bgrawframe = pd.concat(wtpieces,ignore_index=True)
-            bgjetframe = bgjetframe.dropna()
-            bgrawframe = bgrawframe.dropna()
+            # bgjetframe = bgjetframe.dropna()
+            # bgrawframe = bgrawframe.dropna()
             bgjetframe['val'] = 0
             bgrawframe['val'] = 0
             bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
 
         else:
-            for prop in netvars + ['phi']:
+            for prop in netvars + ptfix:
                 bgjetframe[prop] = bgjets[0][prop][bgjets[0]['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
             for prop in extvars:
                 bgjetframe[prop] = bgevv[0][prop][1]
@@ -1069,6 +1252,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
 
             if 'eta' in netvars:
                 bgjetframe['eta'] = abs(bgjetframe['eta'])
+            bgrawframe = bgjetframe
 
             bgjetframe['val'] = 0
             bgtrnframe = bgjetframe[bgjetframe['event']%2 == 0]
@@ -1076,7 +1260,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #nbg = bgtrnframe.shape[0]
 
         sigjetframe = DataFrame()
-        for prop in netvars + ['phi']:
+        for prop in netvars + ptfix:
             sigjetframe[prop] = sigjets[prop][sigjets['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
         for prop in extvars:
             sigjetframe[prop] = sigevv[prop]
@@ -1098,13 +1282,17 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         sigtrnframe = sigjetframe[sigjetframe['event']%2 == 0]
 
 
-        print(f"{Skey} cut to {sigjetframe.shape[0]} events")
-        print(f"{Bkey} has {bgjetframe.shape[0]} intended events")
+        print(f"{Skey} cut to {sigjetframe.shape[0]} entries")
+        print(f"{Bkey} has {bgrawframe.shape[0]} entries")
 
-        bgjetframe = bgjetframe.reset_index(drop=True)
-        sigjetframe = sigjetframe.reset_index(drop=True)
+        # bgjetframe = bgjetframe.fillna(0)
+        # bgrawframe = bgrawframe.fillna(0)
+        # sigjetframe = sigjetframe.fillna(0)
 
-        extvars = extvars + muvars + elvars + ['val'] + ['phi']
+        # bgjetframe = bgjetframe.reset_index(drop=True)
+        # sigjetframe = sigjetframe.reset_index(drop=True)
+
+        # extvars = extvars + muvars + elvars + ['val'] + ['phi']
 
         #######################
         # Training Neural Net #
@@ -1118,14 +1306,19 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             if dataflag == True:
                 bgjetframe['extweight'] = bgjetframe['extweight'] * np.sum(sigjetframe['extweight'])/np.sum(bgjetframe['extweight'])
 
-            X_inputs = pd.concat([bgjetframe,sigjetframe])
+            X_inputs = pd.concat([bgjetframe,sigjetframe],ignore_index=True)
             W_inputs = X_inputs['extweight']
             Y_inputs = X_inputs['val']
-            X_inputs = X_inputs.drop(extvars,axis=1)
-            model = keras.models.load_model('archive/weighted.hdf5', compile=False) #archive
-            scaler = pickle.load( open("archive/weightedscaler.p", "rb" ) )
+            X_inputs = X_inputs.drop(set(bgjetframe.columns) - set(netvars),axis=1)
+            model = keras.models.load_model(f"archive/{mname}.hdf5", compile=False) #archive
+            scaler = pickle.load( open(f"archive/{sname}.p", "rb" ) )
+            # model = keras.models.load_model('archive/C.hdf5', compile=False) #archive
+            # scaler = pickle.load( open("archive/C.p", "rb" ) )
 
             X_inputs = scaler.transform(X_inputs)
+            if disconame and not subnet:
+                pickle.dump(model.predict(X_inputs),open(f"RUN-{disconame}.p",'wb'))
+
         else:
             X_test = pd.concat([bgjetframe.drop(bgtrnframe.index),sigjetframe.drop(sigtrnframe.index)])
              ##
@@ -1136,43 +1329,74 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 bgtrnframe = pd.concat(bgtrnlst,ignore_index=True)
                 print (f"bg now {bgtrnframe.shape[0]} to sg {sigtrnframe.shape[0]}")
 
-            X_train = pd.concat([bgtrnframe,sigtrnframe])
+            X_train = pd.concat([bgtrnframe,sigtrnframe],ignore_index=True)
             W_test = X_test['extweight']
             W_train = X_train['extweight']
             Y_test = X_test['val']
             Y_train= X_train['val']
-            X_test = X_test.drop(extvars,axis=1)
-            X_train = X_train.drop(extvars,axis=1)
+            X_test = X_test.drop(set(bgjetframe.columns) - set(netvars),axis=1)
+            X_train = X_train.drop(set(bgjetframe.columns) - set(netvars),axis=1)
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
 
             if TUTOR == True:
                 tutor(X_train,X_test,Y_train,Y_test)
                 sys.exit()
-            else: history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=False)
+            elif subnet:
+                discotr = pickle.load(open(f"archive/TR-{disconame}.p",'rb'))
+                discote = pickle.load(open(f"archive/TE-{disconame}.p",'rb'))
+                X_train = [X_train, discotr]
+                X_test = [X_test, discote]
+                history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=False)
+                rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test)[:,0].ravel())
+                trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train)[:,0].ravel())
+                test_loss, test_acc = model.evaluate(X_test, Y_test)
+                print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
+                model.save(f"{mname}.hdf5")
+                pickle.dump(scaler, open(f"{sname}.p", "wb"))
+                plt.clf()
+                plt.plot([0,1],[0,1],'k--')
+                plt.plot(rocx,rocy,'red')
+                plt.plot(trocx,trocy,'b:')
+                plt.xlabel('False Positive Rate')
+                plt.ylabel('True Positive Rate')
+                plt.legend(['y=x','Validation','Training'])
+                plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
+                plt.savefig(plots['Distribution'].fname+'ROC')
+                sys.exit()
 
-            rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
-            trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
-            test_loss, test_acc = model.evaluate(X_test, Y_test)
-            print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
+            else:
+                history = model.fit(X_train, Y_train, epochs=epochs, batch_size=5128,shuffle=True,verbose=False)
+                rocx, rocy, roct = roc_curve(Y_test, model.predict(X_test).ravel())
+                trocx, trocy, troct = roc_curve(Y_train, model.predict(X_train).ravel())
+                test_loss, test_acc = model.evaluate(X_test, Y_test)
+                print('Test accuracy:', test_acc,' AOC: ', auc(rocx,rocy))
+                if disconame:
+                    pickle.dump(model.predict(X_train),open(f"TR-{disconame}.p",'wb'))
+                    pickle.dump(model.predict(X_test),open(f"TE-{disconame}.p",'wb'))
+                    model.save(f"{mname}.hdf5")
 
         passnum = 0.6
         ##################################
         # Analyzing and Plotting Outputs #
         ##################################
 
-
+        varlist = netvars + muvars + elvars + ['npvs','npvsG','metpt']#,'nlep']
 
         if LOADMODEL:
-            diststt = model.predict(X_inputs[Y_inputs==1])
-            distbtt  = model.predict(X_inputs[Y_inputs==0])
+            if subnet:
+                diststt = model.predict([X_inputs[Y_inputs==1],Y_inputs[Y_inputs==1]])[:,0]
+                distbtt = model.predict([X_inputs[Y_inputs==0],Y_inputs[Y_inputs==0]])[:,0]
+            else:
+                diststt = model.predict(X_inputs[Y_inputs==1])
+                distbtt = model.predict(X_inputs[Y_inputs==0])
         else:
             diststr = model.predict(X_train[Y_train==1])
             distste = model.predict(X_test[Y_test==1])
             distbtr = model.predict(X_train[Y_train==0])
             distbte = model.predict(X_test[Y_test==0])
-            diststt = model.predict(scaler.transform(sigjetframe.drop(extvars,axis=1)))
-            distbtt = model.predict(scaler.transform(bgjetframe.drop(extvars,axis=1)))
+            diststt = model.predict(scaler.transform(sigjetframe.drop(set(sigjetframe.columns) - set(netvars),axis=1)))
+            distbtt = model.predict(scaler.transform(bgjetframe.drop(set(bgjetframe.columns) - set(netvars),axis=1)))
 
 
         if LOADMODEL:
@@ -1198,6 +1422,43 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
 
             plots['SensS'].fill(diststt,W_inputs[Y_inputs==1])
             plots["SensB"].fill(distbtt,W_inputs[Y_inputs==0])
+
+            # #############
+
+            ## Store the output confidence values and their weights
+            distbf = DataFrame(distbtt)
+            distbf['W'] = W_inputs[Y_inputs==0].reset_index(drop=True)
+            ## Sort both of them together by the confidence values
+            distbf = distbf.sort_values(by=[0])
+            ## Store the cumulative sum of the weights
+            distbf['W_csum'] = distbf.W.cumsum()
+            ## Decide what weighted interval each volume should encompass
+            isize = distbf.W_csum.max() / 10
+            ## label which of those intervals each event falls into
+            distbf['bin'] = (distbf.W_csum / isize).dropna().apply(math.floor)
+            temp = []
+            for i in range(1,10):
+                temp.append(distbf[distbf['bin']==i-1][0].max())
+
+            saveball = {
+                'distbf':distbf,
+                'distsf':distsf,
+                "SensS":plots["SensS"][1],
+                "SensB":temp,
+                "WS":W_inputs[Y_inputs==1],
+                "WB":W_inputs[Y_inputs==0],
+                }
+            pickle.dump(saveball,open('saveball.p','wb'))
+
+            # for i in range(1,10):
+            #     plots['SensS'][1][i] = distbf[distbf['bin']==i-1][0].max()
+            #     plots['SensB'][1][i] = plots['SensS'][1][i]
+
+
+            # plots['SensS'].fill(diststt,W_inputs[Y_inputs==1])
+            # plots["SensB"].fill(distbtt,W_inputs[Y_inputs==0])
+
+            # ########
 
         elif not passplots:
             hist = DataFrame(history.history)
@@ -1234,7 +1495,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             plt.savefig(plots['Distribution'].fname+'ROC')
 
 
-        for col in netvars + muvars + elvars + ['npvs','npvsG','metpt','nlep']:
+        for col in varlist:
             if not passplots:
                 vplots['BG'+col].fill(bgjetframe[col],bgjetframe['extweight'])
                 vplots['SG'+col].fill(sigjetframe[col],sigjetframe['extweight'])
@@ -1252,11 +1513,12 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             p.ival = sum(p[0])
             p.ndivide(sum(p[0]))
 
-    if dataflag == True:
-        for i in range(len(plots['DistSte'][0])):
-            if plots['DistSte'][1][i] >= passnum:
-                plots['DistSte'][0][i] = 0
-                plots['DistSte'].ser[i] = 0
+    ## Blinding control
+    # if dataflag == True:
+    #     for i in range(len(plots['DistSte'][0])):
+    #         if plots['DistSte'][1][i] >= passnum:
+    #             plots['DistSte'][0][i] = 0
+    #             plots['DistSte'].ser[i] = 0
 
     if LOADMODEL:
         leg = [Sname,Bname]
@@ -1274,7 +1536,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         plots['DistributionL'].plot(same=True,logv=True,legend=leg)
         plots['SensS'].make(linestyle='-',logv=True,**plargs[Skey])
         plots['SensB'].xlabel = f"Confidence (S={Sens})"
-        plots['SensB'].plot(legend=leg,same=True,linestyle=':',logv=True,**plargs[Bkey])
+        plots['SensB'].plot(legend=leg,same=True,linestyle=':',logv=True,ylim=(0.01,1),**plargs[Bkey])
     elif not passplots:
         leg = ['Signal (training)','Background (training)','Signal (testing)', 'Background(testing)']
 
@@ -1317,7 +1579,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             for col in netvars:
                 for plot in vplots:
                     vplots[plot].ndivide(sum(abs(vplots[plot][0]+.0001)))
-        for col in netvars + muvars + elvars + ['npvs','npvsG','metpt','nlep']:
+        for col in varlist:
             plt.clf()
             vplots['SG'+col].make(linestyle='-',**plargs[Skey])
             vplots['BG'+col].make(linestyle=':',**plargs[Bkey],error=dataflag)
@@ -1338,7 +1600,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
 
     if not LOADMODEL:
         model.save('weighted.hdf5')
-        pickle.dump(scaler, open("weightedscaler.p", "wb"))
+        pickle.dump(scaler, open(f"{sname}.p", "wb"))
 
     elif not passplots:
         arcdict = {"plots":plots,"vplots":vplots}
@@ -1354,10 +1616,15 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         if setname:
             pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/'+setname+'.p', "wb"))
         else: pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/arcdict.p', "wb"))
+        # pickle.dump(sigjetframe,open('sigjetframe.p','wb'))
+        # pickle.dump(bgjetframe,open('bgjetframe.p','wb'))
+        pickle.dump(diststt, open('diststt.p','wb'))
+        pickle.dump(distbtt, open('distbtt.p','wb'))
 
 
         datalist = []
-        for frame in [sigjetframe.drop(extvars,axis=1),bgjetframe.drop(extvars,axis=1)]:
+        for frame in [sigjetframe.drop(set(sigjetframe.columns) - set(netvars),axis=1),
+                      bgjetframe.drop(set(bgjetframe.columns) - set(netvars),axis=1)]:
             datalist.append(spearmanr(frame).correlation)
         datalist.append(datalist[0] - datalist[1])
 

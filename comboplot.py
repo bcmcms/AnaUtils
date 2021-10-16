@@ -14,10 +14,12 @@ from ROOT import TFile
 #import numpy as np
 #from analib import Hist
 namelist = ['bEnriched','bGen','TTbar','WJets','ZJets','QCDinclusive']
-plotnames = ['pt', 'eta', 'phi', 'mass', 'CSVV2', 'DeepB', 'msoft', 'DDBvL', 
-             'H4qvs', 'npvs', 'npvsG', 'mpt', 'meta', 'mip', 'n2b1', 
+plotnames = ['pt', 'eta', 'phi', 'mass', 'CSVV2', 'DeepB', 'msoft', 'DDBvL',
+             'H4qvs', 'npvs', 'npvsG', 'mpt', 'meta', 'mip', 'n2b1',
              'submass1', 'submass2', 'subtau1', 'subtau2', 'nsv','Dist']
-             #'mmsum','mptsum','metasum','mqmpt','mqppt','mqmeta','mqpeta','mqmip3d','mqpip3d','mqmsip3d','mqpsip3d','MuSumvJetpT','MuQmvJetpT','MuQpvJetpT']
+if True:
+    plotnames += ['metpt','nlep','mpt','meta','mjetdr','mminiPFRelIso_all','msip3d',
+                  'ept','eeta','ejetdr','eminiPFRelIso_all','esip3d']
 colorlist = ['red','orange','yellow','green','skyblue','mediumpurple','plum']
 nlen = len(namelist)
 ## Load pickled dictionaries of plots
@@ -49,6 +51,10 @@ for pname in plotnames:
     combodict.update({pname:[cp.deepcopy(arclist[ilist[0]]['vplots']["BG"+pname])]})
     for i in range(1,nlen):
         temphist = cp.deepcopy(arclist[ilist[i]]['vplots']["BG"+pname])
+
+        # np.nan_to_num(temphist[0])
+        # np.nan_to_num()
+
         temphist.add(combodict[pname][i-1])
         combodict[pname].append(temphist)
     arcdata['vplots'][f"SG{pname}"].fname = f"Comboplots/C{pname}"
@@ -59,7 +65,7 @@ for pname in plotnames:
         arcdata['vplots'][f"SG{pname}"].xlabel = "Confidence"
         arcdata['vplots'][f"SG{pname}"].ylabel = 'Fractional Distribution'
         arcdata['vplots'][f"SG{pname}"].ser *= 0
-        
+
 
 ## Generate a dictionary of ratio plots
 ratiodict = {}
@@ -73,7 +79,7 @@ for pname in plotnames:
     temphist.ser[np.isinf(temphist.ser)] = np.nan
     ratiodict.update({pname:temphist})
 ratiodict["Dist"].ser *= 0
-    
+
 ## Prepare the Signal MC
 sigdict = {}
 for pname in plotnames:
@@ -82,7 +88,7 @@ for pname in plotnames:
     sigdict[pname].ival = sigdict[pname][0].sum()
     sigdict[pname][0] *= sigdict[pname].mult
     sigdict[pname].xlabel, sigdict[pname].ylabel, sigdict[pname].fname = '','',''
-    
+
 bgnum, signum = 0,0
 # ## Create ROOT file for Combine
 # os.remove('Combined.root')
@@ -95,7 +101,7 @@ bgnum, signum = 0,0
 # for i in ilist:
 #     hdict[i] = arclist[i]['plots']['DistBte'].toTH1(namelist[i]+'BG', arclist[i]['vplots']['BGCSVV2'][0].sum())
 #     bgnum += arclist[i]['plots']['DistBte'][0][-10:].sum() * arclist[i]['vplots']['BGCSVV2'][0].sum()
-    
+
 # rfile.Write()
 # # th1d.SetDirectory(0)
 # # th1s.SetDirectory(0)
@@ -112,7 +118,7 @@ for i in ilist[::-1]:
     leg.append(f"{namelist[i]} ({round(arclist[i]['vplots']['BGCSVV2'][0].sum())})")
 
 
-    
+
 ## Plot each layer of plots, from back to front
 lv = False
 for pname in plotnames + ["DistL"]:
@@ -120,7 +126,7 @@ for pname in plotnames + ["DistL"]:
         pname = "Dist"
         arcdata['vplots']["SGDist"].fname += "L"
         # ratiodict['Dist']["Dist"].fname += "L"
-        lv = True
+        lv = 'set'
     plt.clf()
     fig, axis = plt.subplots(2,1,sharex=True,gridspec_kw={'height_ratios':[3,1]})
     for layer in range(nlen-1,-1,-1):
@@ -128,8 +134,8 @@ for pname in plotnames + ["DistL"]:
     sigdict[pname].make(color='r',htype='step',parent=axis[0],logv=lv)
     ratiodict[pname].plot(same=True,color='k',htype='err',parent=axis[1],clean=True,ylim=[-0.5,0.5])
     arcdata['vplots'][f"SG{pname}"].plot(same=True,legend=leg,color='k',htype='err',parent=axis[0],logv=lv)
-    
-        
-        
-    
+
+
+
+
     #combodict[pname][0].plot(same=True,legend=leg,color=colorlist[0],htype='bar')

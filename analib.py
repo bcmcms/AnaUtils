@@ -191,7 +191,10 @@ class Hist(object):
             plot = parent.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.ser),fmt=f".{color}",
                         color=color,linewidth=2,capsize=3)
             if logv:
-                parent.yscale('log')
+                if logv == 'set':
+                    parent.set_yscale('log')
+                else:
+                    parent.yscale('log')
             return plot
         plot = parent.hist(s.hs[1][:-1],s.hs[1],weights=s.hs[0],
                         log=logv,histtype=htype,color=color,linestyle=linestyle,linewidth=2)
@@ -218,7 +221,7 @@ class Hist(object):
             args['parent'].grid(True)
             if not clean: hep.cms.label(loc=0,year='2018',ax=args['parent'])
             if legend:
-                args['parent'].legend(legend,loc=8)
+                args['parent'].legend(legend,loc=0)
             if ylim:
                 args['parent'].set_ylim(ylim)
             if s.xlabel != '':
@@ -229,7 +232,7 @@ class Hist(object):
             plt.grid(True)
             hep.cms.label(loc=0,year='2018')
             if legend:
-                 plt.legend(legend,loc=8)
+                 plt.legend(legend,loc=0)
             if ylim:
                 plt.ylim(ylim)
             if s.xlabel != '':
@@ -274,10 +277,10 @@ class Hist(object):
 
 
 class Hist2d(object):
-    def __init__(s,sizes,bounds,xlabel='',ylabel='',fname='',title=''):
+    def __init__(s,sizes,bounds='',xlabel='',ylabel='',fname='',title=''):
         s.sizes = sizes
         s.bounds = bounds
-        s.hs = [plt.hist2d([],[],sizes,bounds)[0],plt.hist2d([],[],sizes,bounds)[1],plt.hist2d([],[],sizes,bounds)[2]]#,plt.hist2d([],[],sizes,bounds)]
+        s.hs = [plt.hist2d([],[],sizes,bounds)[0],plt.hist2d([],[],sizes,bounds)[1],plt.hist2d([],[],sizes,bounds)[2]]
         s.xlabel = xlabel
         s.ylabel = ylabel
         s.title = title
@@ -322,17 +325,19 @@ class Hist2d(object):
         out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth)
         return out
 
-    def plot(s,logv=False,text=False,empty=False,*args,**kwargs):
+    def plot(s,logv=False,text=False,empty=False,tlen=3,*args,**kwargs):
         if not empty:
             s.make(*args,**kwargs)
         #print(s.hs[0])
         #print(s.hs[1])
         #print(s.hs[2])
         if text:
-            strarray = s.hs[0].round(3).astype(str)
+            strarray = s.hs[0].round(tlen).astype(str)
             for i in range(len(s.hs[1])-1):
                 for j in range(len(s.hs[2])-1):
-                    plt.text(s.hs[1][i]+0.5,s.hs[2][j]+0.5, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=9).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
+                    hf = (s.hs[1][i+1] - s.hs[1][i])/2
+                    vf = (s.hs[2][j+1] - s.hs[2][j])/2
+                    plt.text(s.hs[1][i]+hf,s.hs[2][j]+vf, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=9).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
         else:
             plt.colorbar()
         if s.xlabel != '':
