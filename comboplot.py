@@ -5,30 +5,40 @@ import matplotlib.pyplot as plt
 import copy as cp
 import numpy as np
 import sys, os
+from analib import Hist as histl
 
 # from analib import th1f as TH1F
 # from analib import tfile as TFile
 
 from ROOT import TFile
+class Hist(histl):
+    pass
 
 #import numpy as np
 #from analib import Hist
-namelist = ['bEnriched','bGen','TTbar','WJets','ZJets','QCDinclusive']
+namelist = ['bEnriched','bGen','bInc','TTbar','WJets','ZJets']
 plotnames = ['pt', 'eta', 'phi', 'mass', 'CSVV2', 'DeepB', 'msoft', 'DDBvL',
              'H4qvs', 'npvs', 'npvsG', 'mpt', 'meta', 'mip', 'n2b1',
              'submass1', 'submass2', 'subtau1', 'subtau2', 'nsv','Dist']
-if True:
+if False:
     plotnames += ['metpt','nlep','mpt','meta','mjetdr','mminiPFRelIso_all','msip3d',
                   'ept','eeta','ejetdr','eminiPFRelIso_all','esip3d']
 colorlist = ['red','orange','yellow','green','skyblue','mediumpurple','plum']
 nlen = len(namelist)
 ## Load pickled dictionaries of plots
+flatdict = pickle.load(open('Snetplots/flatdict.p','rb'))
+flatnames = ['FA','FB','FC','AB','AC','BC']
+for name in namelist + ['Data']:
+    for key in ['sFA','sFB','sFC','sAB','sAC','sBC','bFA','bFB','bFC','bAB','bAC','bBC']:
+        if key[0] == 's': flatdict[name][f"SG{key[1:]}"] = flatdict[name].pop(key)
+        else: flatdict[name][f"BG{key[1:]}"] = flatdict[name].pop(key)
 arclist = []
 for name in namelist:
     arclist.append(pickle.load(open(f"Snetplots/GGH_HPT vs {name}.p",'rb')))
 arcdata = pickle.load(open("Dnetplots/JetHT vs Combined QCD.p",'rb'))
 arcdata['vplots'].update({'SGDist':arcdata['plots']['DistSte']})
 arcdata['vplots']['SGDist'][0] *= arcdata['vplots']["SGCSVV2"][0].sum()
+arcdata['vplots'].update(flatdict['Data'])
 ## Generate an index list
 ilist = []
 for i in range(nlen):
@@ -36,6 +46,7 @@ for i in range(nlen):
     arclist[i]['vplots'].update({"BGDist":arclist[i]['plots']['DistBte']})
     arclist[i]['vplots'].update({"SGDist":arclist[i]['plots']['DistSte']})
     arclist[i]['vplots']["BGDist"][0] *= arclist[i]['vplots']['BGCSVV2'][0].sum()
+    arclist[i]['vplots'].update(flatdict[namelist[i]])
 ## Re-arrange the index list from lowest to highest contribution
 isorted=False
 while(not isorted):
@@ -47,7 +58,7 @@ while(not isorted):
 
 ## Create a dictionary of plots, containing lists of increasingly stacked plots for each plot type
 combodict = {}
-for pname in plotnames:
+for pname in plotnames + flatnames:
     combodict.update({pname:[cp.deepcopy(arclist[ilist[0]]['vplots']["BG"+pname])]})
     for i in range(1,nlen):
         temphist = cp.deepcopy(arclist[ilist[i]]['vplots']["BG"+pname])
@@ -58,8 +69,10 @@ for pname in plotnames:
         temphist.add(combodict[pname][i-1])
         combodict[pname].append(temphist)
     arcdata['vplots'][f"SG{pname}"].fname = f"Comboplots/C{pname}"
-    if pname != 'Dist':
+    if pname != 'Dist' and pname not in flatnames:
         arcdata['vplots'][f"SG{pname}"].xlabel = arclist[0]['vplots'][pname].xlabel
+        arcdata['vplots'][f"SG{pname}"].ylabel = 'events'
+    elif pname in flatnames:
         arcdata['vplots'][f"SG{pname}"].ylabel = 'events'
     else:
         arcdata['vplots'][f"SG{pname}"].xlabel = "Confidence"
@@ -69,7 +82,7 @@ for pname in plotnames:
 
 ## Generate a dictionary of ratio plots
 ratiodict = {}
-for pname in plotnames:
+for pname in plotnames + flatnames:
     temphist = cp.deepcopy(arcdata['vplots'][f"SG{pname}"])#combodict[pname][-1])
     temphist = temphist.sub(combodict[pname][-1],split=True).divideby(combodict[pname][-1])
     temphist.fname = ''
@@ -82,7 +95,7 @@ ratiodict["Dist"].ser *= 0
 
 ## Prepare the Signal MC
 sigdict = {}
-for pname in plotnames:
+for pname in plotnames + flatnames:
     sigdict.update({pname: cp.deepcopy(arclist[0]['vplots']["SG"+pname])})
     sigdict[pname].mult = np.sum(combodict[pname][-1][0]) / np.sum(sigdict[pname][0])
     sigdict[pname].ival = sigdict[pname][0].sum()
@@ -121,7 +134,7 @@ for i in ilist[::-1]:
 
 ## Plot each layer of plots, from back to front
 lv = False
-for pname in plotnames + ["DistL"]:
+for pname in plotnames + ["DistL"] + flatnames:
     if pname == "DistL":
         pname = "Dist"
         arcdata['vplots']["SGDist"].fname += "L"

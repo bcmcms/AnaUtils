@@ -174,12 +174,21 @@ class Hist(object):
         return s
 
     ## Divides the histogram's bins, and its squared uncertainty sum, by a number.
-    def ndivide(s,num=1):
+    def ndivide(s,num=1,split=False):
+        if split:
+            s = cp.deepcopy(s)
         if num == 0:
             raise Exception(f"You tried to divide {s.fname} by 0")
         s.hs[0] = s.hs[0]/num
         s.ser = s.ser/(num*num)
         return s
+
+    # def nmulti(s,num=1,split=False):
+    #     if split:
+    #         s = cp.deepcopy(s)
+    #     s.hs[0] = s.hs[0]*num
+    #     s.ser = s.ser*(num*num)
+    #     return s
 
     ## Creates and returns a pyplot-compatible histogram object
     def make(s,logv=False,htype='bar',color=None,linestyle='solid',error=False,parent=plt):
@@ -221,7 +230,7 @@ class Hist(object):
             args['parent'].grid(True)
             if not clean: hep.cms.label(loc=0,year='2018',ax=args['parent'])
             if legend:
-                args['parent'].legend(legend,loc=0)
+                args['parent'].legend(legend,loc=4)
             if ylim:
                 args['parent'].set_ylim(ylim)
             if s.xlabel != '':
@@ -232,7 +241,7 @@ class Hist(object):
             plt.grid(True)
             hep.cms.label(loc=0,year='2018')
             if legend:
-                 plt.legend(legend,loc=0)
+                 plt.legend(legend,loc=4)
             if ylim:
                 plt.ylim(ylim)
             if s.xlabel != '':

@@ -1514,11 +1514,11 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             p.ndivide(sum(p[0]))
 
     ## Blinding control
-    # if dataflag == True:
-    #     for i in range(len(plots['DistSte'][0])):
-    #         if plots['DistSte'][1][i] >= passnum:
-    #             plots['DistSte'][0][i] = 0
-    #             plots['DistSte'].ser[i] = 0
+    if dataflag == True:
+        for i in range(len(plots['DistSte'][0])):
+            if plots['DistSte'][1][i] >= passnum:
+                plots['DistSte'][0][i] = 0
+                plots['DistSte'].ser[i] = 0
 
     if LOADMODEL:
         leg = [Sname,Bname]
