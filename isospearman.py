@@ -145,7 +145,9 @@ for f in folders:
     sigframe ["Fbin"], bgframe["Fbin"] = 5, 5
     bgframe["Abin"], bgframe["Bbin"], bgframe["Cbin"] = 5, 5, 5
     sigframe["Abin"], sigframe["Bbin"], sigframe["Cbin"] = 5, 5, 5
-
+    ABCtensor = {}
+    for i in range(5):
+        ABCtensor.update({i:cp.deepcopy(distplots["bAB"])})
     for i in range(5,0,-1):
         sigframe["Abin"][sigframe["A"] <= Adat["SensB"][i]] = i-1
         sigframe["Bbin"][sigframe["B"] <= Bdat["SensB"][i]] = i-1
@@ -165,6 +167,9 @@ for f in folders:
     distplots["bAB"].fill(bgframe["A"],bgframe["B"],Adat['WB'])
     distplots["bAC"].fill(bgframe["A"],bgframe["C"],Adat['WB'])
     distplots["bBC"].fill(bgframe["B"],bgframe["C"],Adat['WB'])
+
+    for i in range(5):
+        ABCtensor[i].fill(bgframe["A"][bgframe["Cbin"] == i],bgframe["B"][bgframe["Cbin"] == i],Adat['WB'][bgframe["Cbin"] == i])
 
     for p in distplots:
         distplots[p][1] = [0,1,2,3,4,5]
@@ -198,12 +203,13 @@ for f in folders:
                 # qdict[net[n]][b]["sAC"].fill(sigframe["C"][bgframe["Abin"] == i] + i, tempwS[bgframe["Abin"] == i])
                 # qdict[net[n]][b]["sBC"].fill(sigframe["C"][bgframe["Bbin"] == i] + i, tempwS[bgframe["Bbin"] == i])
     vdict = {}
-    for n in ["FA","FB","FC"]:
+    for n in ["AB","AC","BC"]:#,"FA","FB","FC"]:
         vdict.update({n:{}})
         for sub in ["AB","AC","BC"]:
             vdict[n].update({sub:{}})
             for l in sub:
                 vdict[n][sub].update({l:{}})
+                test = cp.deepcopy(bgframe["W"])
                 for b in range(5):
                     vdict[n][sub][l].update({b:cp.deepcopy(flatplots[f"b{n}"])})
                     for i in range(5):
@@ -211,11 +217,17 @@ for f in folders:
                         for j in range(5):
                             if l == sub[0]:
                                 tempwB[(bgframe[f"{l}bin"] == b) & (bgframe[f"{sub[1]}bin"] == j)] *= distplots[f"b{sub}"][0][b][j]
+                                if i == 0:
+                                    test[(bgframe[f"{l}bin"] == b) & (bgframe[f"{sub[1]}bin"] == j)] *= distplots[f"b{sub}"][0][b][j]
                                 debugdict.update({f"{n}{sub}{l}{b}{j}":distplots[f"b{sub}"][0][j][b]})
                             else:
                                 tempwB[(bgframe[f"{l}bin"] == b) & (bgframe[f"{sub[0]}bin"] == j)] *= distplots[f"b{sub}"][0][j][b]
+                                # test[(bgframe[f"{l}bin"] == b) & (bgframe[f"{sub[0]}bin"] == j)] *= distplots[f"b{sub}"][0][j][b]
                                 debugdict.update({f"{n}{sub}{l}{b}{j}":distplots[f"b{sub}"][0][j][b]})
                         vdict[n][sub][l][b].fill(bgframe[f"{n[-1]}"][bgframe[f"{n[0]}bin"] == i] + i, tempwB[bgframe[f"{n[0]}bin"] == i])
+                vdict[n][sub][l].update({"F":cp.deepcopy(flatplots[f"b{n}"])})
+                for i in range(5):
+                    vdict[n][sub][l]["F"].fill(bgframe[f"{n[-1]}"][bgframe[f"{n[0]}bin"] == i] + i, test[bgframe[f"{n[0]}bin"] == i])
 
     for i in range(5):
         flatplots["sFA"].fill(sigframe["A"][sigframe["Fbin"] == i] + i, sigframe["W"][sigframe["Fbin"] == i])
@@ -282,9 +294,11 @@ for f in folders:
                     tempratio[0] /= tempratio[0]
                 tempratio.plot(same=True,htype='step',legend=leg,color='black')
         plt.clf()
-        for n in ["FA","FB","FC"]:
+        for n in ["AB","AC","BC"]:#,"FA","FB","FC"]:
             for sub in ["AB","AC","BC"]:
                 for l in sub:
+                    vdict[n][sub][l]["F"].fname = f"ratio/{f.split('/')[-2]}_plot{n}_weight{sub}_q{l}FUp"
+                    vdict[n][sub][l]["F"].plot(htype='step',color='black')
                     for b in range(5):
                         tempdown = cp.deepcopy(flatplots[f"b{n}"])
                         if RATIO:
