@@ -67,7 +67,7 @@ outdict = {}
 ## Create ROOT file for Combine
 os.remove('SubNet_Combined.root')
 rfile = TFile('SubNet_Combined.root','UPDATE')
-th1b, quantsys = [], []
+th1b, quantsys, th1s = [], [], []
 # folders = ['Diststore/Data/']
 
 for f in folders:
@@ -168,8 +168,19 @@ for f in folders:
     distplots["bAC"].fill(bgframe["A"],bgframe["C"],Adat['WB'])
     distplots["bBC"].fill(bgframe["B"],bgframe["C"],Adat['WB'])
 
+    tsum = 0
     for i in range(5):
         ABCtensor[i].fill(bgframe["A"][bgframe["Cbin"] == i],bgframe["B"][bgframe["Cbin"] == i],Adat['WB'][bgframe["Cbin"] == i])
+        tsum += ABCtensor[i][0].sum()
+    for i in range(5):
+        ABCtensor[i][0] /= (tsum / 125)
+
+    bgframe['3DW'] = 0
+    for c in range(5):
+        for b in range(5):
+            for a in range(5):
+                bgframe['3DW'][(bgframe['Abin'] == a) & (bgframe['Bbin'] == b) & (bgframe['Cbin'] == c)] = 1/ABCtensor[c][0][a][b]
+    bgframe['3DW'] *= bgframe['W']
 
     for p in distplots:
         distplots[p][1] = [0,1,2,3,4,5]
@@ -189,6 +200,8 @@ for f in folders:
             tempwB[bgframe[f"{net[n]}bin"] == b] *= 1.5
             for key in flatplots:
                 qdict[net[n]][b].update({key:cp.deepcopy(flatplots[key])})
+            for s in net:
+                qdict[net[n]][b].update({f"bF{s}3D":cp.deepcopy(flatplots[f"bF{s}"])})
             for i in range(5):
                 qdict[net[n]][b]["bAB"].fill(bgframe["B"][bgframe["Abin"] == i] + i, tempwB[bgframe["Abin"] == i])
                 qdict[net[n]][b]["bAC"].fill(bgframe["C"][bgframe["Abin"] == i] + i, tempwB[bgframe["Abin"] == i])
@@ -196,6 +209,9 @@ for f in folders:
                 qdict[net[n]][b]["bFA"].fill(bgframe["A"][bgframe["Fbin"] == i] + i, tempwB[bgframe["Fbin"] == i])
                 qdict[net[n]][b]["bFB"].fill(bgframe["B"][bgframe["Fbin"] == i] + i, tempwB[bgframe["Fbin"] == i])
                 qdict[net[n]][b]["bFC"].fill(bgframe["C"][bgframe["Fbin"] == i] + i, tempwB[bgframe["Fbin"] == i])
+                for s in net:
+                    qdict[net[n]][b][f"bF{s}3D"].fill(bgframe[f"{s}"][bgframe["Fbin"] == i] + i, bgframe['3DW'][bgframe["Fbin"] == i])
+                    qdict[net[n]][b][f"bF{s}3D"].title = f"Net{s}_F3D"
                 # qdict[net[n]][b]["sFA"].fill(sigframe["A"][bgframe["Fbin"] == i] + i, tempwS[bgframe["Fbin"] == i])
                 # qdict[net[n]][b]["sFB"].fill(sigframe["B"][bgframe["Fbin"] == i] + i, tempwS[bgframe["Fbin"] == i])
                 # qdict[net[n]][b]["sFC"].fill(sigframe["C"][bgframe["Fbin"] == i] + i, tempwS[bgframe["Fbin"] == i])
@@ -203,7 +219,7 @@ for f in folders:
                 # qdict[net[n]][b]["sAC"].fill(sigframe["C"][bgframe["Abin"] == i] + i, tempwS[bgframe["Abin"] == i])
                 # qdict[net[n]][b]["sBC"].fill(sigframe["C"][bgframe["Bbin"] == i] + i, tempwS[bgframe["Bbin"] == i])
     vdict = {}
-    for n in ["AB","AC","BC"]:#,"FA","FB","FC"]:
+    for n in ["AB","AC","BC","FA","FB","FC"]:
         vdict.update({n:{}})
         for sub in ["AB","AC","BC"]:
             vdict[n].update({sub:{}})
@@ -226,16 +242,26 @@ for f in folders:
                                 debugdict.update({f"{n}{sub}{l}{b}{j}":distplots[f"b{sub}"][0][j][b]})
                         vdict[n][sub][l][b].fill(bgframe[f"{n[-1]}"][bgframe[f"{n[0]}bin"] == i] + i, tempwB[bgframe[f"{n[0]}bin"] == i])
                 vdict[n][sub][l].update({"F":cp.deepcopy(flatplots[f"b{n}"])})
+                vdict[n][sub][l].update({"3D":cp.deepcopy(flatplots[f"b{n}"])})
                 for i in range(5):
                     vdict[n][sub][l]["F"].fill(bgframe[f"{n[-1]}"][bgframe[f"{n[0]}bin"] == i] + i, test[bgframe[f"{n[0]}bin"] == i])
+                    vdict[n][sub][l]["3D"].fill(bgframe[f"{n[-1]}"][bgframe[f"{n[0]}bin"] == i] + i, bgframe['3DW'][bgframe[f"{n[0]}bin"] == i])
 
     for i in range(5):
-        flatplots["sFA"].fill(sigframe["A"][sigframe["Fbin"] == i] + i, sigframe["W"][sigframe["Fbin"] == i])
-        flatplots["sFB"].fill(sigframe["B"][sigframe["Fbin"] == i] + i, sigframe["W"][sigframe["Fbin"] == i])
-        flatplots["sFC"].fill(sigframe["C"][sigframe["Fbin"] == i] + i, sigframe["W"][sigframe["Fbin"] == i])
-        flatplots["sAB"].fill(sigframe["B"][sigframe["Abin"] == i] + i, sigframe["W"][sigframe["Abin"] == i])
-        flatplots["sAC"].fill(sigframe["C"][sigframe["Abin"] == i] + i, sigframe["W"][sigframe["Abin"] == i])
-        flatplots["sBC"].fill(sigframe["C"][sigframe["Bbin"] == i] + i, sigframe["W"][sigframe["Bbin"] == i])
+        if 'Data' in f:
+            flatplots["sFA"].fill(sigframe["A"][(sigframe["Fbin"] == i) & (sigframe.index%3 == 0)] + i, sigframe["W"][(sigframe["Fbin"] == i) & (sigframe.index%3 == 0)])
+            flatplots["sFB"].fill(sigframe["B"][(sigframe["Fbin"] == i) & (sigframe.index%3 == 1)] + i, sigframe["W"][(sigframe["Fbin"] == i) & (sigframe.index%3 == 1)])
+            flatplots["sFC"].fill(sigframe["C"][(sigframe["Fbin"] == i) & (sigframe.index%3 == 2)] + i, sigframe["W"][(sigframe["Fbin"] == i) & (sigframe.index%3 == 2)])
+            flatplots["sAB"].fill(sigframe["B"][(sigframe["Abin"] == i) & (sigframe.index%3 == 1)] + i, sigframe["W"][(sigframe["Abin"] == i) & (sigframe.index%3 == 1)])
+            flatplots["sAC"].fill(sigframe["C"][(sigframe["Abin"] == i) & (sigframe.index%3 == 2)] + i, sigframe["W"][(sigframe["Abin"] == i) & (sigframe.index%3 == 2)])
+            flatplots["sBC"].fill(sigframe["C"][(sigframe["Bbin"] == i) & (sigframe.index%3 == 2)] + i, sigframe["W"][(sigframe["Bbin"] == i) & (sigframe.index%3 == 2)])
+        else:
+            flatplots["sFA"].fill(sigframe["A"][sigframe["Fbin"] == i] + i, sigframe["W"][sigframe["Fbin"] == i])
+            flatplots["sFB"].fill(sigframe["B"][sigframe["Fbin"] == i] + i, sigframe["W"][sigframe["Fbin"] == i])
+            flatplots["sFC"].fill(sigframe["C"][sigframe["Fbin"] == i] + i, sigframe["W"][sigframe["Fbin"] == i])
+            flatplots["sAB"].fill(sigframe["B"][sigframe["Abin"] == i] + i, sigframe["W"][sigframe["Abin"] == i])
+            flatplots["sAC"].fill(sigframe["C"][sigframe["Abin"] == i] + i, sigframe["W"][sigframe["Abin"] == i])
+            flatplots["sBC"].fill(sigframe["C"][sigframe["Bbin"] == i] + i, sigframe["W"][sigframe["Bbin"] == i])
         flatplots["bFA"].fill(bgframe["A"][bgframe["Fbin"] == i] + i, bgframe["W"][bgframe["Fbin"] == i])
         flatplots["bFB"].fill(bgframe["B"][bgframe["Fbin"] == i] + i, bgframe["W"][bgframe["Fbin"] == i])
         flatplots["bFC"].fill(bgframe["C"][bgframe["Fbin"] == i] + i, bgframe["W"][bgframe["Fbin"] == i])
@@ -248,7 +274,8 @@ for f in folders:
         for i in range(26):
             flatplots[p][1][i] = 0.2 * i
             # pass
-        flatplots[p].ndivide(3)
+        if not ('Data' in f and 's' in p):
+            flatplots[p].ndivide(3)
         flatplots[p].plot(htype='bar',logv=False,error=True)
         for n in net:
             for b in qdict[n]:
@@ -259,6 +286,15 @@ for f in folders:
                         flatplots[p][0][i] = 0
                     # pass
                 qdict[n][b][p].ndivide(3)
+    for p in ["bFA3D","bFB3D","bFC3D"]:
+        for n in net:
+            for b in qdict[n]:
+                for i in range(26):
+                    qdict[n][b][p][1][i] = 0.2 * i
+                    if ('Data' in f) and i in [15,16,17,18,19,20,21,22,23,24]:
+                        qdict[n][b][p][0][i] = 0
+                    # pass
+                qdict[n][b][p].ndivide(3)
     for n in vdict:
         for s in vdict[n]:
             for l in vdict[n][s]:
@@ -266,64 +302,123 @@ for f in folders:
                     vdict[n][s][l][b].ndivide(3)
                     for i in range(26):
                         vdict[n][s][l][b][1][i] = 0.2 * i
-                        if ('Data' in f) and i in [15,16,17,18,19,20,21,22,23,24]:
-                            vdict[n][s][l][b][0][i] = 0
+                        # if ('Data' in f) and i in [15,16,17,18,19,20,21,22,23,24]:
+                        #     vdict[n][s][l][b][0][i] = 0
 
     if not 'Data' in f:
         colors = ['red','orange','gold','green','skyblue','mediumpurple','plum']
         leg = ['bin 0','bin 1','bin 2','bin 3','bin 4','standard']
         plt.clf()
         for net in ["A","B","C"]:
-            th1b.append(flatplots[f"bF{net}"].toTH1(f.split('/')[-2] + "_" + flatplots[f"bF{net}"].title))
-            for subn in ["bFA","bFB","bFC"]:
-            # for subn in ["bAB","bAC","bBC"]:
+            th1b.append(flatplots[f"bF{net}"].toTH1(f.split('/')[-2]+"_"+flatplots[f"bF{net}"].title))
+            for subn in ["bFA","bFB","bFC"] + ["bAB","bAC","bBC"]:
                 for b in range(5):
                     quantsys.append(qdict[net][b][subn].toTH1(f.split('/')[-2] + "_" + qdict[net][b][subn].title + f"_Qsys{net}{b}Up"))
                     if RATIO:
                         qdict[net][b][subn][0] /= flatplots[subn][0]
-                    tempdown = cp.deepcopy(flatplots[subn])
+                    tempdown = cp.deepcopy(flatplots[subn[:3]])
                     tempdown[0] = tempdown[0] * tempdown[0] / qdict[net][b][subn][0]
                     tempdown[0][~(tempdown[0] > 0)] = 0
                     quantsys.append(tempdown.toTH1(f.split('/')[-2] + "_" + qdict[net][b][subn].title + f"_Qsys{net}{b}Down"))
-                    qdict[net][b][subn].make(htype='step',color=colors[b])
-                    # tempdown.make(htype='step',color=colors[b])
-                tempratio = cp.deepcopy(flatplots[subn])
+                    # qdict[net][b][subn].make(htype='step',color=colors[b])
+                    tempdown.make(htype='step',color=colors[b])
+                tempratio = cp.deepcopy(flatplots[subn[:3]])
                 tempratio.title = f"Changed {net}"
-                tempratio.fname = 'ratio/' + f.split('/')[-2] + "_" + flatplots[subn].title + f"_Qsys{net}Up"
+                tempratio.fname = 'ratio/' + f.split('/')[-2] + "_" + flatplots[subn[:3]].title + f"_Qsys{net}D"
+                if RATIO:
+                    tempratio[0] /= tempratio[0]
+                tempratio.plot(same=True,htype='step',legend=leg,color='black')
+            for subn in ["bFA3D", "bFB3D", "bFC3D"]:
+                quantsys.append(qdict[net][0][subn].toTH1(f.split('/')[-2] + "_" + qdict[net][0][subn].title + "Up"))
+                if RATIO:
+                    qdict[net][b][subn][0] /= flatplots[subn][0]
+                tempdown = cp.deepcopy(flatplots[subn[:3]])
+                tempdown[0] = tempdown[0] * tempdown[0] / qdict[net][b][subn][0]
+                tempdown[0][~(tempdown[0] > 0)] = 0
+                quantsys.append(tempdown.toTH1(f.split('/')[-2] + "_" + qdict[net][0][subn].title + "Down"))
+                # qdict[net][b][subn].make(htype='step',color=colors[b])
+                tempdown.make(htype='step',color=colors[b])
+                tempratio = cp.deepcopy(flatplots[subn[:3]])
+                tempratio.title = f"Changed {net}"
+                tempratio.fname = 'ratio/' + f.split('/')[-2] + "_" + flatplots[subn[:3]].title + "D"
                 if RATIO:
                     tempratio[0] /= tempratio[0]
                 tempratio.plot(same=True,htype='step',legend=leg,color='black')
         plt.clf()
-        for n in ["AB","AC","BC"]:#,"FA","FB","FC"]:
+        for n in ["AB","AC","BC","FA","FB","FC"]:
+            th1b.append(flatplots[f"b{n}"].toTH1(f.split('/')[-2]+"_"+flatplots[f"b{n}"].title))
             for sub in ["AB","AC","BC"]:
                 for l in sub:
-                    vdict[n][sub][l]["F"].fname = f"ratio/{f.split('/')[-2]}_plot{n}_weight{sub}_q{l}FUp"
-                    vdict[n][sub][l]["F"].plot(htype='step',color='black')
+                    # vdict[n][sub][l]["F"].fname = f"ratio/{f.split('/')[-2]}_plot{n}_weight{sub}_q{l}FUp"
+                    # vdict[n][sub][l]["F"].plot(htype='step',color='black')
+                    # vdict[n][sub][l]["3D"].fname = f"ratio/{f.split('/')[-2]}_plot{n}_3DDown"
+                    # vdict[n][sub][l]["3D"].plot(htype='step',color='black')
                     for b in range(5):
                         tempdown = cp.deepcopy(flatplots[f"b{n}"])
                         if RATIO:
                             vdict[n][sub][l][b][0] /= flatplots[f"b{n}"][0]
                             tempdown[0] /= tempdown[0]
                         quantsys.append(vdict[n][sub][l][b].toTH1(f"{f.split('/')[-2]}_{vdict[n][sub][l][b].title}_VQsys{sub}{b}{l}Up"))
-                        vdict[n][sub][l][b].make(htype='step',color=colors[b])
+                        # vdict[n][sub][l][b].make(htype='step',color=colors[b])
                         tempdown[0] = tempdown[0] * tempdown [0] / vdict[n][sub][l][b][0]
                         tempdown[0][~(tempdown[0] > 0)] = 0
                         quantsys.append(tempdown.toTH1(f"{f.split('/')[-2]}_{tempdown.title}_VQsys{sub}{b}{l}Down"))
-                        # tempdown.make(htype='step',color=colors[b])
+                        tempdown.make(htype='step',color=colors[b])
                     temphist = cp.deepcopy(flatplots[f"b{n}"])
                     temphist.title = f"From {n} with {sub} weights in {l} quantiles"
-                    temphist.fname = f"ratio/{f.split('/')[-2]}_plot{n}_weight{sub}_q{l}Up"
+                    if "F" in n: temphist.fname = f"ratio/{f.split('/')[-2]}_Net{n[-1]}_weight{sub}_q{l}D"
+                    else: temphist.fname = f"ratio/{f.split('/')[-2]}_{n[-1]}in{n[0]}_weight{sub}_q{l}D"
+
                     if RATIO:
                         temphist[0] /= temphist[0]
                         temphist[0][~(temphist[0] > 0)] = 0
                     temphist.plot(same=True,htype='step',legend=leg,color='black')
+        for n in ["AB","AC","BC"]:
+            for sub in ["AB","AC","BC"]:
+                l = sub[0]
+                vdict[n][sub][l]["F"].fname = f"ratio/{f.split('/')[-2]}_{n[-1]}in{n[0]}_weight{sub}_qFUp"
+                vdict[n][sub][l]["F"].plot(htype='step',color='black')
+                quantsys.append(vdict[n][sub][l]["F"].toTH1(vdict[n][sub][l]["F"].title))
+                tempdown = cp.deepcopy(flatplots[f"b{n}"])
+                tempdown[0] = tempdown[0] * tempdown [0] / vdict[n][sub][l]["F"][0]
+                tempdown.fname = f"ratio/{f.split('/')[-2]}_plot{n}_weight{sub}_qFDown"
+                quantsys.append(tempdown.toTH1(f"{f.split('/')[-2]}_{n[-1]}in{n[0]}_weight{sub}_qFDown"))
+                tempdown.plot(htype='step',color='black')
+                vdict[n][sub][l]["3D"].fname = f"ratio/{f.split('/')[-2]}_plot{n}_F3DDown"
+                vdict[n][sub][l]["3D"].plot(htype='step',color='black')
+                quantsys.append(vdict[n][sub][l]["3D"].toTH1(vdict[n][sub][l]["3D"].title))
+                tempdown = cp.deepcopy(flatplots[f"b{n}"])
+                tempdown[0] = tempdown[0] * tempdown [0] / vdict[n][sub][l]["3D"][0]
+                tempdown.fname = f"ratio/{f.split('/')[-2]}_plot{n}_F3DUp"
+                quantsys.append(tempdown.toTH1(f"{f.split('/')[-2]}_{n[-1]}in{n[0]}_3DUp"))
+                tempdown.plot(htype='step',color='black')
+        for n in ["AB","AC","BC","FA","FB","FC"]:
+            plt.clf()
+            cint = 0
+            for sub in ["AB","AC","BC"]:
+                    tempdown = cp.deepcopy(flatplots[f"b{n}"])
+                    # vdict[n][sub][sub[0]]["F"].make(htype='step',color=colors[cint])
+                    if "F" in n: tstr = f"Net{n[-1]}"
+                    else: tstr = f"{n[-1]}in{n[0]}"
+                    quantsys.append(vdict[n][sub][sub[0]]["F"].toTH1(f"{f.split('/')[-2]}_{tstr}_{sub}2DUp"))
+                    tempdown[0] = tempdown[0] * tempdown [0] / vdict[n][sub][sub[0]]["F"][0]
+                    tempdown[0][~(tempdown[0] > 0)] = 0
+                    quantsys.append(tempdown.toTH1(f"{f.split('/')[-2]}_{tstr}_{sub}2DDown"))
+                    tempdown.make(htype='step',color=colors[cint])
+                    cint += 1
+            flatplots[f"b{n}"].fname = f"ratio/{f.split('/')[-2]}_plot{n}_2DD"
+            flatplots[f"b{n}"].plot(htype='step',color='k',legend=["AB","AC","BC","Flat"],same=True)
     outdict.update({namelist[nit]:flatplots})
     nit += 1
+    if 'Data' in f:
+        for net in ["A","B","C"]:
+            th1s.append(flatplots[f"sF{net}"].toTH1("data_obs_Net"+net))
+        for n in ["AB","AC","BC"]:
+            th1s.append(flatplots[f"s{n}"].toTH1(f"data_obs_{n[-1]}in{n[0]}"))
+    elif 'Full' in f:
+        for net in ["A","B","C"]:
+            th1s.append(flatplots[f"sF{net}"].toTH1("SignalMC_Net"+net))
 
-th1s = []
-for net in ["A","B","C"]:
-    th1s.append(flatplots[f"sF{net}"].toTH1("SignalMC_Net"+net))
-    th1s.append(flatplots[f"sF{net}"].toTH1("data_obs_Net"+net))
 rfile.Write()
 for elem in th1s + th1b:
     elem.SetDirectory(0)
