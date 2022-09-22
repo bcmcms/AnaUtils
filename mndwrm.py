@@ -31,7 +31,7 @@ from tensorflow import keras
 from keras import backend as K
 import json
 import threading
-from uproot_methods import TLorentzVectorArray as TLVA
+# from uproot_methods import TLorentzVectorArray as TLVA
 from scipy.stats import spearmanr
 from scipy.cluster import hierarchy
 from scipy.spatial.distance import squareform as squareform
@@ -53,6 +53,7 @@ pd.options.mode.chained_assignment = None
 epochs = 50
 ##Toggles experimental subnet training code
 subnet = False
+REGION = ''#'lepton','lowmass'
 ##Switches whether weights are loaded and applied to the post-training statistics,
 ##and what data file they expect to be associated with
 #POSTWEIGHT = True
@@ -154,8 +155,8 @@ def tutor(X_train,X_test,Y_train,Y_test):
     sys.exit()
 
 def pucalc(evv,hlt):
-    pvals = uproot.open('PU_ratio_2021_05_26.root').get('PU_ratio').values
-    fvals = uproot.open('PU_ratio_2021_05_26.root').get('PU_ratio_HLT_AK8PFJet330').values
+    pvals = uproot.open('archive/PU_ratio_2021_05_26.root').get('PU_ratio').values
+    fvals = uproot.open('archive/PU_ratio_2021_05_26.root').get('PU_ratio_HLT_AK8PFJet330').values
     for v in range(99):
         evv.extweight[(evv.PU == v) & hlt.AK8PFJet500 & (evv.trg != "CX")] *= pvals[v]
         evv.extweight[(evv.PU == v) & ~(hlt.AK8PFJet500 & (evv.trg != "CX"))] *= fvals[v]
@@ -208,6 +209,8 @@ def loadjets(jets, ev, events,bgweights=False):
     ev.npvs  = DataFrame(events.array('PV_npvs')).rename(columns=inc)
     ev.npvsG = DataFrame(events.array('PV_npvsGood')).rename(columns=inc)
     ev.metpt = DataFrame(events.array('MET_pt')).rename(columns=inc)
+    if 'Generator_weight' in events:
+        ev.genweight = DataFrame(events.array('Generator_weight')).rename(columns=inc)
     ev.trg   = DataFrame(events.array('event')).rename(columns=inc)
     ev.trg[1]= 'X'
     if 'Pileup_nTrueInt' in events:
@@ -231,7 +234,7 @@ def loadjets(jets, ev, events,bgweights=False):
 
         pdgid = DataFrame(events.array('GenPart_pdgId')).rename(columns=inc)
         pdgpt = DataFrame(events.array('GenPart_pt')).rename(columns=inc)
-        pdgframe = np.logical_and(pdgid == 5, pdgpt > 15)
+        pdgframe = np.logical_and(np.abs(pdgid) == 5, pdgpt > 15)
         ev.nGprt = DataFrame(pdgframe[pdgframe].sum(axis=1)).rename(columns=inc)
 
     else:
@@ -430,7 +433,7 @@ def submodel(ndim):
 
 #%%
 
-def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
+def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf=''):
     #%%
     ic = InputConfig(sigfile,bgfile)
     if ic.sigdata:
@@ -449,11 +452,11 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         if not ic.siglhe:
             lheweights = np.divide(ic.bgweight, ic.size)
     else: isLHE=False
-
-    # netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','n2b1','submass1','submass2','subtau1','subtau2','nsv']
-    # netvars = ['pt','eta','CSVV2','DeepB','nsv']
-    # netvars = ['H4qvs','n2b1','submass1','subtau1']
-    netvars = ['mass','msoft','DDBvL','submass2','subtau2']
+    if NET == "F": netvars = ['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','n2b1','submass1','submass2','subtau1','subtau2','nsv']
+    elif NET == "A": netvars = ['pt','eta','CSVV2','DeepB','nsv']
+    elif NET == "B": netvars = ['H4qvs','n2b1','submass1','subtau1']
+    elif NET == "C":netvars = ['mass','msoft','DDBvL','submass2','subtau2']
+    else: raise NameError("Invalid NET specified")
     l1vars = ['SingleJet180','Mu7_EG23er2p5','Mu7_LooseIsoEG20er2p5','Mu20_EG10er2p5','SingleMu22',
               'SingleMu25','DoubleJet112er2p3_dEta_Max1p6','DoubleJet150er2p5']
     hltvars = ['AK8PFJet500','Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ','Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL',
@@ -498,7 +501,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
     l3 = 8
     alpha = 0.5
     gamma = 2.2
-    if subnet:
+    if subnet or NET == "B":
         lamb = 0.01
         mname = "B"
         sname = "B"
@@ -509,8 +512,12 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                   loss=[disco_focal_loss(alpha, gamma, lamb)],
                   metrics=['accuracy'])
     else:
-        mname = "C"#"weighted"
-        sname = "C"#"weightedscaler"
+        if NET == "F":
+            mname = "weighted"
+            sname = "weightedscaler"
+        else:
+            mname = NET
+            sname = NET
         disconame = 'C'
         model = keras.Sequential([
                 keras.layers.Dense(l1, activation=tf.nn.relu,input_shape=(len(netvars),)),
@@ -548,10 +555,10 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         "pt":       Hist(80 ,(150,550)  ,'pT for highest pT jet','Fractional Distribution','netplots/ppt'),
         "eta":      Hist(15 ,(0,3)      ,'|eta| for highest pT jet','Fractional Distribution','netplots/peta'),
         "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet','Fractional Distribution','netplots/pphi'),
-        "mass":     Hist(32 ,(85,205)   ,'mass for highest pT jet','Fractional Distribution','netplots/pmass'),
+        "mass":     Hist(35 ,(60,200)   ,'mass for highest pT jet','Fractional Distribution','netplots/pmass'),
         "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet in all (red), passing signal (blue), and signal (black) events','Fractional Distribution','netplots/pCSVV2'),
         "DeepB":    Hist(14 ,(0.35,1.05),'DeepB for highest pT jet','Fractional Distribution','netplots/pDeepB'),
-        "msoft":    Hist(32 ,(85,205)   ,'msoft for highest pT jet in all (red), passing (blue), and failing  (black) events','Fractional Distribution','netplots/pmsoft'),
+        "msoft":    Hist(35 ,(60,200)   ,'msoft for highest pT jet in all (red), passing (blue), and failing  (black) events','Fractional Distribution','netplots/pmsoft'),
         "DDBvL":    Hist(26 ,(0.76,1.02),'DDBvL for highest pT jet','Fractional Distribution','netplots/pDDBvL'),
         "H4qvs":    Hist(24 ,(-10,2)    ,'H4qvs for highest pT jet','Fractional Distribution','netplots/pH4qvs'),
         "npvs":     Hist(40 ,(0,80)     ,'npvs per event','Fractional Distribution','netplots/pnpvs'),
@@ -584,10 +591,10 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         "pt":       Hist(30 ,(250,850)  ,'pT for highest pT jet','Fractional Distribution','netplots/pt'),
         "eta":      Hist(30 ,(-3,3)     ,'|eta| for highest pT jet','Fractional Distribution','netplots/eta'),
         "phi":      Hist(32 ,(-3.2,3.2) ,'phi for highest pT jet','Fractional Distribution','netplots/phi'),
-        "mass":     Hist(32 ,(85,205)   ,'mass for highest pT jet','Fractional Distribution','netplots/mass'),
+        "mass":     Hist(35 ,(60,200)   ,'mass for highest pT jet','Fractional Distribution','netplots/mass'),
         "CSVV2":    Hist(22 ,(0,1.1)    ,'CSVV2 for highest pT jet','Fractional Distribution','netplots/CSVV2'),
         "DeepB":    Hist(14 ,(0.35,1.05),'DeepB for highest pT jet','Fractional Distribution','netplots/DeepB'),
-        "msoft":    Hist(32 ,(85,205)   ,'msoft for highest pT jet','Fractional Distribution','netplots/msoft'),
+        "msoft":    Hist(35 ,(60,200)   ,'msoft for highest pT jet','Fractional Distribution','netplots/msoft'),
         "DDBvL":    Hist(26 ,(0.76,1.02),'DDBvL for highest pT jet','Fractional Distribution','netplots/DDBvL'),
         "H4qvs":    Hist(20 ,(0,1)      ,'H4qvs for highest pT jet','Fractional Distribution','netplots/H4qvs'),
         "npvs":     Hist(40 ,(0,80)     ,'npvs per event','Fractional Distribution','netplots/npvs'),
@@ -709,7 +716,6 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
 
 
         print(f"Dataflag:{dataflag}")
-
         sigjets, sigevv = loadjets(PhysObj('sigjets'),PhysObj("sigev"),sigevents)
         sigsv = PhysObj('sigsv',sigfiles[fnum],'eta','phi',varname='SV')
         sigl1 = PhysObj("sigl1",sigfiles[fnum], *l1vars, varname='L1')
@@ -836,6 +842,24 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
 
             ev = Event(bs,sigjets,As,higgs,sigsv,sigevv,sigl1,sighlt)
         else:
+            if dataflag != 1:
+                Hpt = DataFrame(sigevents.array('GenPart_pt'))[DataFrame(sigevents.array('GenPart_pdgId'))==25][DataFrame(sigevents.array('GenPart_status'))==62].max(axis=1)
+                ptwgt = 3.9 - (0.4*np.log2(Hpt))
+                ptwgt[ptwgt < 0.1] = 0.1
+                sigevv.extweight[1] *= ptwgt
+                
+            if 'TTbar' in ic.bgname:
+                for i in range(len(bgevents)):
+                    pdgida  = bgevents[i].array('GenPart_pdgId')
+                    pdgstat = bgevents[i].array('GenPart_status')
+                    tpt = DataFrame(bgevents[0].array('GenPart_pt')[pdgida==6][pdgstat[pdgida==6]==62]).rename(columns=inc)
+                    tbpt = DataFrame(bgevents[0].array('GenPart_pt')[pdgida==-6][pdgstat[pdgida==-6]==62]).rename(columns=inc)
+                    
+                    twgt = ((0.103*np.exp(-0.0118*tpt[1])) - (0.000134*tpt[1]) + 0.973)**0.5
+                    twgt *= ((0.103*np.exp(-0.0118*tbpt[1])) - (0.000134*tbpt[1]) + 0.973)**0.5
+                    twgt = 1 + 0.5*(twgt - 1)
+                    
+                    bgevv[i].extweight[1] *= twgt
             ev = Event(sigjets,sigsv,sigevv,sigl1,sighlt)
 
 
@@ -843,26 +867,43 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         for i in range(len(bgjets)):
             bev.append(Event(bgjets[i],bgsv[i],bgevv[i],bgl1[i],bghlt[i]))
 
+        # import pdb; pdb.set_trace()
+    
         for jets in bgjets+[sigjets]:
+            ##['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','n2b1','submass1','submass2','subtau1','subtau2','nsv']
+            # jets.mass += jets.mass*0.2
             jets.cut(jets.pt > 170)
             jets.cut(abs(jets.eta)<2.4)
             jets.cut(jets.DDBvL > 0.8)
             jets.cut(jets.DeepB > 0.4184)
-            jets.cut(jets.msoft > 90)
-            jets.cut(jets.mass > 90)
-            jets.cut(jets.mass < 200)
-            jets.cut(jets.msoft < 200)
+            if 'lowmass' in REGION:
+                jets.cut(jets.msoft > 70)
+                jets.cut(jets.mass > 70)
+                jets.cut(jets.mass < 90)
+                jets.cut(jets.msoft < 90)  
+            else:
+                jets.cut(jets.msoft > 90)
+                jets.cut(jets.mass > 90)
+                jets.cut(jets.mass < 200)
+                jets.cut(jets.msoft < 200)  
         for evv in bgevv + [sigevv]:
             evv.cut(evv.npvsG >= 1)
-            evv.cut(evv.metpt > 30)
+            if 'lepton' in REGION:
+                evv.cut(evv.metpt > 30)
 
         for i in range(len(bgevv)):
-            if ic.bgqcd[i+fnum*len(bgevv)] == -1:
+            if ic.bgqcd[i] == -1:
                 bgevv[i].cut(bgevv[i].nGprt == 0)
-            elif ic.bgqcd[i+fnum*len(bgevv)]:
+            elif ic.bgqcd[i]:
                 bgevv[i].cut(bgevv[i].nGprt >= 1)
-
-
+            
+        ## Temporary mass rescaling for exclusion zone
+        if 'lowmass' in REGION:
+            for jets in bgjets + [sigjets]:
+                #mass_scaled = mass*(1.3 + 0.536*(math.exp(pow((mass - 70.)/20., 3)) - 1))
+                #msoft_scaled = msoft*(1.3 + 0.536*(math.exp(pow((msoft - 70.)/20., 0.8)) - 1))
+                jets.mass  = jets.mass*(1.3+0.536*(np.exp(np.power((jets.mass - 70)/20,3)) -1 ))
+                jets.msoft = jets.msoft*(1.3 + 0.536*(np.exp(np.power((jets.msoft - 70)/20, 0.8)) - 1))
 
         if (not dataflag) and (not LOADMODEL):
             bs.cut(bs.pt>5)
@@ -876,6 +917,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #####################
         # Non-Training Cuts #
         #####################
+
 
         ## Apply golden JSON cuts to data events
         if dataflag == True:
@@ -908,32 +950,32 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             ev.sync()
 
         ## Muon cuts for non-training comparisons
-        if (LOADMODEL) and False:#(not passplots):
-            muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d')
-            muons.ip = abs(muons.dxy / muons.dxyErr)
-            muons.eta = abs(muons.eta)
-            ev.register(muons)
-            muons.cut(muons.softId > 0.9)
-            muons.cut(abs(muons.eta) < 2.4)
-            muons.cut(muons.pt > 7)
-            muons.cut(muons.ip > 2)
-            #muons.cut(muons.ip3d < 0.5)
-            ev.sync()
+        # if (LOADMODEL) and False:#(not passplots):
+        #     muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d')
+        #     muons.ip = abs(muons.dxy / muons.dxyErr)
+        #     muons.eta = abs(muons.eta)
+        #     ev.register(muons)
+        #     muons.cut(muons.softId > 0.9)
+        #     muons.cut(abs(muons.eta) < 2.4)
+        #     muons.cut(muons.pt > 7)
+        #     muons.cut(muons.ip > 2)
+        #     #muons.cut(muons.ip3d < 0.5)
+        #     ev.sync()
 
-            ## Apply these cuts to data events as well
-            bmuons = []
-            for i in range(len(bgjets)):
-                idx = i#fnum*nlhe + i
-                bmuons.append(PhysObj('Muon',bgfiles[idx],'softId','eta','pt','dxy','dxyErr','ip3d'))
-                bmuons[i].eta = abs(bmuons[i].eta)
-                bmuons[i].ip = abs(bmuons[i].dxy / bmuons[i].dxyErr)
-                bev[i].register(bmuons[i])
-                bmuons[i].cut(bmuons[i].softId > 0.9)
-                bmuons[i].cut(abs(bmuons[i].eta) < 2.4)
-                bmuons[i].cut(bmuons[i].pt > 7)
-                bmuons[i].cut(bmuons[i].ip > 2)
-                bmuons[i].cut(bmuons[i].ip3d < 0.5)
-                bev[i].sync()
+        #     ## Apply these cuts to data events as well
+        #     bmuons = []
+        #     for i in range(len(bgjets)):
+        #         idx = i#fnum*nlhe + i
+        #         bmuons.append(PhysObj('Muon',bgfiles[idx],'softId','eta','pt','dxy','dxyErr','ip3d'))
+        #         bmuons[i].eta = abs(bmuons[i].eta)
+        #         bmuons[i].ip = abs(bmuons[i].dxy / bmuons[i].dxyErr)
+        #         bev[i].register(bmuons[i])
+        #         bmuons[i].cut(bmuons[i].softId > 0.9)
+        #         bmuons[i].cut(abs(bmuons[i].eta) < 2.4)
+        #         bmuons[i].cut(bmuons[i].pt > 7)
+        #         bmuons[i].cut(bmuons[i].ip > 2)
+        #         bmuons[i].cut(bmuons[i].ip3d < 0.5)
+        #         bev[i].sync()
 
 
 
@@ -968,115 +1010,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             jets.cut(jets.pt.rank(axis=1,method='first',ascending=False) == 1)
             for prop in jets:
                 jets[prop] = DataFrame(jets[prop].max(axis=1)).rename(columns=inc)
-
-        # # Special region-selection muon cut logic
-        # if (LOADMODEL) and True:#(not passplots):
-        #     muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d','charge','mass','phi','sip3d','mediumId','miniPFRelIso_all')
-        #     muons.ip = abs(muons.dxy / muons.dxyErr)
-        #     mframe = fastdR(sigjets, muons)
-        #     mframe = mframe[muons.pt != 0].dropna(how='all')
-        #     muons.jetdr = mframe
-        #     muons.trimto(sigjets.pt)
-        #     Event(muons).sync()
-
-        #     bmuons = []
-        #     for i in range(len(bgjets)):
-        #         bmuons.append(PhysObj('Muon',bgfiles[i],'softId','eta','pt','dxy','dxyErr','ip3d','charge','mass','phi','sip3d','mediumId','miniPFRelIso_all'))
-        #         bmuons[i].ip = abs(bmuons[i].dxy / bmuons[i].dxyErr)
-        #         mframe = fastdR(bgjets[i], bmuons[i])
-        #         mframe = mframe[bmuons[i].pt != 0].dropna(how='all')
-        #         bmuons[i].jetdr = mframe
-        #         bmuons[i].trimto(bgjets[i].pt)
-        #         Event(bmuons[i]).sync()
-
-        #     for muon in bmuons + [muons]:
-        #         muon.eta = abs(muon.eta)
-        #         muon.cut(muon.pt > 30)
-        #         muon.cut(abs(muon.eta) < 2.4)
-        #         muon.cut(muon.mediumId > 0.9)
-        #         muon.cut(muon.miniPFRelIso_all < 0.2)
-        #         muon.cut(abs(muon.sip3d) < 4.0)
-        #         muon.cut(muon.jetdr > 0.8)
-
-        #     elecs = PhysObj('Electron',sigfiles[fnum],'pt','eta','miniPFRelIso_all','sip3d')
-        #     eframe = fastdR(sigjets, muons)
-        #     elecs.jetdr = eframe[elecs.pt != 0].dropna(how='all')
-
-        #     eledoc = sigevents.get("Electron_vidNestedWPBitmap").title.decode()
-        #     elearr = sigevents.array("Electron_vidNestedWPBitmap")
-        #     mats = re.search(r'\((.*?)\)',eledoc).groups()
-        #     eleCuts = mats[0].split(",")
-        #     nbit = int(re.findall(r'(\d+) bits',eledoc)[0])
-        #     testbit = (1<<nbit)-1
-        #     elebits = DataFrame()
-        #     skipflag = False
-        #     # newID = { k:False for k ,v in  dict_eleID.items() }
-        #     for i, c in enumerate(eleCuts):
-        #         if c == 'GsfEleRelPFIsoScaledCut':
-        #             skipflag=True
-        #             continue
-        #         ibit = elearr  >> (nbit * i) & testbit
-        #         elebits[i+1-skipflag] = ibit
-        #     bitframe, tempframe = DataFrame(), DataFrame()
-        #     for i in range(elecs.pt.shape[1]):
-        #         for c in elebits.columns:
-        #             tempframe[c] = elebits[c].str[i]
-        #         bitframe[i+1] = tempframe.min(axis=1)
-        #     elecs.bitframe = bitframe
-
-
-        #     elecs.trimto(sigjets.pt)
-        #     Event(elecs).sync()
-
-        #     belecs = []
-        #     for i in range(len(bgjets)):
-        #         belecs.append(PhysObj('Electron',sigfiles[fnum],'pt','eta','miniPFRelIso_all','sip3d'))
-        #         eframe = fastdR(bgjets[i], bmuons[i])
-        #         belecs[i].jetdr = eframe[belecs[i].pt != 0].dropna(how='all')
-
-        #         eledoc = bgevents[i].get("Electron_vidNestedWPBitmap").title.decode()
-        #         elearr = bgevents[i].array("Electron_vidNestedWPBitmap")
-        #         mats = re.search(r'\((.*?)\)',eledoc).groups()
-        #         eleCuts = mats[0].split(",")
-        #         nbit = int(re.findall(r'(\d+) bits',eledoc)[0])
-        #         testbit = (1<<nbit)-1
-        #         elebits = DataFrame()
-        #         skipflag = False
-        #         # newID = { k:False for k ,v in  dict_eleID.items() }
-        #         for j, c in enumerate(eleCuts):
-        #             if c == 'GsfEleRelPFIsoScaledCut':
-        #                 skipflag=True
-        #                 continue
-        #             ibit = elearr  >> (nbit * j) & testbit
-        #             elebits[j+1-skipflag] = ibit
-        #         bitframe, tempframe = DataFrame(), DataFrame()
-        #         for j in range(belecs[i].pt.shape[1]):
-        #             for c in elebits.columns:
-        #                 tempframe[c] = elebits[c].str[j]
-        #             bitframe[j+1] = tempframe.min(axis=1)
-        #         belecs[i].bitframe = bitframe
-
-        #         belecs[i].trimto(bgjets[i].pt)
-        #         Event(belecs[i]).sync()
-
-        #     for elec in [elecs] + belecs:
-        #         elec.cut(elec.bitframe == 4)
-        #         elec.eta = abs(elec.eta)
-        #         elec.cut(elec.pt > 30)
-        #         elec.cut(abs(elec.eta) < 2.5)
-        #         elec.cut(elec.miniPFRelIso_all < 0.1)
-        #         elec.cut(abs(elec.sip3d) < 4.0)
-        #         elec.cut(elec.jetdr > 0.8)
-
-        # sigevv.nlep = DataFrame(np.isfinite(muons.pt).sum(axis=1).add(np.isfinite(elecs.pt).sum(axis=1),fill_value=0)).rename(columns=inc)
-        # sigevv.cut(sigevv.nlep > 0)
-        # for i in range(len(bgjets)):
-        #     bgevv[i].nlep = DataFrame(np.isfinite(bmuons[i].pt).sum(axis=1).add(np.isfinite(belecs[i].pt).sum(axis=1),fill_value=0)).rename(columns=inc)
-        #     bgevv[i].cut(bgevv[i].nlep > 0)
-
-        for e in [ev] + bev:
-            e.sync()
-
+                
 
         #############################
         # Secondary Vertex Analysis #
@@ -1122,6 +1056,9 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         #         nsvframe[j+1] = np.sum(bjlist[j][bjlist[j]<0.8].fillna(0)/bjlist[j][bjlist[j]<0.8].fillna(0),axis=1)
         #     bgjets.nsv = nsvframe
         del nsvframe
+
+        # for jets in bgjets + [sigjets]:
+        #     jets.nsv += jets.nsv*0.2
 
         #######################################
         # Trigger Region Analysis & Weighting #
@@ -1181,6 +1118,241 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                     pucalc(bgevv[i],bghlt[i])
 
         ## PU weighting
+        
+        #########################
+        # Muon-Region Selection #
+        #########################
+
+        # import pdb; pdb.set_trace()
+        # # Special region-selection muon cut logic
+        if (LOADMODEL) and (not passplots) and ('lepton' in REGION):
+            muons = PhysObj('Muon',sigfiles[fnum],'softId','eta','pt','dxy','dxyErr','ip3d','charge','mass','phi','sip3d','mediumId','miniPFRelIso_all','mvaTTH')
+            muons.ip = abs(muons.dxy / muons.dxyErr)
+            mframe = fastdR(sigjets, muons)
+            mframe = mframe[muons.pt != 0].dropna(how='all')
+            muons.jetdr = mframe
+            muons.trimto(sigjets.pt)
+            Event(muons).sync()
+
+            bmuons = []
+            for i in range(len(bgjets)):
+                bmuons.append(PhysObj('Muon',bgfiles[i],'softId','eta','pt','dxy','dxyErr','ip3d','charge','mass','phi','sip3d','mediumId','miniPFRelIso_all','mvaTTH'))
+                bmuons[i].ip = abs(bmuons[i].dxy / bmuons[i].dxyErr)
+                mframe = fastdR(bgjets[i], bmuons[i])
+                mframe = mframe[bmuons[i].pt != 0].dropna(how='all')
+                bmuons[i].jetdr = mframe
+                bmuons[i].trimto(bgjets[i].pt)
+                Event(bmuons[i]).sync()
+                
+                
+
+            # cutflow = Hist(7,(-0.5,6.5),'all/pt/eta/mediumId/miniPFRelIso_all/sip3d/jetdR','passing',f"{ic.signame}_mCutflow")
+            for muon in bmuons + [muons]:
+                muon.eta = abs(muon.eta)
+                muon.cut(muon.pt > 30)
+                muon.cut(abs(muon.eta) < 2.4)
+                muon.cut(muon.mediumId > 0.9)
+                muon.cut(muon.miniPFRelIso_all < 0.2)
+                muon.cut(abs(muon.sip3d) < 4.0)
+                muon.cut(muon.jetdr > 0.8)
+                muon.cut(muon.mvaTTH > -0.4)
+                ## Only keep the highest passing pT muon
+                muon.cut(muon.pt.rank(axis=1,method='first',ascending=False) == 1)
+                ## Muon crunch
+                for prop in muon:
+                    muon[prop] = DataFrame(muon[prop].max(axis=1)).rename(columns=inc)
+
+            
+
+            
+            elecs = PhysObj('Electron',sigfiles[fnum],'pt','eta','phi','miniPFRelIso_all','mvaFall17V1Iso_WP80','sip3d','mvaTTH')
+            eframe = fastdR(sigjets, elecs)
+            elecs.jetdr = eframe[elecs.pt != 0].dropna(how='all')
+
+            eledoc = sigevents.get("Electron_vidNestedWPBitmap").title.decode()
+            elearr = sigevents.array("Electron_vidNestedWPBitmap")
+            mats = re.search(r'\((.*?)\)',eledoc).groups()
+            eleCuts = mats[0].split(",")
+            nbit = int(re.findall(r'(\d+) bits',eledoc)[0])
+            testbit = (1<<nbit)-1
+            elebits = DataFrame()
+            skipflag = False
+            # newID = { k:False for k ,v in  dict_eleID.items() }
+            for i, c in enumerate(eleCuts):
+                if c == 'GsfEleRelPFIsoScaledCut':
+                    skipflag=True
+                    continue
+                ibit = elearr  >> (nbit * i) & testbit
+                elebits[i+1-skipflag] = ibit
+            bitframe, tempframe = DataFrame(), DataFrame()
+            for i in range(elecs.pt.shape[1]):
+                for c in elebits.columns:
+                    tempframe[c] = elebits[c].str[i]
+                bitframe[i+1] = tempframe.min(axis=1)
+            elecs.bitframe = bitframe
+
+
+            elecs.trimto(sigjets.pt)
+            Event(elecs).sync()
+
+            belecs = []
+            for i in range(len(bgjets)):
+                belecs.append(PhysObj('Electron',bgfiles[i],'pt','eta','phi','miniPFRelIso_all','sip3d','mvaFall17V1Iso_WP80','mvaTTH'))
+                eframe = fastdR(bgjets[i], belecs[i])
+                belecs[i].jetdr = eframe[belecs[i].pt != 0].dropna(how='all')
+
+                eledoc = bgevents[i].get("Electron_vidNestedWPBitmap").title.decode()
+                elearr = bgevents[i].array("Electron_vidNestedWPBitmap")
+                mats = re.search(r'\((.*?)\)',eledoc).groups()
+                eleCuts = mats[0].split(",")
+                nbit = int(re.findall(r'(\d+) bits',eledoc)[0])
+                testbit = (1<<nbit)-1
+                elebits = DataFrame()
+                skipflag = False
+                # newID = { k:False for k ,v in  dict_eleID.items() }
+                for j, c in enumerate(eleCuts):
+                    if c == 'GsfEleRelPFIsoScaledCut':
+                        skipflag=True
+                        continue
+                    ibit = elearr  >> (nbit * j) & testbit
+                    elebits[j+1-skipflag] = ibit
+                bitframe, tempframe = DataFrame(), DataFrame()
+                for j in range(belecs[i].pt.shape[1]):
+                    for c in elebits.columns:
+                        tempframe[c] = elebits[c].str[j]
+                    bitframe[j+1] = tempframe.min(axis=1)
+                belecs[i].bitframe = bitframe
+
+                belecs[i].trimto(bgjets[i].pt)
+                Event(belecs[i]).sync()
+                
+            # import pdb; pdb.set_trace()
+
+            for elec in belecs + [elecs]:
+                elec.cut(elec.bitframe == 4)
+                elec.cut(elec.miniPFRelIso_all < 0.1)
+                elec.cut(elec.pt > 30)
+                elec.cut(abs(elec.eta) < 2.5)
+                elec.cut(abs(elec.sip3d) < 4.0)
+                elec.cut(elec.jetdr > 0.8)
+                ## HEM special electron veto
+                elec.cut(~((elec.eta < -1.4) & (elec.phi < -0.87) & (elec.phi > -1.57)))
+                elec.cut(elec.mvaTTH > -0.4)
+                ## Only keep the highest passing pT electron
+                elec.cut(elec.pt.rank(axis=1,method='first',ascending=False) == 1)
+                ## Electron crunch
+                for prop in elec:
+                    elec[prop] = DataFrame(elec[prop].max(axis=1)).rename(columns=inc)
+            
+    
+
+            # import pdb; pdb.set_trace()
+
+            sigevv.nlep = DataFrame(np.isfinite(muons.pt).sum(axis=1).add(np.isfinite(elecs.pt).sum(axis=1),fill_value=0)).rename(columns=inc)
+            sigevv.cut(sigevv.nlep > 0)
+            for i in range(len(bgjets)):
+                bgevv[i].nlep = DataFrame(np.isfinite(bmuons[i].pt).sum(axis=1).add(np.isfinite(belecs[i].pt).sum(axis=1),fill_value=0)).rename(columns=inc)
+                bgevv[i].cut(bgevv[i].nlep > 0)
+        
+            for e in [ev] + bev:
+                e.sync()
+            
+            ## TODO: potentially expand to cover signal but not data
+            musfid = uproot.open('Muon_IDScaleFactor_wSys_2018.root')['NUM_MediumID_DEN_TrackerMuons_pt_abseta']
+            musfiso= uproot.open('Muon_MediumID_MiniIso0p2SF_2017.root')['TnP_MC_NUM_MiniIso02Cut_DEN_MediumID_PAR_pt_eta']
+            musfidx = musfid.edges[0]
+            musfidy = musfid.edges[1]
+            musfisox = musfiso.edges[0]
+            musfisoy = musfiso.edges[1]
+            for muon in bmuons:
+                muon.extweight = muon.pt / muon.pt
+                for xi in range(len(musfidx)-1):
+                    for yi in range(len(musfidy)-1):
+                        muon.extweight[(muon.pt >= musfidx[xi]) & (muon.pt < musfidx[xi+1]) &
+                                        (muon.eta>= musfidy[yi]) & (muon.eta< musfidy[yi-1])] *= musfid.values[xi][yi] 
+                for xi in range(len(musfisox)-1):
+                    for yi in range(len(musfisoy)-1):
+                        muon.extweight[(muon.pt >= musfisox[xi]) & (muon.pt < musfisox[xi+1]) &
+                                        (muon.eta>= musfisoy[yi]) & (muon.eta< musfisoy[yi-1])] *= musfiso.values[xi][yi]
+                        
+            elsfcut = uproot.open('Electron_SUSYScaleFactors_2017v2ID_Run2018.root')['Run2018_CutBasedTightNoIso94XV2']
+            elsfiso = uproot.open('Electron_SUSYScaleFactors_2017v2ID_Run2018.root')['Run2018_Mini']
+            elsfgam = uproot.open('Electron_GT10GeV_RecoSF_2017v2ID_Run2018.root')['EGamma_SF2D']
+    
+    
+            elsfgamx = elsfgam.edges[0]
+            elsfgamy = elsfgam.edges[1]
+            elsfisox = elsfiso.edges[0]
+            elsfisoy = elsfiso.edges[1]
+            elsfcutx = elsfcut.edges[0]
+            elsfcuty = elsfcut.edges[1]
+    
+            for elec in belecs:
+                elec.extweight = elec.pt / elec.pt
+                for xi in range(len(elsfgamx)-1):
+                    for yi in range(len(elsfgamy)-1):
+                        elec.extweight[(elec.pt >= elsfgamy[yi]) & (elec.pt < elsfgamy[yi+1]) &
+                                        (elec.eta>= elsfgamx[xi]) & (elec.eta< elsfgamx[xi+1])] *= elsfgam.values[xi][yi]
+                for xi in range(len(elsfisox)-1):
+                    for yi in range(len(elsfisoy)-1):
+                        elec.extweight[(elec.pt >= elsfisoy[yi]) & (elec.pt < elsfisoy[yi+1]) &
+                                        (elec.eta>= elsfisox[xi]) & (elec.eta< elsfisox[xi+1])] *= elsfiso.values[xi][yi]
+                for xi in range(len(elsfcutx)-1):
+                    for yi in range(len(elsfcuty)-1):
+                        elec.extweight[(elec.pt >= elsfcuty[yi]) & (elec.pt < elsfcuty[yi+1]) &
+                                        (elec.eta>= elsfcutx[xi]) & (elec.eta< elsfcutx[xi+1])] *= elsfcut.values[xi][yi]
+            
+            for i in range(len(bgevv)):
+                if bgevv[i].extweight.shape[0]:
+                    bgevv[i].extweight[1][bgevv[i].extweight[1]*bmuons[i].extweight.max(axis=1) > 0] *= bmuons[i].extweight.max(axis=1)
+                    bgevv[i].extweight[1][bgevv[i].extweight[1]*belecs[i].extweight.max(axis=1) > 0] *= belecs[i].extweight.max(axis=1)
+                    belecs[i].eta = abs(belecs[i].eta)
+            elecs.eta = abs(elecs.eta)
+            
+            ev.register(sigsj)
+            ev.sync()
+            for i in range(len(bev)):
+                bev[i].register(bgsj[i])
+                bev[i].sync()
+                bgsj[i].fatdr = fastdR(bgjets[i],bgsj[i])         
+            sigsj.fatdr = fastdR(sigjets,sigsj)
+            
+            for sj in [sigsj] + bgsj:
+                sj.cut(sj.pt > 30)
+                sj.cut(abs(sj.eta) < 2.4)
+                sj.cut(sj.puId >= 1)
+                ## HEM veto for jets
+                sj.cut((sj.eta > -1.37) | (sj.phi < -1.77) | (sj.phi > -0.67))
+                sj.cut(sj.fatdr > 0.8)
+            
+            for i in range(len(bev)):
+                bmuons[i].trimTo(bgsj[i].pt)
+                belecs[i].trimTo(bgsj[i].pt)
+            muons.trimTo(sigsj.pt)
+            elecs.trimTo(sigsj.pt)
+            
+            # import pdb; pdb.set_trace()
+            ## fill invalid dR values to remove veto power
+            mudr  = ((sigsj.pt*0) + fastdR(muons,sigsj)).fillna(99)
+            eldr  = ((sigsj.pt*0) + fastdR(elecs,sigsj)).fillna(99)
+            ## Take the lowest dR of any position (or 0 if none valid), and check if it's below the cut.
+            sigsj.cut(  (mudr[mudr < eldr].fillna(0) + eldr[eldr <= mudr].fillna(0))  > 0.4)
+            print("Signal dR\n----------------------------------")
+            print((mudr[mudr < eldr].fillna(0) + eldr[eldr <= mudr].fillna(0)))
+            for i in range(len(bgsj)):
+                bmudr = ((bgsj[i].pt*0) + fastdR(bmuons[i],bgsj[i])).fillna(99)
+                beldr = ((bgsj[i].pt*0) + fastdR(belecs[i],bgsj[i])).fillna(99)
+                ## Take the lowest dR of any position (or 0 if none valid), and check if it's below the cut.
+                bgsj[i].cut(  (bmudr[bmudr < beldr].fillna(0) + beldr[beldr <= bmudr].fillna(0))  > 0.4)
+                
+            for sj in [sigsj] + bgsj:
+                ## Delete the highest jet, to leave only events with 2+ jets remaining
+                sj.cut(sj.pt.rank(axis=1,method='first',ascending=False) > 1)
+            print("Signal AK4 pT\n----------------------------------")
+            print(sigsj.pt)
+            for e in bev + [ev]:
+                e.sync()
+            
 
         ##################################
         # Preparing Neural Net Variables #
@@ -1189,17 +1361,26 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             # bgjetframe['extweight'] = lumipucalc(bgjetframe)
             # bgrawframe['extweight'] = lumipucalc(bgrawframe)
 
+        # import pdb; pdb.set_trace()
+        
+
+        for i in range(len(bgevv)):
+            if 'genweight' in bgevv[i].keys():
+                bgevv[i].extweight[bgevv[i].genweight < 0] *= -1
+        if dataflag != 1:
+            sigevv.extweight[sigevv.genweight < 0] *= -1
 
         bgjetframe = DataFrame()
         extvars = ['event','extweight','npvs','npvsG']
         if 'pt' in netvars: ptfix = ['phi']
         else: ptfix = ['phi','pt']
-        if LOADMODEL and False:#(not passplots):
+        if LOADMODEL and (not passplots) and ('lepton' in REGION):
             muvars = ['pt','eta','miniPFRelIso_all','sip3d','jetdr']
             elvars = ['e' + x for x in muvars]
             muvars = ['m' + x for x in muvars]
-            extvars += ['nlep','metpt']
+            extvars += ['metpt', 'nlep']
             for obj in [muons] + [elecs]:
+            # for obj in [elecs]:
                 obj.trimto(sigjets.pt)
             for i in range(len(bgjets)):
                 bmuons[i].trimto(bgjets[i].pt)
@@ -1273,17 +1454,21 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             sigjetframe['eta'] = abs(sigjetframe['eta'])
 
         ## Signal MC specific pt reweighting
-        if dataflag != 1:
-            ptwgt = 3.9 - (0.4*np.log2(sigjetframe.pt))
-            ptwgt[ptwgt < 0.1] = 0.1
-            sigjetframe.extweight = sigjetframe.extweight * ptwgt
+        # if dataflag != 1:
+        #     ptwgt = 3.9 - (0.4*np.log2(sigjetframe.pt))
+        #     ptwgt[ptwgt < 0.1] = 0.1
+        #     sigjetframe.extweight = sigjetframe.extweight * ptwgt
 
         sigjetframe['val'] = 1
         sigtrnframe = sigjetframe[sigjetframe['event']%2 == 0]
 
+        import pdb;
+        pdb.set_trace()
 
         print(f"{Skey} cut to {sigjetframe.shape[0]} entries")
         print(f"{Bkey} has {bgrawframe.shape[0]} entries")
+
+
 
         # bgjetframe = bgjetframe.fillna(0)
         # bgrawframe = bgrawframe.fillna(0)
@@ -1303,8 +1488,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             if isLHE:
                 bgjetframe=bgrawframe
             ## Normalize event number between QCD and data samples
-            if dataflag == True:
-                bgjetframe['extweight'] = bgjetframe['extweight'] * np.sum(sigjetframe['extweight'])/np.sum(bgjetframe['extweight'])
+            # if dataflag == True:
+            #     bgjetframe['extweight'] = bgjetframe['extweight'] * np.sum(sigjetframe['extweight'])/np.sum(bgjetframe['extweight'])
 
             X_inputs = pd.concat([bgjetframe,sigjetframe],ignore_index=True)
             W_inputs = X_inputs['extweight']
@@ -1316,7 +1501,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             # scaler = pickle.load( open("archive/C.p", "rb" ) )
 
             X_inputs = scaler.transform(X_inputs)
-            if disconame and not subnet:
+            if disconame and not (subnet or NET=="B"):
                 pickle.dump(model.predict(X_inputs),open(f"RUN-{disconame}.p",'wb'))
 
         else:
@@ -1342,7 +1527,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             if TUTOR == True:
                 tutor(X_train,X_test,Y_train,Y_test)
                 sys.exit()
-            elif subnet:
+            elif subnet or NET=="B":
                 discotr = pickle.load(open(f"archive/TR-{disconame}.p",'rb'))
                 discote = pickle.load(open(f"archive/TE-{disconame}.p",'rb'))
                 X_train = [X_train, discotr]
@@ -1375,16 +1560,25 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                     pickle.dump(model.predict(X_train),open(f"TR-{disconame}.p",'wb'))
                     pickle.dump(model.predict(X_test),open(f"TE-{disconame}.p",'wb'))
                     model.save(f"{mname}.hdf5")
-
-        passnum = 0.6
+        if REGION: passnum = 1
+        else: passnum = 0.6
         ##################################
         # Analyzing and Plotting Outputs #
         ##################################
+        
+        ## Skip everything if we're out of events
+        if not sigjetframe.shape[0]:
+            print("Out of signal events, stopping to prevent nonsensical output")
+            return 0
+        if not bgjetframe.shape[0]:
+            print("Out of background events, skipping to next file")
+            continue
+        
 
         varlist = netvars + muvars + elvars + ['npvs','npvsG','metpt']#,'nlep']
-
+        
         if LOADMODEL:
-            if subnet:
+            if subnet or NET=="B":
                 diststt = model.predict([X_inputs[Y_inputs==1],Y_inputs[Y_inputs==1]])[:,0]
                 distbtt = model.predict([X_inputs[Y_inputs==0],Y_inputs[Y_inputs==0]])[:,0]
             else:
@@ -1448,7 +1642,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
                 "WS":W_inputs[Y_inputs==1],
                 "WB":W_inputs[Y_inputs==0],
                 }
-            pickle.dump(saveball,open('saveball.p','wb'))
+            
 
             # for i in range(1,10):
             #     plots['SensS'][1][i] = distbf[distbf['bin']==i-1][0].max()
@@ -1481,7 +1675,6 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             plots['DistSte'].fill(distste,W_test[Y_test==1])
             plots['DistBtr'].fill(distbtr,W_train[Y_train==0])
             plots['DistBte'].fill(distbte,W_test[Y_test==0])
-            ## Blinding code for data vs QCD plots
 
 
             plt.clf()
@@ -1524,7 +1717,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         leg = [Sname,Bname]
         Sens = np.sqrt(np.sum(np.power(plots['SensS'][0],2)/plots['SensB'][0]))
         print(f"Calculated Senstivity of {Sens}")
-
+        
         plt.clf()
         pickle.dump(plots, open('debug.p','wb'))
         plots['DistSte'].make(linestyle='-',**plargs[Skey])
@@ -1534,6 +1727,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
         plots['DistSte'].make(linestyle='-',logv=True,**plargs[Skey])
         plots['DistBte'].make(linestyle=':',logv=True,**plargs[Bkey])
         plots['DistributionL'].plot(same=True,logv=True,legend=leg)
+        plt.clf()
         plots['SensS'].make(linestyle='-',logv=True,**plargs[Skey])
         plots['SensB'].xlabel = f"Confidence (S={Sens})"
         plots['SensB'].plot(legend=leg,same=True,linestyle=':',logv=True,ylim=(0.01,1),**plargs[Bkey])
@@ -1583,7 +1777,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             plt.clf()
             vplots['SG'+col].make(linestyle='-',**plargs[Skey])
             vplots['BG'+col].make(linestyle=':',**plargs[Bkey],error=dataflag)
-            vplots[col].plot(same=True,legend=[Sname,Bname])
+            vplots[col].plot(same=True,legend=[f"{Bname} ({round(vplots['BG'+col][0].sum())})",f"{Sname} ({round(vplots['SG'+col][0].sum())})"])
 
     #if POSTWEIGHT:
     #model.save('postweighted.hdf5')
@@ -1613,75 +1807,80 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False):
             setname = ic.bgname
         else: setname = ''
         arcdict.update({'setname':setname})
+        folder = plots['Distribution'].fname.split('/')[0]+'/'
         if setname:
-            pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/'+setname+'.p', "wb"))
-        else: pickle.dump(arcdict, open(plots['Distribution'].fname.split('/')[0]+'/arcdict.p', "wb"))
+            if subf:
+                setname = f"{subf}/{setname}"
+            pickle.dump(arcdict, open(f"{folder}{setname} {NET}.p", "wb"))
+            pickle.dump(diststt, open(f"{folder}{setname} diststt{NET}.p", 'wb'))
+            pickle.dump(distbtt, open(f"{folder}{setname} distbtt{NET}.p", 'wb'))
+            pickle.dump(saveball,open(f"{folder}{setname} saveball{NET}.p",'wb'))
+        else: pickle.dump(arcdict, open(f"{folder}arcdict{NET}.p", "wb"))
         # pickle.dump(sigjetframe,open('sigjetframe.p','wb'))
         # pickle.dump(bgjetframe,open('bgjetframe.p','wb'))
-        pickle.dump(diststt, open('diststt.p','wb'))
-        pickle.dump(distbtt, open('distbtt.p','wb'))
+        
 
 
-        datalist = []
-        for frame in [sigjetframe.drop(set(sigjetframe.columns) - set(netvars),axis=1),
-                      bgjetframe.drop(set(bgjetframe.columns) - set(netvars),axis=1)]:
-            datalist.append(spearmanr(frame).correlation)
-        datalist.append(datalist[0] - datalist[1])
+        # datalist = []
+        # for frame in [sigjetframe.drop(set(sigjetframe.columns) - set(netvars),axis=1),
+        #               bgjetframe.drop(set(bgjetframe.columns) - set(netvars),axis=1)]:
+        #     datalist.append(spearmanr(frame).correlation)
+        # datalist.append(datalist[0] - datalist[1])
 
-        mindata = []
-        fnames = ['otherplots/SGSpearmanD','otherplots/BGSpearmanD']
-        for k in range(2):
-            distdata = datalist[k] * 0
-            for x in range(distdata.shape[0]):
-                for y in range(distdata.shape[1]):
-                    distdata[y,x] = min((np.sum((datalist[k][y] - datalist[k][x])**2))**.5,
-                                        (np.sum((datalist[k][y] + datalist[k][x])**2))**.5)
-            mindata.append(distdata)
+        # mindata = []
+        # fnames = ['otherplots/SGSpearmanD','otherplots/BGSpearmanD']
+        # for k in range(2):
+        #     distdata = datalist[k] * 0
+        #     for x in range(distdata.shape[0]):
+        #         for y in range(distdata.shape[1]):
+        #             distdata[y,x] = min((np.sum((datalist[k][y] - datalist[k][x])**2))**.5,
+        #                                 (np.sum((datalist[k][y] + datalist[k][x])**2))**.5)
+        #     mindata.append(distdata)
 
-            plt.clf()
-            plt.rcParams.update({'font.size': 14})
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 16))
-            linkage = hierarchy.ward(squareform(mindata[k]))
-            dendro = hierarchy.dendrogram(
-                linkage, labels=netvars, ax=ax1, leaf_rotation=90
-            )
-            dendro_idx = np.arange(0, len(dendro['ivl']))
-            imdata = mindata[k][dendro['leaves'], :][:, dendro['leaves']]
-            ax2.imshow(imdata)
-            if True:
-                strarray = imdata.round(3).astype(str)
-                for i in range(len(imdata[0])):
-                    for j in range(len(imdata[1])):
-                        plt.text(i,j, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=11).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
-            ax2.set_xticks(dendro_idx)
-            ax2.set_yticks(dendro_idx)
-            ax2.set_xticklabels(dendro['ivl'], rotation='vertical')
-            ax2.set_yticklabels(dendro['ivl'])
-            fig.tight_layout()
-            #plt.show()
-            plt.gcf()
-            plt.savefig(fnames[k])
+        #     plt.clf()
+        #     plt.rcParams.update({'font.size': 14})
+        #     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 16))
+        #     linkage = hierarchy.ward(squareform(mindata[k]))
+        #     dendro = hierarchy.dendrogram(
+        #         linkage, labels=netvars, ax=ax1, leaf_rotation=90
+        #     )
+        #     dendro_idx = np.arange(0, len(dendro['ivl']))
+        #     imdata = mindata[k][dendro['leaves'], :][:, dendro['leaves']]
+        #     ax2.imshow(imdata)
+        #     if True:
+        #         strarray = imdata.round(3).astype(str)
+        #         for i in range(len(imdata[0])):
+        #             for j in range(len(imdata[1])):
+        #                 plt.text(i,j, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=11).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
+        #     ax2.set_xticks(dendro_idx)
+        #     ax2.set_yticks(dendro_idx)
+        #     ax2.set_xticklabels(dendro['ivl'], rotation='vertical')
+        #     ax2.set_yticklabels(dendro['ivl'])
+        #     fig.tight_layout()
+        #     #plt.show()
+        #     plt.gcf()
+        #     plt.savefig(fnames[k])
 
-        fnames = ['otherplots/SGSpearman','otherplots/BGSpearman','otherplots/diff2D']
-        for k in range(3):
-            plt.clf()
-            plt.rcParams.update({'font.size': 14})
-            fig, ax1 = plt.subplots(1, 1, figsize=(16, 16))
-            imdata = datalist[k][dendro['leaves'], :][:, dendro['leaves']]
-            ax1.imshow(imdata)
-            if True:
-                strarray = imdata.round(3).astype(str)
-                for i in range(len(imdata[0])):
-                    for j in range(len(imdata[1])):
-                        plt.text(i,j, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=11).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
-            ax1.set_xticks(dendro_idx)
-            ax1.set_yticks(dendro_idx)
-            ax1.set_xticklabels(dendro['ivl'], rotation='vertical')
-            ax1.set_yticklabels(dendro['ivl'])
-            fig.tight_layout()
-            #plt.show()
-            plt.gcf()
-            plt.savefig(fnames[k])
+        # fnames = ['otherplots/SGSpearman','otherplots/BGSpearman','otherplots/diff2D']
+        # for k in range(3):
+        #     plt.clf()
+        #     plt.rcParams.update({'font.size': 14})
+        #     fig, ax1 = plt.subplots(1, 1, figsize=(16, 16))
+        #     imdata = datalist[k][dendro['leaves'], :][:, dendro['leaves']]
+        #     ax1.imshow(imdata)
+        #     if True:
+        #         strarray = imdata.round(3).astype(str)
+        #         for i in range(len(imdata[0])):
+        #             for j in range(len(imdata[1])):
+        #                 plt.text(i,j, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=11).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
+        #     ax1.set_xticks(dendro_idx)
+        #     ax1.set_yticks(dendro_idx)
+        #     ax1.set_xticklabels(dendro['ivl'], rotation='vertical')
+        #     ax1.set_yticklabels(dendro['ivl'])
+        #     fig.tight_layout()
+        #     #plt.show()
+        #     plt.gcf()
+        #     plt.savefig(fnames[k])
 
 
 
@@ -1697,6 +1896,8 @@ def main():
         passplots=False
         LOADMODEL = True
         TUTOR = False
+        NET = "F"
+        subf = ''
         ## Check for file sources
         for i in range(nrgs):
             arg = sys.argv[i]
@@ -1704,6 +1905,8 @@ def main():
                 sigfile = sys.argv[i+1]
             elif '-b' in arg:
                 bgfile = sys.argv[i+1]
+            elif ('-n' in arg) or ('-N' in arg):
+                NET = sys.argv[i+1]
             elif ('-Pass' in arg) or ('-pass' in arg):
                 passplots = True
             elif ('-Train' in arg) or ('-train' in arg):
@@ -1711,6 +1914,8 @@ def main():
             elif ('-Tutor' in arg) or ('-tutor' in arg):
                 TUTOR = True
                 LOADMODEL=False
+            elif ('-F' in arg) or ('-f' in arg):
+                subf = sys.argv[i+1]
             #else: dialogue()
         #print('-')
         #print('sigfiles',sigfiles,'datafiles',datafiles)
@@ -1718,7 +1923,7 @@ def main():
         if not sigfile or not bgfile:
             dialogue()
         else:
-            ana(sigfile,bgfile,LOADMODEL,TUTOR,passplots)
+            ana(sigfile,bgfile,LOADMODEL,TUTOR,passplots,NET,subf)
 
     else:
         dialogue()

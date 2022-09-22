@@ -95,8 +95,14 @@ class Hist(object):
 
     ## Fills the stored histogram with the supplied values, and tracks squared uncertainty sum
     def fill(s,vals,weights=None):
-        vals[vals < s.hs[1][0]] = s.hs[1][0]
-        vals[vals > s.hs[1][-1]] = s.hs[1][-1]
+        try:
+            vals[vals < s.hs[1][0]] = s.hs[1][0]
+            vals[vals > s.hs[1][-1]] = s.hs[1][-1]
+        except TypeError:
+            vals = dframe(vals)
+            vals[vals < s.hs[1][0]] = s.hs[1][0]
+            vals[vals > s.hs[1][-1]] = s.hs[1][-1]
+        
         if weights is None:
             s.ser = s.ser + plt.hist(vals,s.hs[1])[0]
         else:
@@ -183,12 +189,12 @@ class Hist(object):
         s.ser = s.ser/(num*num)
         return s
 
-    # def nmulti(s,num=1,split=False):
-    #     if split:
-    #         s = cp.deepcopy(s)
-    #     s.hs[0] = s.hs[0]*num
-    #     s.ser = s.ser*(num*num)
-    #     return s
+    def nmulti(s,num=1,split=False):
+        if split:
+            s = cp.deepcopy(s)
+        s.hs[0] = s.hs[0]*num
+        s.ser = s.ser*(num*num)
+        return s
 
     ## Creates and returns a pyplot-compatible histogram object
     def make(s,logv=False,htype='bar',color=None,linestyle='solid',error=False,parent=plt):
@@ -196,9 +202,9 @@ class Hist(object):
             if not color:
                 color = 'k'
             binwidth = s.hs[1][2]-s.hs[1][1]
-            parent.hlines(s.hs[0],s.hs[1][0:-1],s.hs[1][1:],colors=color)
+            parent.hlines(s.hs[0],s.hs[1][0:-1],s.hs[1][1:],colors=color)#,label='_nolegend_')
             plot = parent.errorbar(s.hs[1][:-1]+binwidth/2,s.hs[0],yerr=np.sqrt(s.ser),fmt=f".{color}",
-                        color=color,linewidth=2,capsize=3)
+                        color=color,linewidth=2,capsize=3,label='_nolegend_')
             if logv:
                 if logv == 'set':
                     parent.set_yscale('log')
@@ -230,7 +236,7 @@ class Hist(object):
             args['parent'].grid(True)
             if not clean: hep.cms.label(loc=0,year='2018',ax=args['parent'])
             if legend:
-                args['parent'].legend(legend,loc=4)
+                args['parent'].legend(legend,loc=1)
             if ylim:
                 args['parent'].set_ylim(ylim)
             if s.xlabel != '':
@@ -241,7 +247,7 @@ class Hist(object):
             plt.grid(True)
             hep.cms.label(loc=0,year='2018')
             if legend:
-                 plt.legend(legend,loc=4)
+                 plt.legend(legend,loc=1)
             if ylim:
                 plt.ylim(ylim)
             if s.xlabel != '':
