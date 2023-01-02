@@ -40,6 +40,7 @@ import re, pdb
 import mplhep as hep
 plt.style.use([hep.style.ROOT,hep.style.CMS]) # For now ROOT defaults to CMS
 plt.style.use({'legend.frameon':True,'legend.fontsize':14,'legend.edgecolor':'black','hatch.linewidth':1.0})
+
 #plt.style.use({"font.size": 14})
 #plt.style.use(hep.cms.style.ROOT)
 
@@ -435,6 +436,7 @@ def submodel(ndim):
 
 def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf=''):
     #%%
+    cplot = Hist(10,(0,10),'stages','events','cutplot')
     ic = InputConfig(sigfile,bgfile)
     if ic.sigdata:
         dataflag = 1
@@ -464,7 +466,6 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
                'AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4',
                'DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71']
     slimvars = ['pt','eta','phi','btagDeepB','btagDeepFlavB','puId']
-
 
     ###################
     # Plots and Setup #
@@ -871,7 +872,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
     
         for jets in bgjets+[sigjets]:
             ##['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','n2b1','submass1','submass2','subtau1','subtau2','nsv']
-            # jets.mass += jets.mass*0.2
+            
             jets.cut(jets.pt > 170)
             jets.cut(abs(jets.eta)<2.4)
             jets.cut(jets.DDBvL > 0.8)
@@ -886,16 +887,20 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
                 jets.cut(jets.mass > 90)
                 jets.cut(jets.mass < 200)
                 jets.cut(jets.msoft < 200)  
+        cplot[0][0] = sigjets.pt.shape[0]
         for evv in bgevv + [sigevv]:
             evv.cut(evv.npvsG >= 1)
             if 'lepton' in REGION:
                 evv.cut(evv.metpt > 30)
-
+                
         for i in range(len(bgevv)):
             if ic.bgqcd[i] == -1:
                 bgevv[i].cut(bgevv[i].nGprt == 0)
             elif ic.bgqcd[i]:
                 bgevv[i].cut(bgevv[i].nGprt >= 1)
+                
+        ev.sync()
+        cplot[0][1] = sigjets.pt.shape[0]
             
         ## Temporary mass rescaling for exclusion zone
         if 'lowmass' in REGION:
@@ -904,6 +909,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
                 #msoft_scaled = msoft*(1.3 + 0.536*(math.exp(pow((msoft - 70.)/20., 0.8)) - 1))
                 jets.mass  = jets.mass*(1.3+0.536*(np.exp(np.power((jets.mass - 70)/20,3)) -1 ))
                 jets.msoft = jets.msoft*(1.3 + 0.536*(np.exp(np.power((jets.msoft - 70)/20, 0.8)) - 1))
+                jets.mass += jets.mass*0.2
+                jets.msoft += jets.mass*0.2
 
         if (not dataflag) and (not LOADMODEL):
             bs.cut(bs.pt>5)
@@ -977,8 +984,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
         #         bmuons[i].cut(bmuons[i].ip3d < 0.5)
         #         bev[i].sync()
 
-
-
+        cplot[0][2] = sigjets.pt.shape[0]
 
         ##########################
         # Training-Specific Cuts #
@@ -1030,6 +1036,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
         sigjets.nsv = DataFrame()
         sigjets.nsv[1] = np.sum(nsvframe < 0.8,axis=1)
 
+
         # if isLHE:
         for i in range(len(bgjets)):
             if bgjets[i].pt.size <= 0:
@@ -1066,6 +1073,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
 
         for e in [ev] + bev:
             e.sync()
+            
+        cplot[0][3] = sigjets.pt.shape[0]
 
         for i in range(len(bgjets)):
             if bgjets[i].pt.shape[0]:
@@ -1081,6 +1090,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
 
         for e in [ev] + bev:
             e.sync()
+
+        cplot[0][4] = sigjets.pt.shape[0]
 
         ## HEM 15-16 veto
         if dataflag == True:
@@ -1102,6 +1113,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
 
         for e in [ev] + bev:
             e.sync()
+            
+        cplot[0][5] = sigjets.pt.shape[0]
 
         ## Luminosity + PU weighting
         if dataflag != 1 and sigevv.extweight.size:
@@ -1362,7 +1375,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
             # bgrawframe['extweight'] = lumipucalc(bgrawframe)
 
         # import pdb; pdb.set_trace()
-        
+
 
         for i in range(len(bgevv)):
             if 'genweight' in bgevv[i].keys():
@@ -1462,8 +1475,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
         sigjetframe['val'] = 1
         sigtrnframe = sigjetframe[sigjetframe['event']%2 == 0]
 
-        import pdb;
-        pdb.set_trace()
+        # import pdb;
+        # pdb.set_trace()
 
         print(f"{Skey} cut to {sigjetframe.shape[0]} entries")
         print(f"{Bkey} has {bgrawframe.shape[0]} entries")
@@ -1715,6 +1728,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
 
     if LOADMODEL:
         leg = [Sname,Bname]
+        if 'Combined' in Bname:
+            leg = [Sname,'Combined MC']
         Sens = np.sqrt(np.sum(np.power(plots['SensS'][0],2)/plots['SensB'][0]))
         print(f"Calculated Senstivity of {Sens}")
         
@@ -1730,7 +1745,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
         plt.clf()
         plots['SensS'].make(linestyle='-',logv=True,**plargs[Skey])
         plots['SensB'].xlabel = f"Confidence (S={Sens})"
-        plots['SensB'].plot(legend=leg,same=True,linestyle=':',logv=True,ylim=(0.01,1),**plargs[Bkey])
+        plots['SensB'].plot(legend=leg,same=True,linestyle=':',logv=True,ylim=(0.00001,1),**plargs[Bkey])
     elif not passplots:
         leg = ['Signal (training)','Background (training)','Signal (testing)', 'Background(testing)']
 
@@ -1792,10 +1807,14 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
     # pickle.dump(bgjets,open('bgjets.p','wb'))
     # pickle.dump(bgsj,open('bgsj.p','wb'))
 
+    cplot.plot()
+    pickle.dump(cplot, open('cutplot.p','wb'))
+
+
     if not LOADMODEL:
         model.save('weighted.hdf5')
         pickle.dump(scaler, open(f"{sname}.p", "wb"))
-
+        
     elif not passplots:
         arcdict = {"plots":plots,"vplots":vplots}
         if ic.signame:

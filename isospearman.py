@@ -66,7 +66,7 @@ class Hist(HistL):
 nbin = 17
 RATIO = False
 BLIND = False
-path="DiststoreX"
+path="Diststore"
 refpath="Diststore"
 folders = [f"{path}/Full/",f"{path}/QCDEnr/",f"{path}/QCDGen/",f"{path}/QCDInc/",
            f"{path}/TTbar/",f"{path}/WJets/",f"{path}/ZJets/",f"{path}/Data/"]
@@ -76,10 +76,10 @@ outdict = {}
 # folders = ["Diststore/QCDGen/"]
 ## Create ROOT file for Combine
 # os.remove(f"SubNet_CombinedX{nbin}.root")
-rfile = TFile(f"SubNet_CombinedX{nbin}.root",'RECREATE')
+rfile = TFile(f"SubNet_Combined{nbin}.root",'RECREATE')
 th1b, quantsys, th1s = [], [], []
 ## controls weighting amount for shape uncertainties
-wval = 1.5
+wval = 1.1
 
 
 Adat = pickle.load(open(f"{refpath}/Full/A.p",'rb'))
@@ -136,29 +136,29 @@ for f in folders:
             [x + 3 for x in CSensB[1:]] + [x + 4 for x in CSensB[1:]]
     # raise ValueError("test")
     distplots = {
-        "sFA": Hist2D([FSensS,ASensB],None,"Full Network Signal","Subnet A signal","ratio/{f}_FAsubdistS"),
-        "sFB": Hist2D([FSensS,BSensB],None,"Full Network Signal","Subnet B signal","ratio/{f}_FBsubdistS"),
-        "sFC": Hist2D([FSensS,CSensB],None,"Full Network Signal","Subnet C signal","ratio/{f}_FCsubdistS"),
-        "bFA": Hist2D([FSensS,ASensB],None,"Full Network BG","Subnet A BG","ratio/{f}_FAsubdistB"),
-        "bFB": Hist2D([FSensS,BSensB],None,"Full Network BG","Subnet B BG","ratio/{f}_FBsubdistB"),
-        "bFC": Hist2D([FSensS,CSensB],None,"Full Network BG","Subnet C BG","ratio/{f}_FCsubdistB"),
-        "bAB": Hist2D([ASensB,BSensB],None,"Subnet A BG","Subnet B BG","ratio/{f}_ABsubdistB"),
-        "bAC": Hist2D([ASensB,CSensB],None,"Subnet A BG","Subnet C BG","ratio/{f}_ACsubdistB"),
-        "bBC": Hist2D([BSensB,CSensB],None,"Subnet B BG","Subnet C BG","ratio/{f}_BCsubdistB"),
+        "sFA": Hist2D([FSensS,ASensB],None,"Full Network Signal","Subnet A signal",f"ratio/{f}_FAsubdistS"),
+        "sFB": Hist2D([FSensS,BSensB],None,"Full Network Signal","Subnet B signal",f"ratio/{f}_FBsubdistS"),
+        "sFC": Hist2D([FSensS,CSensB],None,"Full Network Signal","Subnet C signal",f"ratio/{f}_FCsubdistS"),
+        "bFA": Hist2D([FSensS,ASensB],None,"Full Network BG","Subnet A BG",f"ratio/{f}_FAsubdistB"),
+        "bFB": Hist2D([FSensS,BSensB],None,"Full Network BG","Subnet B BG",f"ratio/{f}_FBsubdistB"),
+        "bFC": Hist2D([FSensS,CSensB],None,"Full Network BG","Subnet C BG",f"ratio/{f}_FCsubdistB"),
+        "bAB": Hist2D([ASensB,BSensB],None,"Subnet A BG","Subnet B BG",f"ratio/{f}_ABsubdistB"),
+        "bAC": Hist2D([ASensB,CSensB],None,"Subnet A BG","Subnet C BG",f"ratio/{f}_ACsubdistB"),
+        "bBC": Hist2D([BSensB,CSensB],None,"Subnet B BG","Subnet C BG",f"ratio/{f}_BCsubdistB"),
         }
     flatplots = {
-        "sFA": Hist(abbounds,None,"20%-quantile A occupancy","Signal Events","FAflatS","ratio/{f}_FA_signal"),
-        "sFB": Hist(bbbounds,None,"20%-quantile B occupancy","Signal Events","FBflatS","ratio/{f}_FB_signal"),
-        "sFC": Hist(cbbounds,None,"20%-quantile C occupancy","Signal Events","FCflatS","ratio/{f}_FC_signal"),
-        "sAB": Hist(bbbounds,None,"20%-quantile B occupancy in A","Signal Events","ratio/{f}_ABflatS","BinA"),
-        "sAC": Hist(cbbounds,None,"20%-quantile C occupancy in A","Signal Events","ratio/{f}_ACflatS","CinA"),
-        "sBC": Hist(cbbounds,None,"20%-quantile C occupancy in B","Signal Events","ratio/{f}_BCflatS","CinB"),
-        "bFA": Hist(abbounds,None,"20%-quantile A occupancy","Background Events","ratio/{f}_FAflatB","NetA"),
-        "bFB": Hist(bbbounds,None,"20%-quantile B occupancy","Background Events","ratio/{f}_FBflatB","NetB"),
-        "bFC": Hist(cbbounds,None,"20%-quantile C occupancy","Background Events","ratio/{f}_FCflatB","NetC"),
-        "bAB": Hist(bbbounds,None,"20%-quantile B occupancy in A","Background Events","ratio/{f}_ABflatB","BinA"),
-        "bAC": Hist(cbbounds,None,"20%-quantile C occupancy in A","Background Events","ratio/{f}_ACflatB","CinA"),
-        "bBC": Hist(cbbounds,None,"20%-quantile C occupancy in B","Background Events","ratio/{f}_BCflatB","CinB"),
+        "sFA": Hist(abbounds,None,"20%-quantile A occupancy","Signal Events","FAflatS",f"ratio/{f}_FA_signal"),
+        "sFB": Hist(bbbounds,None,"20%-quantile B occupancy","Signal Events","FBflatS",f"ratio/{f}_FB_signal"),
+        "sFC": Hist(cbbounds,None,"20%-quantile C occupancy","Signal Events","FCflatS",f"ratio/{f}_FC_signal"),
+        "sAB": Hist(bbbounds,None,"20%-quantile B occupancy in A","Signal Events",f"ratio/{f}_ABflatS","BinA"),
+        "sAC": Hist(cbbounds,None,"20%-quantile C occupancy in A","Signal Events",f"ratio/{f}_ACflatS","CinA"),
+        "sBC": Hist(cbbounds,None,"20%-quantile C occupancy in B","Signal Events",f"ratio/{f}_BCflatS","CinB"),
+        "bFA": Hist(abbounds,None,"20%-quantile A occupancy","Background Events",f"ratio/{f}_FAflatB","NetA"),
+        "bFB": Hist(bbbounds,None,"20%-quantile B occupancy","Background Events",f"ratio/{f}_FBflatB","NetB"),
+        "bFC": Hist(cbbounds,None,"20%-quantile C occupancy","Background Events",f"ratio/{f}_FCflatB","NetC"),
+        "bAB": Hist(bbbounds,None,"20%-quantile B occupancy in A","Background Events",f"ratio/{f}_ABflatB","BinA"),
+        "bAC": Hist(cbbounds,None,"20%-quantile C occupancy in A","Background Events",f"ratio/{f}_ACflatB","CinA"),
+        "bBC": Hist(cbbounds,None,"20%-quantile C occupancy in B","Background Events",f"ratio/{f}_BCflatB","CinB"),
         }
 
     sigframe["W"] = Fdat["WS"].reset_index(drop=True)
@@ -675,176 +675,133 @@ for f in folders:
         leg = ['bin 0','bin 1','bin 2','bin 3','bin 4','standard']
         plt.clf()
         for net in ["A","B","C"]:
-            # th1b.append(flatplots[f"bF{net}"].toTH1(bslice+"_"+flatplots[f"bF{net}"].title))
             for subn in ["bFA","bFB","bFC"] + ["bAB","bAC","bBC"]:
                 for b in range(5):
-                    quantsys.append(qdict[net][b][subn]['U'].toTH1(bslice + "_" + qdict[net][b][subn]['U'].title + f"_Qsys{net}{b}_{bslice}Up"))
-                    quantsys.append(qdict[net][b][subn]['D'].toTH1(bslice + "_" + qdict[net][b][subn]['D'].title + f"_Qsys{net}{b}_{bslice}Down"))
-                    # qdict[net][b][subn].make(htype='step',color=colors[b])
-                    # tempdown.make(htype='step',color=colors[b])
-                # tempratio = cp.deepcopy(flatplots[subn[:3]])
-                # tempratio.title = f"Changed {net}"
-                # tempratio.fname = 'ratio/' + bslice + "_" + flatplots[subn[:3]].title + f"_Qsys{net}D"
-                # tempratio.plot(same=True,htype='step',legend=leg,color='black')
+                    # quantsys.append(qdict[net][b][subn]['U'].toTH1(bslice + "_" + qdict[net][b][subn]['U'].title + f"_Qsys{net}{b}_{bslice}Up"))
+                    # quantsys.append(qdict[net][b][subn]['D'].toTH1(bslice + "_" + qdict[net][b][subn]['D'].title + f"_Qsys{net}{b}_{bslice}Down"))
+                    quantsys.append(qdict[net][b][subn]['U'].toTH1(bslice + "_" + qdict[net][b][subn]['U'].title + f"_Qsys{net}{b}Up"))
+                    quantsys.append(qdict[net][b][subn]['D'].toTH1(bslice + "_" + qdict[net][b][subn]['D'].title + f"_Qsys{net}{b}Down"))
         for subn in ["bFA3D", "bFB3D", "bFC3D"]:
-            quantsys.append(qdict[net][0][subn]['U'].toTH1(f"{bslice}_{qdict[net][0][subn]['U'].title}_{bslice}Up"))
-            quantsys.append(qdict[net][0][subn]['D'].toTH1(f"{bslice}_{qdict[net][0][subn]['D'].title}_{bslice}Down"))
-            # qdict[net][b][subn].make(htype='step',color=colors[b])
-            # tempdown.make(htype='step',color=colors[b])
-            # tempratio = cp.deepcopy(flatplots[subn[:3]])
-            # tempratio.title = f"Changed {net}"
-            # tempratio.fname = 'ratio/' + bslice + "_" + flatplots[subn[:3]].title + "D"
-            # tempratio.plot(same=True,htype='step',legend=leg,color='black')
+            # quantsys.append(qdict[net][0][subn]['U'].toTH1(f"{bslice}_{qdict[net][0][subn]['U'].title}_{bslice}Up"))
+            # quantsys.append(qdict[net][0][subn]['D'].toTH1(f"{bslice}_{qdict[net][0][subn]['D'].title}_{bslice}Down"))
+            quantsys.append(qdict[net][0][subn]['U'].toTH1(f"{bslice}_{qdict[net][0][subn]['U'].title}Up"))
+            quantsys.append(qdict[net][0][subn]['D'].toTH1(f"{bslice}_{qdict[net][0][subn]['D'].title}Down"))
         plt.clf()
         for n in ["AB","AC","BC","FA","FB","FC"]:
-            # flatplots[f"b{n}"][0][flatplots[f"b{n}"][0] == 0] = 0.01
-            th1b.append(flatplots[f"b{n}"].toTH1(bslice+"_"+flatplots[f"b{n}"].title))
+            th1b.append(flatplots[f"b{n}"].toTH1(bslice+"_"+flatplots[f"b{n}"].title+""))
+            distplots[f"b{n}"].plot(text=True,fontsize=14,vmin=0,vmax=2)
             for sub in ["AB","AC","BC"]:
                 for l in sub:
-                    # vdict[n][sub][l]["F"].fname = f"ratio/{bslice}_plot{n}_weight{sub}_q{l}FUp"
-                    # vdict[n][sub][l]["F"].plot(htype='step',color='black')
-                    # vdict[n][sub][l]["3D"].fname = f"ratio/{bslice}_plot{n}_3DDown"
-                    # vdict[n][sub][l]["3D"].plot(htype='step',color='black')
                     for b in range(5):
-                        # tempdown = cp.deepcopy(flatplots[f"b{n}"])
-                        quantsys.append(vdict[n][sub][l][b]['U'].toTH1(f"{bslice}_{vdict[n][sub][l][b]['U'].title}_VQsys{sub}{b}{l}_{bslice}Up"))
-                        # vdict[n][sub][l][b].make(htype='step',color=colors[b])
-                        # tempdown[0] = tempdown[0] * tempdown[0] / (vdict[n][sub][l][b][0] + 1E-9)
-                        # tempdown[0][~(np.isfinite(tempdown[0]))] = 0
-                        quantsys.append(vdict[n][sub][l][b]['D'].toTH1(f"{bslice}_{vdict[n][sub][l][b]['D'].title}_VQsys{sub}{b}{l}_{bslice}Down"))
-                        # tempdown.make(htype='step',color=colors[b])
-                    # temphist = cp.deepcopy(flatplots[f"b{n}"])
-                    # temphist.title = f"From {n} with {sub} weights in {l} quantiles"
-                    # if "F" in n: temphist.fname = f"ratio/{bslice}_Net{n[-1]}_weight{sub}_q{l}D"
-                    # else: temphist.fname = f"ratio/{bslice}_{n[-1]}in{n[0]}_weight{sub}_q{l}D"
-                    # temphist.plot(same=True,htype='step',legend=leg,color='black')
+                        # quantsys.append(vdict[n][sub][l][b]['U'].toTH1(f"{bslice}_{vdict[n][sub][l][b]['U'].title}_VQsys{sub}{b}{l}_{bslice}Up"))
+                        # quantsys.append(vdict[n][sub][l][b]['D'].toTH1(f"{bslice}_{vdict[n][sub][l][b]['D'].title}_VQsys{sub}{b}{l}_{bslice}Down"))
+                        quantsys.append(vdict[n][sub][l][b]['U'].toTH1(f"{bslice}_{vdict[n][sub][l][b]['U'].title}_VQsys{sub}{b}{l}Up"))
+                        quantsys.append(vdict[n][sub][l][b]['D'].toTH1(f"{bslice}_{vdict[n][sub][l][b]['D'].title}_VQsys{sub}{b}{l}Down"))
+        for n in ["AB","AC","BC"]:
+            # quantsys.append(vdict[n][sub][l]["3D"]['U'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_F3D_{bslice}Up"))
+            # quantsys.append(vdict[n][sub][l]["3D"]['D'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_F3D_{bslice}Down"))
+            quantsys.append(vdict[n][sub][l]["3D"]['U'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_F3DUp"))
+            quantsys.append(vdict[n][sub][l]["3D"]['D'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_F3DDown"))
+        for n in ["AB","AC","BC","FA","FB","FC"]:
+            plt.clf()
 
-        for n in ["AB","AC","BC"]:
-            # for sub in ["AB","AC","BC"]:
-                # l = sub[0]
-                # vdict[n][sub][l]["F"].fname = f"ratio/{bslice}_{n[-1]}in{n[0]}_weight{sub}_qFUp"
-                # vdict[n][sub][l]["F"].plot(htype='step',color='black')
-                # quantsys.append(vdict[n][sub][l]["F"]['U'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_weight{sub}_qFUp"))
-                # tempdown = cp.deepcopy(flatplots[f"b{n}"])
-                # tempdown[0] = tempdown[0] * tempdown [0] / (vdict[n][sub][l]["F"][0] + 1E-9)
-                # tempdown[0][~(tempdown[0] > 0)] = 0
-                # tempdown.fname = f"ratio/{bslice}_plot{n}_weight{sub}_qFDown"
-                # quantsys.append(vdict[n][sub][l]["F"]['D'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_weight{sub}_qFDown"))
-                # tempdown.plot(htype='step',color='black')
-            # vdict[n][sub][l]["3D"].fname = f"ratio/{bslice}_plot{n}_F3DDown"
-            # vdict[n][sub][l]["3D"].plot(htype='step',color='black')
-            quantsys.append(vdict[n][sub][l]["3D"]['U'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_F3D_{bslice}Up"))
-            # tempdown = cp.deepcopy(flatplots[f"b{n}"])
-            # tempdown[0] = tempdown[0] * tempdown [0] / (vdict[n][sub][l]["3D"][0] + 1E-9)
-            # tempdown[0][~(tempdown[0] > 0)] = 0
-            # tempdown.fname = f"ratio/{bslice}_plot{n}_F3DUp"
-            quantsys.append(vdict[n][sub][l]["3D"]['D'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_F3D_{bslice}Down"))
-            # tempdown.plot(htype='step',color='black')
-        for n in ["AB","AC","BC","FA","FB","FC"]:
-            plt.clf()
-            # cint = 0
             for sub in ["AB","AC","BC"]:
-                    # tempdown = cp.deepcopy(flatplots[f"b{n}"])
-                    # vdict[n][sub][sub[0]]["F"].make(htype='step',color=colors[cint])
                     if "F" in n: tstr = f"Net{n[-1]}"
                     else: tstr = f"{n[-1]}in{n[0]}"
-                    quantsys.append(vdict[n][sub][sub[0]]["F"]['U'].toTH1(f"{bslice}_{tstr}_{sub}2D_{bslice}Up"))
-                    # tempdown[0] = tempdown[0] * tempdown [0] / (vdict[n][sub][sub[0]]["F"][0] + 1E-9)
-                    # tempdown[0][~(tempdown[0] > 0)] = 0
-                    quantsys.append(vdict[n][sub][sub[0]]["F"]['D'].toTH1(f"{bslice}_{tstr}_{sub}2D_{bslice}Down"))
-                    # tempdown.make(htype='step',color=colors[cint])
-                    # cint += 1
-            # flatplots[f"b{n}"].fname = f"ratio/{bslice}_plot{n}_2DD"
-            # flatplots[f"b{n}"].plot(htype='step',color='k',legend=["AB","AC","BC","Flat"],same=True)
-    if 'QCDInc' in f:
-        qslice = 'QCDIncExtra'
-        colors = ['red','orange','gold','green','skyblue','mediumpurple','plum']
-        leg = ['bin 0','bin 1','bin 2','bin 3','bin 4','standard']
-        plt.clf()
-        for net in ["A","B","C"]:
-            # th1b.append(flatplots[f"bF{net}"].toTH1(bslice+"_"+flatplots[f"bF{net}"].title))
-            for subn in ["bFA","bFB","bFC"] + ["bAB","bAC","bBC"]:
-                for b in range(5):
-                    # quantsys.append(qdict[net][b][subn]['U'].nmult(3)
-                    quantsys.append(qdict[net][b][subn]['U'].toTH1(qslice + "_" + qdict[net][b][subn]['U'].title + f"_Qsys{net}{b}_{bslice}Up"))
-                    quantsys.append(qdict[net][b][subn]['D'].toTH1(qslice + "_" + qdict[net][b][subn]['D'].title + f"_Qsys{net}{b}_{bslice}Down"))
-                    # qdict[net][b][subn].make(htype='step',color=colors[b])
-                    # tempdown.make(htype='step',color=colors[b])
-                # tempratio = cp.deepcopy(flatplots[subn[:3]])
-                # tempratio.title = f"Changed {net}"
-                # tempratio.fname = 'ratio/' + bslice + "_" + flatplots[subn[:3]].title + f"_Qsys{net}D"
-                # tempratio.plot(same=True,htype='step',legend=leg,color='black')
-        for subn in ["bFA3D", "bFB3D", "bFC3D"]:
-            quantsys.append(qdict[net][0][subn]['U'].toTH1(f"{qslice}_{qdict[net][0][subn]['U'].title}_{bslice}Up"))
-            quantsys.append(qdict[net][0][subn]['D'].toTH1(f"{qslice}_{qdict[net][0][subn]['D'].title}_{bslice}Down"))
-            # qdict[net][b][subn].make(htype='step',color=colors[b])
-            # tempdown.make(htype='step',color=colors[b])
-            # tempratio = cp.deepcopy(flatplots[subn[:3]])
-            # tempratio.title = f"Changed {net}"
-            # tempratio.fname = 'ratio/' + bslice + "_" + flatplots[subn[:3]].title + "D"
-            # tempratio.plot(same=True,htype='step',legend=leg,color='black')
-        plt.clf()
-        for n in ["AB","AC","BC","FA","FB","FC"]:
-            # flatplots[f"b{n}"][0][flatplots[f"b{n}"][0] == 0] = 0.01
-            th1b.append(flatplots[f"b{n}"].toTH1(qslice+"_"+flatplots[f"b{n}"].title))
-            for sub in ["AB","AC","BC"]:
-                for l in sub:
-                    # vdict[n][sub][l]["F"].fname = f"ratio/{bslice}_plot{n}_weight{sub}_q{l}FUp"
-                    # vdict[n][sub][l]["F"].plot(htype='step',color='black')
-                    # vdict[n][sub][l]["3D"].fname = f"ratio/{bslice}_plot{n}_3DDown"
-                    # vdict[n][sub][l]["3D"].plot(htype='step',color='black')
-                    for b in range(5):
-                        # tempdown = cp.deepcopy(flatplots[f"b{n}"])
-                        quantsys.append(vdict[n][sub][l][b]['U'].toTH1(f"{qslice}_{vdict[n][sub][l][b]['U'].title}_VQsys{sub}{b}{l}_{bslice}Up"))
-                        # vdict[n][sub][l][b].make(htype='step',color=colors[b])
-                        # tempdown[0] = tempdown[0] * tempdown[0] / (vdict[n][sub][l][b][0] + 1E-9)
-                        # tempdown[0][~(np.isfinite(tempdown[0]))] = 0
-                        quantsys.append(vdict[n][sub][l][b]['D'].toTH1(f"{qslice}_{vdict[n][sub][l][b]['D'].title}_VQsys{sub}{b}{l}_{bslice}Down"))
-                        # tempdown.make(htype='step',color=colors[b])
-                    # temphist = cp.deepcopy(flatplots[f"b{n}"])
-                    # temphist.title = f"From {n} with {sub} weights in {l} quantiles"
-                    # if "F" in n: temphist.fname = f"ratio/{bslice}_Net{n[-1]}_weight{sub}_q{l}D"
-                    # else: temphist.fname = f"ratio/{bslice}_{n[-1]}in{n[0]}_weight{sub}_q{l}D"
-                    # temphist.plot(same=True,htype='step',legend=leg,color='black')
+                    # quantsys.append(vdict[n][sub][sub[0]]["F"]['U'].toTH1(f"{bslice}_{tstr}_{sub}2D_{bslice}Up"))
+                    # quantsys.append(vdict[n][sub][sub[0]]["F"]['D'].toTH1(f"{bslice}_{tstr}_{sub}2D_{bslice}Down"))
+                    quantsys.append(vdict[n][sub][sub[0]]["F"]['U'].toTH1(f"{bslice}_{tstr}_{sub}2DUp"))
+                    quantsys.append(vdict[n][sub][sub[0]]["F"]['D'].toTH1(f"{bslice}_{tstr}_{sub}2DDown"))
+    # if 'QCDInc' in f:
+    #     qslice = 'QCDIncExtra'
+    #     colors = ['red','orange','gold','green','skyblue','mediumpurple','plum']
+    #     leg = ['bin 0','bin 1','bin 2','bin 3','bin 4','standard']
+    #     plt.clf()
+    #     for net in ["A","B","C"]:
+    #         # th1b.append(flatplots[f"bF{net}"].toTH1(bslice+"_"+flatplots[f"bF{net}"].title))
+    #         for subn in ["bFA","bFB","bFC"] + ["bAB","bAC","bBC"]:
+    #             for b in range(5):
+    #                 # quantsys.append(qdict[net][b][subn]['U'].nmult(3)
+    #                 quantsys.append(qdict[net][b][subn]['U'].toTH1(qslice + "_" + qdict[net][b][subn]['U'].title + f"_Qsys{net}{b}Up"))
+    #                 quantsys.append(qdict[net][b][subn]['D'].toTH1(qslice + "_" + qdict[net][b][subn]['D'].title + f"_Qsys{net}{b}Down"))
+    #                 # qdict[net][b][subn].make(htype='step',color=colors[b])
+    #                 # tempdown.make(htype='step',color=colors[b])
+    #             # tempratio = cp.deepcopy(flatplots[subn[:3]])
+    #             # tempratio.title = f"Changed {net}"
+    #             # tempratio.fname = 'ratio/' + bslice + "_" + flatplots[subn[:3]].title + f"_Qsys{net}D"
+    #             # tempratio.plot(same=True,htype='step',legend=leg,color='black')
+    #     for subn in ["bFA3D", "bFB3D", "bFC3D"]:
+    #         quantsys.append(qdict[net][0][subn]['U'].toTH1(f"{qslice}_{qdict[net][0][subn]['U'].title}Up"))
+    #         quantsys.append(qdict[net][0][subn]['D'].toTH1(f"{qslice}_{qdict[net][0][subn]['D'].title}Down"))
+    #         # qdict[net][b][subn].make(htype='step',color=colors[b])
+    #         # tempdown.make(htype='step',color=colors[b])
+    #         # tempratio = cp.deepcopy(flatplots[subn[:3]])
+    #         # tempratio.title = f"Changed {net}"
+    #         # tempratio.fname = 'ratio/' + bslice + "_" + flatplots[subn[:3]].title + "D"
+    #         # tempratio.plot(same=True,htype='step',legend=leg,color='black')
+    #     plt.clf()
+    #     for n in ["AB","AC","BC","FA","FB","FC"]:
+    #         # flatplots[f"b{n}"][0][flatplots[f"b{n}"][0] == 0] = 0.01
+    #         th1b.append(flatplots[f"b{n}"].toTH1(qslice+"_"+flatplots[f"b{n}"].title))
+    #         for sub in ["AB","AC","BC"]:
+    #             for l in sub:
+    #                 # vdict[n][sub][l]["F"].fname = f"ratio/{bslice}_plot{n}_weight{sub}_q{l}FUp"
+    #                 # vdict[n][sub][l]["F"].plot(htype='step',color='black')
+    #                 # vdict[n][sub][l]["3D"].fname = f"ratio/{bslice}_plot{n}_3DDown"
+    #                 # vdict[n][sub][l]["3D"].plot(htype='step',color='black')
+    #                 for b in range(5):
+    #                     # tempdown = cp.deepcopy(flatplots[f"b{n}"])
+    #                     quantsys.append(vdict[n][sub][l][b]['U'].toTH1(f"{qslice}_{vdict[n][sub][l][b]['U'].title}_VQsys{sub}{b}{l}Up"))
+    #                     # vdict[n][sub][l][b].make(htype='step',color=colors[b])
+    #                     # tempdown[0] = tempdown[0] * tempdown[0] / (vdict[n][sub][l][b][0] + 1E-9)
+    #                     # tempdown[0][~(np.isfinite(tempdown[0]))] = 0
+    #                     quantsys.append(vdict[n][sub][l][b]['D'].toTH1(f"{qslice}_{vdict[n][sub][l][b]['D'].title}_VQsys{sub}{b}{l}Down"))
+    #                     # tempdown.make(htype='step',color=colors[b])
+    #                 # temphist = cp.deepcopy(flatplots[f"b{n}"])
+    #                 # temphist.title = f"From {n} with {sub} weights in {l} quantiles"
+    #                 # if "F" in n: temphist.fname = f"ratio/{bslice}_Net{n[-1]}_weight{sub}_q{l}D"
+    #                 # else: temphist.fname = f"ratio/{bslice}_{n[-1]}in{n[0]}_weight{sub}_q{l}D"
+    #                 # temphist.plot(same=True,htype='step',legend=leg,color='black')
     
-        for n in ["AB","AC","BC"]:
-            # for sub in ["AB","AC","BC"]:
-                # l = sub[0]
-                # vdict[n][sub][l]["F"].fname = f"ratio/{bslice}_{n[-1]}in{n[0]}_weight{sub}_qFUp"
-                # vdict[n][sub][l]["F"].plot(htype='step',color='black')
-                # quantsys.append(vdict[n][sub][l]["F"]['U'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_weight{sub}_qFUp"))
-                # tempdown = cp.deepcopy(flatplots[f"b{n}"])
-                # tempdown[0] = tempdown[0] * tempdown [0] / (vdict[n][sub][l]["F"][0] + 1E-9)
-                # tempdown[0][~(tempdown[0] > 0)] = 0
-                # tempdown.fname = f"ratio/{bslice}_plot{n}_weight{sub}_qFDown"
-                # quantsys.append(vdict[n][sub][l]["F"]['D'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_weight{sub}_qFDown"))
-                # tempdown.plot(htype='step',color='black')
-            # vdict[n][sub][l]["3D"].fname = f"ratio/{bslice}_plot{n}_F3DDown"
-            # vdict[n][sub][l]["3D"].plot(htype='step',color='black')
-            quantsys.append(vdict[n][sub][l]["3D"]['U'].toTH1(f"{qslice}_{n[-1]}in{n[0]}_F3D_{bslice}Up"))
-            # tempdown = cp.deepcopy(flatplots[f"b{n}"])
-            # tempdown[0] = tempdown[0] * tempdown [0] / (vdict[n][sub][l]["3D"][0] + 1E-9)
-            # tempdown[0][~(tempdown[0] > 0)] = 0
-            # tempdown.fname = f"ratio/{bslice}_plot{n}_F3DUp"
-            quantsys.append(vdict[n][sub][l]["3D"]['D'].toTH1(f"{qslice}_{n[-1]}in{n[0]}_F3D_{bslice}Down"))
-            # tempdown.plot(htype='step',color='black')
-        for n in ["AB","AC","BC","FA","FB","FC"]:
-            plt.clf()
-            # cint = 0
-            for sub in ["AB","AC","BC"]:
-                    # tempdown = cp.deepcopy(flatplots[f"b{n}"])
-                    # vdict[n][sub][sub[0]]["F"].make(htype='step',color=colors[cint])
-                    if "F" in n: tstr = f"Net{n[-1]}"
-                    else: tstr = f"{n[-1]}in{n[0]}"
-                    quantsys.append(vdict[n][sub][sub[0]]["F"]['U'].toTH1(f"{qslice}_{tstr}_{sub}2D_{bslice}Up"))
-                    # tempdown[0] = tempdown[0] * tempdown [0] / (vdict[n][sub][sub[0]]["F"][0] + 1E-9)
-                    # tempdown[0][~(tempdown[0] > 0)] = 0
-                    quantsys.append(vdict[n][sub][sub[0]]["F"]['D'].toTH1(f"{qslice}_{tstr}_{sub}2D_{bslice}Down"))
-                    # tempdown.make(htype='step',color=colors[cint])
-                    # cint += 1
-            # flatplots[f"b{n}"].fname = f"ratio/{bslice}_plot{n}_2DD"
-            # flatplots[f"b{n}"].plot(htype='step',color='k',legend=["AB","AC","BC","Flat"],same=True)
+    #     for n in ["AB","AC","BC"]:
+    #         # for sub in ["AB","AC","BC"]:
+    #             # l = sub[0]
+    #             # vdict[n][sub][l]["F"].fname = f"ratio/{bslice}_{n[-1]}in{n[0]}_weight{sub}_qFUp"
+    #             # vdict[n][sub][l]["F"].plot(htype='step',color='black')
+    #             # quantsys.append(vdict[n][sub][l]["F"]['U'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_weight{sub}_qFUp"))
+    #             # tempdown = cp.deepcopy(flatplots[f"b{n}"])
+    #             # tempdown[0] = tempdown[0] * tempdown [0] / (vdict[n][sub][l]["F"][0] + 1E-9)
+    #             # tempdown[0][~(tempdown[0] > 0)] = 0
+    #             # tempdown.fname = f"ratio/{bslice}_plot{n}_weight{sub}_qFDown"
+    #             # quantsys.append(vdict[n][sub][l]["F"]['D'].toTH1(f"{bslice}_{n[-1]}in{n[0]}_weight{sub}_qFDown"))
+    #             # tempdown.plot(htype='step',color='black')
+    #         # vdict[n][sub][l]["3D"].fname = f"ratio/{bslice}_plot{n}_F3DDown"
+    #         # vdict[n][sub][l]["3D"].plot(htype='step',color='black')
+    #         quantsys.append(vdict[n][sub][l]["3D"]['U'].toTH1(f"{qslice}_{n[-1]}in{n[0]}_F3DUp"))
+    #         # tempdown = cp.deepcopy(flatplots[f"b{n}"])
+    #         # tempdown[0] = tempdown[0] * tempdown [0] / (vdict[n][sub][l]["3D"][0] + 1E-9)
+    #         # tempdown[0][~(tempdown[0] > 0)] = 0
+    #         # tempdown.fname = f"ratio/{bslice}_plot{n}_F3DUp"
+    #         quantsys.append(vdict[n][sub][l]["3D"]['D'].toTH1(f"{qslice}_{n[-1]}in{n[0]}_F3DDown"))
+    #         # tempdown.plot(htype='step',color='black')
+    #     for n in ["AB","AC","BC","FA","FB","FC"]:
+    #         plt.clf()
+    #         # cint = 0
+    #         for sub in ["AB","AC","BC"]:
+    #                 # tempdown = cp.deepcopy(flatplots[f"b{n}"])
+    #                 # vdict[n][sub][sub[0]]["F"].make(htype='step',color=colors[cint])
+    #                 if "F" in n: tstr = f"Net{n[-1]}"
+    #                 else: tstr = f"{n[-1]}in{n[0]}"
+    #                 quantsys.append(vdict[n][sub][sub[0]]["F"]['U'].toTH1(f"{qslice}_{tstr}_{sub}2DUp"))
+    #                 # tempdown[0] = tempdown[0] * tempdown [0] / (vdict[n][sub][sub[0]]["F"][0] + 1E-9)
+    #                 # tempdown[0][~(tempdown[0] > 0)] = 0
+    #                 quantsys.append(vdict[n][sub][sub[0]]["F"]['D'].toTH1(f"{qslice}_{tstr}_{sub}2DDown"))
+    #                 # tempdown.make(htype='step',color=colors[cint])
+    #                 # cint += 1
+    #         # flatplots[f"b{n}"].fname = f"ratio/{bslice}_plot{n}_2DD"
+    #         # flatplots[f"b{n}"].plot(htype='step',color='k',legend=["AB","AC","BC","Flat"],same=True)
     outdict.update({namelist[nit]:flatplots})
+    outdict.update({namelist[nit]+'2d':distplots})
     nit += 1
     if 'Data' in f:
         for net in ["A","B","C"]:
@@ -861,4 +818,4 @@ rfile.Write()
 for elem in th1s + th1b:
     elem.SetDirectory(0)
 rfile.Close()
-pickle.dump(outdict,open('Snetplots/flatdict.p','wb'))
+pickle.dump(outdict,open(f"Snetplots/{path}.p",'wb'))

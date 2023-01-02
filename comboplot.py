@@ -5,7 +5,8 @@ import matplotlib.pyplot as plt
 import copy as cp
 import numpy as np
 import sys, os
-from analib import Hist as histl
+from analib import Hist as histl, Hist2d
+
 
 # from analib import th1f as TH1F
 # from analib import tfile as TFile
@@ -22,10 +23,17 @@ plotnames = ['pt', 'eta', 'CSVV2', 'DeepB', 'nsv',
               'mass',  'msoft', 'submass2', 'subtau2', 'DDBvL',
                'phi', 'npvs', 'npvsG', 'Dist']
 cntvar = 'DDBvL'#'CSVV2'
+# cntvar = 'CSVV2'
+# cntvar = 'H4qvs'
 
 plotnames += ['metpt','nlep','mpt','meta','mjetdr','mminiPFRelIso_all','msip3d']
 plotnames += ['ept','eeta','ejetdr','eminiPFRelIso_all','esip3d']
-colorlist = ['red','orange','yellow','green','skyblue','mediumpurple','plum']
+colorlist = ['red','orange','yellow','green','skyblue','mediumpurple']#,'plum']
+colorlist.reverse()
+colordict = {}
+for i in range(len(namelist)):
+    colordict.update({namelist[i]:colorlist[i]})
+    
 nlen = len(namelist)
 ## Load pickled dictionaries of plots
 # flatdict = pickle.load(open('Snetplots/flatdict.p','rb'))
@@ -36,8 +44,8 @@ flatnames = []#'FA','FB','FC','AB','AC','BC']
 #         else: flatdict[name][f"BG{key[1:]}"] = flatdict[name].pop(key)
 arclist = []
 for name in namelist:
-    arclist.append(pickle.load(open(f"Snetplots/GGH_HPT vs {name}.p",'rb')))
-arcdata = pickle.load(open("Dnetplots/JetHT vs Combined QCD.p",'rb'))
+    arclist.append(pickle.load(open(f"Snetplots/Base/GGH_HPT vs {name} C.p",'rb')))
+arcdata = pickle.load(open("Dnetplots/Base/JetHT vs Combined QCD C.p",'rb'))
 arcdata['vplots'].update({'SGDist':arcdata['plots']['DistSte']})
 arcdata['vplots']['SGDist'][0] *= arcdata['vplots'][f"SG{cntvar}"][0].sum()
 # arcdata['vplots'].update(flatdict['Data'])
@@ -48,6 +56,7 @@ for i in range(nlen):
     arclist[i]['vplots'].update({"BGDist":arclist[i]['plots']['DistBte']})
     arclist[i]['vplots'].update({"SGDist":arclist[i]['plots']['DistSte']})
     arclist[i]['vplots']["BGDist"][0] *= arclist[i]['vplots'][f"BG{cntvar}"][0].sum()
+    arclist[i].update({'color':colorlist[i]})
     # arclist[i]['vplots'].update(flatdict[namelist[i]])
 ## Re-arrange the index list from lowest to highest contribution
 isorted=False
@@ -78,10 +87,13 @@ for pname in plotnames + flatnames:
         arcdata['vplots'][f"SG{pname}"].ylabel = 'events'
     else:
         arcdata['vplots'][f"SG{pname}"].xlabel = "Confidence"
-        arcdata['vplots'][f"SG{pname}"].ylabel = 'Fractional Distribution'
+        arcdata['vplots'][f"SG{pname}"].ylabel = 'Events'
         arcdata['vplots'][f"SG{pname}"].ser *= 0
-
-
+        
+comboc = [colordict[namelist[ilist[0]]]]
+for i in range(1,nlen):
+    comboc.append(colordict[namelist[ilist[i]]])
+    
 ## Generate a dictionary of ratio plots
 ratiodict = {}
 for pname in plotnames + flatnames:
@@ -101,7 +113,7 @@ for pname in plotnames + flatnames:
     sigdict.update({pname: cp.deepcopy(arclist[0]['vplots']["SG"+pname])})
     sigdict[pname].mult = np.sum(combodict[pname][-1][0]) / np.sum(sigdict[pname][0])
     sigdict[pname].ival = sigdict[pname][0].sum()
-    # sigdict[pname][0] *= sigdict[pname].mult
+    sigdict[pname][0] *= sigdict[pname].mult
     sigdict[pname].xlabel, sigdict[pname].ylabel, sigdict[pname].fname = '','',''
 
 bgnum, signum = 0,0
@@ -127,10 +139,11 @@ bgnum, signum = 0,0
 
 ## Generate a legend for the upcoming plots
 leg = []
-leg.append(f"GGH MC ({round(sigdict[cntvar].ival)} * {round(sigdict[cntvar].mult)})")
+# leg.append(f"GGH MC ({round(sigdict[cntvar].ival)} * {round(sigdict[cntvar].mult)})")
 leg.append(f"JetHT data ({round(arcdata['vplots']['SG'+cntvar][0].sum())})")
+leglist = ['QCDbEnriched','QCDbGen','QCDInc','TTbar','WJets','ZJets']
 for i in ilist[::-1]:
-    leg.append(f"{namelist[i]} ({round(arclist[i]['vplots']['BG'+cntvar][0].sum())})")
+    leg.append(f"{leglist[i]} ({round(arclist[i]['vplots']['BG'+cntvar][0].sum())})")
 
 
 
@@ -141,14 +154,14 @@ for pname in plotnames + ["DistL"] + flatnames:
         pname = "Dist"
         arcdata['vplots']["SGDist"].fname += "L"
         # ratiodict['Dist']["Dist"].fname += "L"
-        lv = 'set'
+        lv = True#'set'
     plt.clf()
-    fig, axis = plt.subplots(2,1,sharex=True,gridspec_kw={'height_ratios':[3,1]})
+    # fig, axis = plt.subplots(2,1,sharex=True,gridspec_kw={'height_ratios':[3,1]})
     for layer in range(nlen-1,-1,-1):
-        combodict[pname][layer].make(color=colorlist[layer],htype='bar',parent=axis[0],logv=lv)
-    sigdict[pname].make(color='r',htype='step',parent=axis[0],logv=lv)
-    ratiodict[pname].plot(same=True,color='k',htype='err',parent=axis[1],clean=True,ylim=[-1,1])
-    arcdata['vplots'][f"SG{pname}"].plot(same=True,legend=leg,color='k',htype='err',parent=axis[0],logv=lv)
+        combodict[pname][layer].make(color=comboc[layer],htype='bar',logv=lv)
+    # sigdict[pname].make(color='r',htype='step',logv=lv)
+    # ratiodict[pname].plot(same=True,color='k',htype='err',parent=axis[1],clean=True,ylim=[-1,1])
+    arcdata['vplots'][f"SG{pname}"].plot(same=True,legend=leg,lloc=1,color='k',htype='err',logv=lv)
 
 
 

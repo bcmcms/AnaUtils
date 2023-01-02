@@ -1,11 +1,5 @@
 #! /usr/bin/env python
 
-########################################################################
-### NanoAOD analyzer utility n00dle.py                               ###
-###                                                                  ###
-### Currently doesn't support options... but we're improving!        ###
-########################################################################
-
 #import os
 #import subprocess
 #import sys
@@ -219,7 +213,7 @@ class Hist(object):
 
         return plot
         #return hep.histplot(s.hs[0],s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
-    def plot(s,ylim=False,same=False,legend=False,figure=False,clean=False,**args):
+    def plot(s,ylim=False,same=False,legend=False,figure=False,clean=False,lloc=0,**args):
         if not same:
             plt.clf()
         s.make(**args)
@@ -234,9 +228,10 @@ class Hist(object):
 
         if 'parent' in args:
             args['parent'].grid(True)
-            if not clean: hep.cms.label(loc=0,year='2018',ax=args['parent'])
+
+            if not clean: hep.cms.label(loc=0,year='2018',ax=args['parent'],llabel="Work in progress")
             if legend:
-                args['parent'].legend(legend,loc=1)
+                args['parent'].legend(legend,loc=lloc)
             if ylim:
                 args['parent'].set_ylim(ylim)
             if s.xlabel != '':
@@ -245,9 +240,9 @@ class Hist(object):
                 args['parent'].set_ylabel(s.ylabel,fontsize=18)
         else:
             plt.grid(True)
-            hep.cms.label(loc=0,year='2018')
+            hep.cms.label(loc=0,year='2018',llabel="Work in progress")
             if legend:
-                 plt.legend(legend,loc=1)
+                 plt.legend(legend,loc=lloc)
             if ylim:
                 plt.ylim(ylim)
             if s.xlabel != '':
@@ -334,13 +329,20 @@ class Hist2d(object):
         s.hs[0] = s.hs[0]/nval
         return s
 
-    def make(s,edgecolor='face',linewidth=1):
+    def make(s,edgecolor='face',linewidth=1,vmin=None,vmax=None,bar=False,square=True):
         plt.clf()
         #out = plt.imshow(s.hs[0].T[::-1],extent=(s.bounds[0][0],s.bounds[0][1],s.bounds[1][0],s.bounds[1][1]),aspect='auto',origin='upper')
-        out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth)
+        if (vmin is not None) and (vmax is not None):
+            out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth,vmin=vmin,vmax=vmax)
+        else:
+            out = plt.pcolor(s.hs[1],s.hs[2],s.hs[0].T,edgecolor=edgecolor,linewidth=linewidth)
+        if bar:
+            plt.colorbar()
+        if square:
+            plt.gca().set_aspect('equal')
         return out
 
-    def plot(s,logv=False,text=False,empty=False,tlen=3,*args,**kwargs):
+    def plot(s,logv=False,text=False,empty=False,tlen=3,fontsize=9,*args,**kwargs):
         if not empty:
             s.make(*args,**kwargs)
         #print(s.hs[0])
@@ -352,7 +354,7 @@ class Hist2d(object):
                 for j in range(len(s.hs[2])-1):
                     hf = (s.hs[1][i+1] - s.hs[1][i])/2
                     vf = (s.hs[2][j+1] - s.hs[2][j])/2
-                    plt.text(s.hs[1][i]+hf,s.hs[2][j]+vf, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=9).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
+                    plt.text(s.hs[1][i]+hf,s.hs[2][j]+vf, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=fontsize).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
         else:
             plt.colorbar()
         if s.xlabel != '':
@@ -362,7 +364,7 @@ class Hist2d(object):
         if s.title != '':
             plt.title(s.title)
         if s.fname != '':
-            plt.savefig(s.fname)
+            plt.savefig(s.fname,dpi=300)
 
 
 def inc(var):
@@ -378,7 +380,7 @@ class PhysObj(DefaultMunch):
             if not varname:
                 varname = name
             for arg in args:
-                s[arg] = pd.DataFrame(events.array(varname+'_'+arg)).rename(columns=inc)
+                s[arg] = dframe(events.array(varname+'_'+arg)).rename(columns=inc)
         super().__init__(name)
 
     def __setitem__(s,key,value):
@@ -414,9 +416,22 @@ class PhysObj(DefaultMunch):
             s[elem] = s[elem][mask]
             if drop:
                 s[elem] = s[elem].dropna(how='all')
-                ## Comment this out if you don't want to allow object columns to be deleted
-                s[elem] = s[elem].dropna(how='all',axis=1)
+                if drop != 'row': # allows object columns to be deleted
+                    s[elem] = s[elem].dropna(how='all',axis=1)
         return s
+
+    ## Renumbers columns to eliminate potential gaps [1,2,4] starting from first entry
+    def fixcols(s,split=False,first=False):
+        if split:
+            s = s.deepcopy()
+        for elem in s:
+            tcol = []
+            if first: colf = first
+            else: colf = s[elem.columns[0]] 
+            for ci in range(s[elem].columns.shape[0]):
+                tcol.append(ci + colf)
+            s[elem].columns = tcol
+            
 
     def deepcopy(s):
         tobj = PhysObj(s.name)
