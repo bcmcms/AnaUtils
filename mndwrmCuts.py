@@ -51,8 +51,6 @@ executor = concurrent.futures.ThreadPoolExecutor()
 
 pd.options.mode.chained_assignment = None
 
-SCALE = False
-BLIND = False
 ##Controls how many epochs the network will train for
 epochs = 50
 ##Toggles experimental subnet training code
@@ -439,7 +437,8 @@ def submodel(ndim):
 
 def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf=''):
     #%%
-    # cplot = Hist(10,(0,10),'stages','events','cutplot')
+    cplot = Hist(10,(0,10),'stages','events','cutplot')
+    refevv = pickle.load(open('cutlessSigEvv.p','rb'))
     ic = InputConfig(sigfile,bgfile)
     if ic.sigdata:
         dataflag = 1
@@ -844,26 +843,26 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
 
 #           plots['genAmass'].dfill(As.mass)
 
-            ev = Event(bs,sigjets,As,higgs,sigsv,sigevv,sigl1,sighlt)
-        else:
-            if dataflag != 1:
-                Hpt = DataFrame(sigevents.array('GenPart_pt'))[DataFrame(sigevents.array('GenPart_pdgId'))==25][DataFrame(sigevents.array('GenPart_status'))==62].max(axis=1)
-                ptwgt = 3.9 - (0.4*np.log2(Hpt))
-                ptwgt[ptwgt < 0.1] = 0.1
-                sigevv.extweight[1] *= ptwgt
+        ev = Event(bs,sigjets,As,higgs,sigsv,sigevv,sigl1,sighlt)
+            
+        if dataflag != 1:
+            Hpt = DataFrame(sigevents.array('GenPart_pt'))[DataFrame(sigevents.array('GenPart_pdgId'))==25][DataFrame(sigevents.array('GenPart_status'))==62].max(axis=1)
+            ptwgt = 3.9 - (0.4*np.log2(Hpt))
+            ptwgt[ptwgt < 0.1] = 0.1
+            sigevv.extweight[1] *= ptwgt
+            
+        if 'TTbar' in ic.bgname:
+            for i in range(len(bgevents)):
+                pdgida  = bgevents[i].array('GenPart_pdgId')
+                pdgstat = bgevents[i].array('GenPart_status')
+                tpt = DataFrame(bgevents[0].array('GenPart_pt')[pdgida==6][pdgstat[pdgida==6]==62]).rename(columns=inc)
+                tbpt = DataFrame(bgevents[0].array('GenPart_pt')[pdgida==-6][pdgstat[pdgida==-6]==62]).rename(columns=inc)
                 
-            if 'TTbar' in ic.bgname:
-                for i in range(len(bgevents)):
-                    pdgida  = bgevents[i].array('GenPart_pdgId')
-                    pdgstat = bgevents[i].array('GenPart_status')
-                    tpt = DataFrame(bgevents[0].array('GenPart_pt')[pdgida==6][pdgstat[pdgida==6]==62]).rename(columns=inc)
-                    tbpt = DataFrame(bgevents[0].array('GenPart_pt')[pdgida==-6][pdgstat[pdgida==-6]==62]).rename(columns=inc)
-                    
-                    twgt = ((0.103*np.exp(-0.0118*tpt[1])) - (0.000134*tpt[1]) + 0.973)**0.5
-                    twgt *= ((0.103*np.exp(-0.0118*tbpt[1])) - (0.000134*tbpt[1]) + 0.973)**0.5
-                    twgt = 1 + 0.5*(twgt - 1)
-                    
-                    bgevv[i].extweight[1] *= twgt
+                twgt = ((0.103*np.exp(-0.0118*tpt[1])) - (0.000134*tpt[1]) + 0.973)**0.5
+                twgt *= ((0.103*np.exp(-0.0118*tbpt[1])) - (0.000134*tbpt[1]) + 0.973)**0.5
+                twgt = 1 + 0.5*(twgt - 1)
+                
+                bgevv[i].extweight[1] *= twgt
             ev = Event(sigjets,sigsv,sigevv,sigl1,sighlt)
 
 
@@ -872,12 +871,55 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
             bev.append(Event(bgjets[i],bgsv[i],bgevv[i],bgl1[i],bghlt[i]))
 
         # import pdb; pdb.set_trace()
+        ev.sync()
+        refevv.trimto(sigevv.extweight)
+        print('Start:',refevv.extweight.sum())
+        if (not dataflag) and (not LOADMODEL):
+            bs.cut(bs.pt>5)
+            bs.cut(abs(bs.eta)<2.4)
+            ev.sync()
+            sigsj.cut(sigsj.btagDeepB > 0.1241)
+            sigsj.cut(sigsj.btagDeepFlavB > 0.277)
+            sigsj.cut(sigsj.puId > 0)
+            sigsj.trimto(sigjets.eta)
         
+        
+        ##########################
+        # Training-Specific Cuts #
+        ##########################
+        if (not dataflag) and (not LOADMODEL):
+            jbdr = computedR(sigjets,bs,['jet','b'])
+            blist = []
+            # sblist = []
+            for b in range(nb):
+                blist.append(jbdr.filter(like='b '+str(b+1)))
+                blist[b] = blist[b][blist[b].rank(axis=1,method='first') == 1]
+                blist[b] = blist[b].rename(columns=lambda x:int(x[4:6]))
+
+            fjets = blist[0]<0.8
+            fjets = fjets.astype(int)
+            for i in range(1,4):
+                fjets = fjets + (blist[i]<0.8)
+            fjets = fjets.max(axis=1)
+            fjets = fjets[fjets==4].dropna()
+            sigjets.trimto(fjets)
+            ev.sync()
+            del jbdr, blist, fjets
+
+        
+        ev.sync()
+        refevv.trimto(sigevv.extweight)
+        print('4qjdr:',refevv.extweight.sum())
         for jets in bgjets+[sigjets]:
             ##['pt','eta','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','n2b1','submass1','submass2','subtau1','subtau2','nsv']
             #+=
+            
             jets.cut(jets.pt > 170)
             jets.cut(abs(jets.eta)<2.4)
+            if 'sig' in jets.name:
+                ev.sync()
+                refevv.trimto(sigevv.extweight)
+                print('pT+eta:',refevv.extweight.sum())
             if 'lowmass' in REGION:
                 jets.cut(jets.msoft > 70)
                 jets.cut(jets.mass > 70)
@@ -888,16 +930,30 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
                 jets.cut(jets.mass > 90)
                 jets.cut(jets.mass < 200)
                 jets.cut(jets.msoft < 200)  
+            if 'sig' in jets.name:
+                ev.sync()
+                refevv.trimto(sigevv.extweight)
+                print('Mass:',refevv.extweight.sum())
             jets.cut(jets.DeepB > 0.4184)
+            if 'sig' in jets.name:
+                ev.sync()
+                refevv.trimto(sigevv.extweight)
+                print('DeepB:',refevv.extweight.sum())
             jets.cut(jets.DDBvL > 0.8)
+            if 'sig' in jets.name:
+                ev.sync()
+                refevv.trimto(sigevv.extweight)
+                print('DDBvL:',refevv.extweight.sum())
 
 
-
-        # cplot[0][0] = sigjets.pt.shape[0]
+        cplot[0][0] = sigjets.pt.shape[0]
         for evv in bgevv + [sigevv]:
             evv.cut(evv.npvsG >= 1)
             if 'lepton' in REGION:
-                evv.cut(evv.metpt > 30)     
+                evv.cut(evv.metpt > 30)
+        ev.sync()
+        refevv.trimto(sigevv.extweight)
+        print('npvsG:',refevv.extweight.sum())      
         for i in range(len(bgevv)):
             if ic.bgqcd[i] == -1:
                 bgevv[i].cut(bgevv[i].nGprt == 0)
@@ -905,7 +961,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
                 bgevv[i].cut(bgevv[i].nGprt >= 1)
                 
         ev.sync()
-        # cplot[0][1] = sigjets.pt.shape[0]
+        cplot[0][1] = sigjets.pt.shape[0]
             
         ## Temporary mass rescaling for exclusion zone
         if 'lowmass' in REGION:
@@ -914,17 +970,10 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
                 #msoft_scaled = msoft*(1.3 + 0.536*(math.exp(pow((msoft - 70.)/20., 0.8)) - 1))
                 jets.mass  = jets.mass*( 1.3 + 0.536*(np.exp(np.power((jets.mass  - 70)/20, 3)) -1 ))
                 jets.msoft = jets.msoft*(1.3 + 0.536*(np.exp(np.power((jets.msoft - 70)/20, 0.8)) - 1))
-                # jets.mass += jets.mass*0.2
-                # jets.msoft += jets.mass*0.2
+                jets.mass += jets.mass*0.2
+                jets.msoft += jets.mass*0.2
 
-        if (not dataflag) and (not LOADMODEL):
-            bs.cut(bs.pt>5)
-            bs.cut(abs(bs.eta)<2.4)
-            ev.sync()
-            sigsj.cut(sigsj.btagDeepB > 0.1241)
-            sigsj.cut(sigsj.btagDeepFlavB > 0.277)
-            sigsj.cut(sigsj.puId > 0)
-            sigsj.trimto(sigjets.eta)
+
 
         #####################
         # Non-Training Cuts #
@@ -989,29 +1038,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
         #         bmuons[i].cut(bmuons[i].ip3d < 0.5)
         #         bev[i].sync()
 
-        # cplot[0][2] = sigjets.pt.shape[0]
-
-        ##########################
-        # Training-Specific Cuts #
-        ##########################
-        if (not dataflag) and (not LOADMODEL):
-            jbdr = computedR(sigjets,bs,['jet','b'])
-            blist = []
-            # sblist = []
-            for b in range(nb):
-                blist.append(jbdr.filter(like='b '+str(b+1)))
-                blist[b] = blist[b][blist[b].rank(axis=1,method='first') == 1]
-                blist[b] = blist[b].rename(columns=lambda x:int(x[4:6]))
-
-            fjets = blist[0]<0.8
-            fjets = fjets.astype(int)
-            for i in range(1,4):
-                fjets = fjets + (blist[i]<0.8)
-            fjets = fjets.max(axis=1)
-            fjets = fjets[fjets==4].dropna()
-            sigjets.trimto(fjets)
-            ev.sync()
-            del jbdr, blist, fjets
+        cplot[0][2] = sigjets.pt.shape[0]
 
         ########################
         # Precompute Jet Crush #
@@ -1040,12 +1067,6 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
         #     nsvframe[j+1] = np.sum(sjlist[j][sjlist[j]<0.8].fillna(0)/sjlist[j][sjlist[j]<0.8].fillna(0),axis=1)
         sigjets.nsv = DataFrame()
         sigjets.nsv[1] = np.sum(nsvframe < 0.8,axis=1)
-        
-        # if True:
-        #     sigevv.extweight *= (1 + (0.2 * (sigjets.nsv - 4.5))) * 0.9794744582638485
-        # elif True:
-        #     sigevv.extweight *= (1 - (0.2 * (sigjets.nsv - 4.5))) * 1.0214042076511285
-            
 
 
         # if isLHE:
@@ -1076,6 +1097,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
         del nsvframe
 
 
+
         #######################################
         # Trigger Region Analysis & Weighting #
         #######################################
@@ -1083,7 +1105,10 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
         for e in [ev] + bev:
             e.sync()
             
-        # cplot[0][3] = sigjets.pt.shape[0]
+        ev.sync()
+        refevv.trimto(sigevv.extweight)
+        print('NSV:',refevv.extweight.sum())
+        cplot[0][3] = sigjets.pt.shape[0]
 
         for i in range(len(bgjets)):
             if bgjets[i].pt.shape[0]:
@@ -1099,14 +1124,16 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
 
         for e in [ev] + bev:
             e.sync()
-
+        ev.sync()
+        refevv.trimto(sigevv.extweight)
+        print('Trig:',refevv.extweight.sum())
 
         # for evv in [sigevv]+bgevv:
         #     evv.extweight[evv.trg=="AB"] += evv.extweight[evv.trg=="AB"]*.01
         #     evv.extweight[evv.trg=="ABC"] += evv.extweight[evv.trg=="ABC"]*.01
         #     evv.extweight[evv.trg=="CX"] += evv.extweight[evv.trg=="CX"]*.06
 
-        # cplot[0][4] = sigjets.pt.shape[0]
+        cplot[0][4] = sigjets.pt.shape[0]
 
         ## HEM 15-16 veto
         if dataflag == True:
@@ -1129,7 +1156,12 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
         for e in [ev] + bev:
             e.sync()
             
-        # cplot[0][5] = sigjets.pt.shape[0]
+        cplot[0][5] = sigjets.pt.shape[0]
+        ev.sync()
+        refevv.trimto(sigevv.extweight)
+        print('HEM:',refevv.extweight.sum())
+        
+        sys.exit(0)
 
         ## Luminosity + PU weighting
         if dataflag != 1 and sigevv.extweight.size:
@@ -1620,9 +1652,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
             diststt = model.predict(scaler.transform(sigjetframe.drop(set(sigjetframe.columns) - set(netvars),axis=1)))
             distbtt = model.predict(scaler.transform(bgjetframe.drop(set(bgjetframe.columns) - set(netvars),axis=1)))
 
-        # dbdict = {'bgjetframe':bgjetframe,'sigjetframe':sigjetframe,'diststt':diststt,'distbtt':distbtt,'X_inputs':X_inputs,'Y_inputs':Y_inputs,'W_inputs':W_inputs}
-        # pickle.dump(dbdict, open(f"dbd/{ic.signame} vs {ic.bgname} dbdict {NET}_{fnum}.p",'wb'))
-                  
+
         if LOADMODEL:
             plots['DistSte'].fill(diststt,W_inputs[Y_inputs==1])
             plots['DistBte'].fill(distbtt,W_inputs[Y_inputs==0])
@@ -1713,7 +1743,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
             plt.plot(trocx,trocy,'b:')
             plt.xlabel('False Positive Rate')
             plt.ylabel('True Positive Rate')
-            plt.legend(['y=x','Validation','Training'], fontsize=20,loc=4)
+            plt.legend(['y=x','Validation','Training'])
             plt.title('Keras NN  ROC (area = {:.3f})'.format(auc(rocx,rocy)))
             plt.savefig(plots['Distribution'].fname+'ROC')
 
@@ -1731,14 +1761,13 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
                 pplots['BFL'+col].fill(bgjetframe[distbtt <= passnum][col],bgjetframe[distbtt <= passnum]['extweight'])
 
 
-    if SCALE:
-        for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte'],plots['SensB'],plots['SensS']]:
-            if sum(p[0]) != 0:
-                p.ival = sum(p[0])
-                p.ndivide(sum(p[0]))
+    for p in [plots['DistStr'],plots['DistSte'],plots['DistBtr'],plots['DistBte'],plots['SensB'],plots['SensS']]:
+        if sum(p[0]) != 0:
+            p.ival = sum(p[0])
+            p.ndivide(sum(p[0]))
 
     ## Blinding control
-    if (dataflag == True) and BLIND:
+    if (dataflag == True):# and (NET == "F"):
         for i in range(len(plots['DistSte'][0])):
             if plots['DistSte'][1][i] >= passnum:
                 plots['DistSte'][0][i] = 0
@@ -1825,8 +1854,8 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
     # pickle.dump(bgjets,open('bgjets.p','wb'))
     # pickle.dump(bgsj,open('bgsj.p','wb'))
 
-    # cplot.plot()
-    # pickle.dump(cplot, open('cutplot.p','wb'))
+    cplot.plot()
+    pickle.dump(cplot, open('cutplot.p','wb'))
 
 
     if not LOADMODEL:
@@ -1865,7 +1894,7 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
         datalist.append(datalist[0] - datalist[1])
 
         mindata = []
-        fnames = ['otherplots/SGSpearman','otherplots/BGSpearman']
+        fnames = ['otherplots/SGSpearmanD','otherplots/BGSpearmanD']
         for k in range(2):
             distdata = datalist[k] * 0
             for x in range(distdata.shape[0]):
@@ -1876,43 +1905,35 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
 
             plt.clf()
             plt.rcParams.update({'font.size': 14})
-            fig, ax1 = plt.subplots()#1, 2, figsize=(24, 16))
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(24, 16))
             linkage = hierarchy.ward(squareform(mindata[k]))
             dendro = hierarchy.dendrogram(linkage, labels=netvars, ax=ax1, leaf_rotation=90)#, leaf_font_size=20
-            ax1.tick_params(axis='x', which='major', labelsize=15)
-            ax1.tick_params(axis='y', which='major', labelsize=15)
+            ax1.tick_params(axis='x', which='major', labelsize=20)
+            ax1.tick_params(axis='y', which='major', labelsize=20)
             dendro_idx = np.arange(0, len(dendro['ivl']))
             imdata = mindata[k][dendro['leaves'], :][:, dendro['leaves']]
-            plt.gcf()
-            plt.savefig(fnames[k]+"D")
-            plt.clf()
-            fig, ax2 = plt.subplots()
-            im = plt.imshow(imdata)
-
+            ax2.imshow(imdata)
             if True:
                 strarray = imdata.round(3).astype(str)
                 for i in range(len(imdata[0])):
                     for j in range(len(imdata[1])):
-                        plt.text(i,j, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=11).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
+                        plt.text(i,j, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=14).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
             ax2.set_xticks(dendro_idx)
             ax2.set_yticks(dendro_idx)
-            ax2.set_xticklabels(dendro['ivl'], rotation='vertical',fontsize=15)
-            ax2.set_yticklabels(dendro['ivl'], fontsize=15)
-            
-            cax = fig.add_axes([ax2.get_position().x1+0.01,ax2.get_position().y0,0.02,ax2.get_position().height])
-            plt.colorbar(im, cax=cax) # Similar to fig.colorbar(im, cax = cax)
-            # fig.tight_layout(pad=0.01)
+            ax2.set_xticklabels(dendro['ivl'], rotation='vertical',fontsize=20)
+            ax2.set_yticklabels(dendro['ivl'], fontsize=20)
+            fig.tight_layout()
             #plt.show()
             plt.gcf()
-            plt.savefig(fnames[k]+"2D")
+            plt.savefig(fnames[k])
 
         fnames = ['otherplots/SGSpearman','otherplots/BGSpearman','otherplots/diff2D']
         for k in range(3):
             plt.clf()
             plt.rcParams.update({'font.size': 14})
-            fig, ax1 = plt.subplots()#1, 1, figsize=(16, 16))
+            fig, ax1 = plt.subplots(1, 1, figsize=(16, 16))
             imdata = datalist[k][dendro['leaves'], :][:, dendro['leaves']]
-            im = ax1.imshow(imdata)
+            ax1.imshow(imdata)
             if True:
                 strarray = imdata.round(3).astype(str)
                 for i in range(len(imdata[0])):
@@ -1920,12 +1941,10 @@ def ana(sigfile,bgfile,LOADMODEL=True,TUTOR=False,passplots=False,NET="F",subf='
                         plt.text(i,j, strarray[i,j],color="w", ha="center", va="center", fontweight='normal',fontsize=11).set_path_effects([PathEffects.withStroke(linewidth=2,foreground='k')])
             ax1.set_xticks(dendro_idx)
             ax1.set_yticks(dendro_idx)
-            ax1.set_xticklabels(dendro['ivl'], rotation='vertical',fontsize=15)
-            ax1.set_yticklabels(dendro['ivl'],fontsize=15)
-            # fig.tight_layout()
+            ax1.set_xticklabels(dendro['ivl'], rotation='vertical')
+            ax1.set_yticklabels(dendro['ivl'])
+            fig.tight_layout()
             #plt.show()
-            cax = fig.add_axes([ax1.get_position().x1+0.01,ax1.get_position().y0,0.02,ax1.get_position().height])
-            plt.colorbar(im, cax=cax) # Similar to fig.colorbar(im, cax = cax)
             plt.gcf()
             plt.savefig(fnames[k])
 

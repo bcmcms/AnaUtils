@@ -141,7 +141,7 @@ def compare(conf,option,stage):
                    }
     elif stage == "C":
         numplot = {'pt':    Hist(27,(150,1500)  ,'pT of AK8 jet passing cuts + triggers / passing cuts',f"{option} Ratio",f"Effplots/{name}_pTEfficiencyPlot_{option}_C"),
-                   's2pt':  Hist(61,(30,1050)   ,'pT of 2nd highest pT slimjet passing cuts+triggers / passing cuts',f"{option} Ratio",f"Effplots/{name}_s2pTEfficiencyPlot_{option}_C"),
+                   's2pt':  Hist(50,(100,200)   ,'pT of 2nd highest pT slimjet passing cuts+triggers / passing cuts',f"{option} Ratio",f"Effplots/{name}_s2pTEfficiencyPlot_{option}_C"),
                    'lowb':  Hist(20,(0,1.0)     ,'Lowest deepB of two slimjets passing cuts+triggers / passing cuts',f"{option} Ratio",f"Effplots/{name}_lowbEfficiencyPlot_{option}_C"),
                }
     elif stage == "D":
@@ -261,10 +261,10 @@ def compare(conf,option,stage):
     if option == 'MuonEG':
         for i in range(len(files)):
             l1s[i].cut(np.logical_or.reduce((
-                np.logical_and(np.logical_or(l1s[i].Mu7_EG23er2p5,l1s[i].Mu7_LooseIsoEG20er2p5),hlts[i].Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ),
-                np.logical_and(np.logical_or(l1s[i].Mu20_EG10er2p5,l1s[i].SingleMu22),hlts[i].Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL),
-                np.logical_and(l1s[i].SingleMu25,hlts[i].Mu27_Ele37_CaloIdL_MW),
-                np.logical_and(l1s[i].SingleMu25,hlts[i].Mu37_Ele27_CaloIdL_MW))))
+                ((l1s[i].Mu7_EG23er2p5) | (l1s[i].Mu7_LooseIsoEG20er2p5)) & (hlts[i].Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL_DZ),
+                ((l1s[i].Mu20_EG10er2p5) | (l1s[i].SingleMu22)) & (hlts[i].Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL),
+                (l1s[i].SingleMu25) & (hlts[i].Mu27_Ele37_CaloIdL_MW),
+                (l1s[i].SingleMu25) & (hlts[i].Mu37_Ele27_CaloIdL_MW))))
     
             ## Makes a frame whose elements have the highest pt of the muon or electron in that position
             passf = elecs[i].pt.combine(mus[i].pt,np.maximum,fill_value=0)
@@ -328,13 +328,12 @@ def compare(conf,option,stage):
             for prop in sjets[i]:
                 tempframe[f"s1{prop}"] = sjets[i][prop][sjets[i]['pt'].rank(axis=1,method='first',ascending=False) == 1].max(axis=1)
                 tempframe[f"s2{prop}"] = sjets[i][prop][sjets[i]['pt'].rank(axis=1,method='first',ascending=False) == 2].max(axis=1)
-        tempframe['trigA'] = np.logical_and(l1s[i].SingleJet180[1],hlts[i].AK8PFJet500[1])
-        tempframe['trigB'] = np.logical_and(l1s[i].SingleJet180[1],hlts[i].AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1])
-        tempframe['trigC'] = np.logical_and(
-            np.logical_or(l1s[i].DoubleJet112er2p3_dEta_Max1p6[1],l1s[i].DoubleJet150er2p5[1])
-            ,hlts[i].DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1])
-        tempframe['trigAB'] = np.logical_or(tempframe['trigA'],tempframe['trigB'])
-        tempframe['trigABC']= np.logical_or(tempframe['trigAB'],tempframe['trigC'])
+        tempframe['trigA'] = (l1s[i].SingleJet180[1]) & (hlts[i].AK8PFJet500[1])
+        tempframe['trigB'] = (l1s[i].SingleJet180[1]) & (hlts[i].AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1])
+        tempframe['trigC'] = ((l1s[i].DoubleJet112er2p3_dEta_Max1p6[1]) | (l1s[i].DoubleJet150er2p5[1]))\
+            & (hlts[i].DoublePFJets116MaxDeta1p6_DoubleCaloBTagDeepCSV_p71[1])
+        tempframe['trigAB'] = (tempframe['trigA'])  | (tempframe['trigB'])
+        tempframe['trigABC']= (tempframe['trigAB']) | (tempframe['trigC'])
         # tempframe['L1_SingleJet180'] = l1s[i].SingleJet180[1]
         # tempframe['HLT_AK8PFJet500'] = hlts[i].AK8PFJet500[1]
         # tempframe['HLT_AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4'] = hlts[i].AK8PFJet330_TrimMass30_PFAK8BoostedDoubleB_np4[1]
@@ -386,32 +385,32 @@ def compare(conf,option,stage):
         effplot.update({'DDBvL': numplot['DDBvL'].divideby(denplot['DDBvL'],split=True,errmethod='effnorm')})
     
     if stage == "C":
-        tempframe = mergedframe[np.logical_and(mergedframe['s1pt'] > 140, mergedframe['s2pt'] > 140)]
-        tempframe = tempframe[np.logical_and(tempframe['s1btagDeepB'] > .4184,tempframe['s2btagDeepB'] > .4184)]
+        tempframe = mergedframe[(mergedframe['s1pt'] > 140) & (mergedframe['s2pt'] > 140)]
+        tempframe = tempframe[(tempframe['s1btagDeepB'] > .4184) & (tempframe['s2btagDeepB'] > .4184)]
         denplot['pt'].fill(tempframe['pt'],tempframe['extweight'])
         numplot['pt'].fill(tempframe['pt'][mergedframe['trigC'] == 1],
             tempframe['extweight'][mergedframe['trigC'] == 1])
         effplot.update({'pt': numplot['pt'].divideby(denplot['pt'],split=True,errmethod='effnorm')})
         
         tempframe = mergedframe[mergedframe['s1pt'] > mergedframe['s2pt']]
-        tempframe = tempframe[np.logical_and(tempframe['s1btagDeepB'] > .4184,tempframe['s2btagDeepB'] > .4184)]
+        tempframe = tempframe[(tempframe['s1btagDeepB'] > .4184) & (tempframe['s2btagDeepB'] > .4184)]
         denplot['s2pt'].fill(tempframe['s2pt'],tempframe['extweight'])
         numplot['s2pt'].fill(tempframe['s2pt'][mergedframe['trigC'] == 1],
             tempframe['extweight'][mergedframe['trigC'] == 1])
         tempframe = mergedframe[mergedframe['s1pt'] <= mergedframe['s2pt']]
-        tempframe = tempframe[np.logical_and(tempframe['s1btagDeepB'] > .4184,tempframe['s2btagDeepB'] > .4184)]
+        tempframe = tempframe[(tempframe['s1btagDeepB'] > .4184) & (tempframe['s2btagDeepB'] > .4184)]
         denplot['s2pt'].fill(tempframe['s1pt'],tempframe['extweight'])
         numplot['s2pt'].fill(tempframe['s1pt'][mergedframe['trigC'] == 1],
             tempframe['extweight'][mergedframe['trigC'] == 1])
         effplot.update({'s2pt': numplot['s2pt'].divideby(denplot['s2pt'],split=True,errmethod='effnorm')})
         
         tempframe = mergedframe[mergedframe['s1btagDeepB'] > mergedframe['s2btagDeepB']]
-        tempframe = tempframe[np.logical_and(tempframe['s1pt'] > 150, tempframe['s2pt'] > 150)]
+        tempframe = tempframe[(tempframe['s1pt'] > 150) & (tempframe['s2pt'] > 150)]
         denplot['lowb'].fill(tempframe['s2btagDeepB'],tempframe['extweight'])
         numplot['lowb'].fill(tempframe['s2btagDeepB'][mergedframe['trigC'] == 1],
             tempframe['extweight'][mergedframe['trigC'] == 1])
         tempframe = mergedframe[mergedframe['s1btagDeepB'] <= mergedframe['s2btagDeepB']]
-        tempframe = tempframe[np.logical_and(tempframe['s1pt'] > 150, tempframe['s2pt'] > 150)]
+        tempframe = tempframe[(tempframe['s1pt'] > 150) & (tempframe['s2pt'] > 150)]
         denplot['lowb'].fill(tempframe['s1btagDeepB'],tempframe['extweight'])
         numplot['lowb'].fill(tempframe['s1btagDeepB'][mergedframe['trigC'] == 1],
             tempframe['extweight'][mergedframe['trigC'] == 1])
@@ -501,12 +500,12 @@ def overlay(stage):
         sys.exit()
     print(f"Merging {stage} plots...")
     pqq = [pickle.load(open(f"Effplots/ParkedSkim_EfficiencyPlot_Parked_{stage}.p",'rb')),
-           pickle.load(open(f"Effplots/bGen+bEnr_EfficiencyPlot_Parked_{stage}.p",'rb')),
-           pickle.load(open(f"Effplots/bGen+bEnr_EfficiencyPlot__{stage}.p",'rb'))]
+           pickle.load(open(f"Effplots/Combined QCD_EfficiencyPlot_Parked_{stage}.p",'rb')),
+           pickle.load(open(f"Effplots/Combined QCD_EfficiencyPlot__{stage}.p",'rb'))]
     pgg = [pickle.load(open(f"Effplots/ParkedSkim_EfficiencyPlot_Parked_{stage}.p",'rb')),
            pickle.load(open(f"Effplots/GGH_HPT_EfficiencyPlot_Parked_{stage}.p",'rb')),
            pickle.load(open(f"Effplots/GGH_HPT_EfficiencyPlot__{stage}.p",'rb'))]
-    qtg = [pickle.load(open(f"Effplots/bGen+bEnr_EfficiencyPlot__{stage}.p",'rb')),
+    qtg = [pickle.load(open(f"Effplots/Combined QCD_EfficiencyPlot__{stage}.p",'rb')),
            pickle.load(open(f"Effplots/TTbar_EfficiencyPlot__{stage}.p",'rb')),
            pickle.load(open(f"Effplots/GGH_HPT_EfficiencyPlot__{stage}.p",'rb'))]
     
@@ -587,14 +586,15 @@ def main():
         elif sys.argv[i] == '-over':
             over =True
     if full:
+        compare(file,option,"A")    
+        compare(file,option,"B")
+        compare(file,option,"C")
         compare(file,option,"AB")
-        # compare(file,option,"B")
         compare(file,option,"CX")
         compare(file,option,"ABC")
     elif over:
         overlay("A")
         overlay("B")
-        overlay("C")
         overlay("ABC")
     elif (file and stage) and not merge:
         compare(file,option,stage)

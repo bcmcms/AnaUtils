@@ -70,13 +70,15 @@ path="Diststore"
 refpath="Diststore"
 folders = [f"{path}/Full/",f"{path}/QCDEnr/",f"{path}/QCDGen/",f"{path}/QCDInc/",
            f"{path}/TTbar/",f"{path}/WJets/",f"{path}/ZJets/",f"{path}/Data/"]
+bgslice = ['Combined QCD','bEnriched' 'bGen' 'bInc' 'TTbar' 'WJets' 'ZJets','DATA']
 namelist = ['Full','bEnriched','bGen','bInc','TTbar','WJets','ZJets','Data']
+sysvars = ['pt','mass','CSVV2','DeepB','msoft','DDBvL','H4qvs','submass1','submass2','nsv','subtau1','subtau2','n2b1','Trig']
 nit = 0
 outdict = {}
 # folders = ["Diststore/QCDGen/"]
 ## Create ROOT file for Combine
 # os.remove(f"SubNet_CombinedX{nbin}.root")
-rfile = TFile(f"SubNet_Combined{nbin}.root",'RECREATE')
+rfile = TFile(f"SubNet_CombinedUNB{nbin}.root",'RECREATE')
 th1b, quantsys, th1s = [], [], []
 ## controls weighting amount for shape uncertainties
 wval = 1.1
@@ -135,30 +137,31 @@ for f in folders:
     cbbounds = CSensB + [x + 1 for x in CSensB[1:]] + [x + 2 for x in CSensB[1:]] +\
             [x + 3 for x in CSensB[1:]] + [x + 4 for x in CSensB[1:]]
     # raise ValueError("test")
+    fs = f.split('/')[1]
     distplots = {
-        "sFA": Hist2D([FSensS,ASensB],None,"Full Network Signal","Subnet A signal",f"ratio/{f}_FAsubdistS"),
-        "sFB": Hist2D([FSensS,BSensB],None,"Full Network Signal","Subnet B signal",f"ratio/{f}_FBsubdistS"),
-        "sFC": Hist2D([FSensS,CSensB],None,"Full Network Signal","Subnet C signal",f"ratio/{f}_FCsubdistS"),
-        "bFA": Hist2D([FSensS,ASensB],None,"Full Network BG","Subnet A BG",f"ratio/{f}_FAsubdistB"),
-        "bFB": Hist2D([FSensS,BSensB],None,"Full Network BG","Subnet B BG",f"ratio/{f}_FBsubdistB"),
-        "bFC": Hist2D([FSensS,CSensB],None,"Full Network BG","Subnet C BG",f"ratio/{f}_FCsubdistB"),
-        "bAB": Hist2D([ASensB,BSensB],None,"Subnet A BG","Subnet B BG",f"ratio/{f}_ABsubdistB"),
-        "bAC": Hist2D([ASensB,CSensB],None,"Subnet A BG","Subnet C BG",f"ratio/{f}_ACsubdistB"),
-        "bBC": Hist2D([BSensB,CSensB],None,"Subnet B BG","Subnet C BG",f"ratio/{f}_BCsubdistB"),
+        "sFA": Hist2D([FSensS,ASensB],None,"Full Network Signal","Subnet A signal",f"ratio/{fs}_FAsubdistS"),
+        "sFB": Hist2D([FSensS,BSensB],None,"Full Network Signal","Subnet B signal",f"ratio/{fs}_FBsubdistS"),
+        "sFC": Hist2D([FSensS,CSensB],None,"Full Network Signal","Subnet C signal",f"ratio/{fs}_FCsubdistS"),
+        "bFA": Hist2D([FSensS,ASensB],None,"Full Network BG","Subnet A BG",f"ratio/{fs}_FAsubdistB"),
+        "bFB": Hist2D([FSensS,BSensB],None,"Full Network BG","Subnet B BG",f"ratio/{fs}_FBsubdistB"),
+        "bFC": Hist2D([FSensS,CSensB],None,"Full Network BG","Subnet C BG",f"ratio/{fs}_FCsubdistB"),
+        "bAB": Hist2D([ASensB,BSensB],None,"Subnet A BG","Subnet B BG",f"ratio/{fs}_ABsubdistB"),
+        "bAC": Hist2D([ASensB,CSensB],None,"Subnet A BG","Subnet C BG",f"ratio/{fs}_ACsubdistB"),
+        "bBC": Hist2D([BSensB,CSensB],None,"Subnet B BG","Subnet C BG",f"ratio/{fs}_BCsubdistB"),
         }
     flatplots = {
-        "sFA": Hist(abbounds,None,"20%-quantile A occupancy","Signal Events","FAflatS",f"ratio/{f}_FA_signal"),
-        "sFB": Hist(bbbounds,None,"20%-quantile B occupancy","Signal Events","FBflatS",f"ratio/{f}_FB_signal"),
-        "sFC": Hist(cbbounds,None,"20%-quantile C occupancy","Signal Events","FCflatS",f"ratio/{f}_FC_signal"),
-        "sAB": Hist(bbbounds,None,"20%-quantile B occupancy in A","Signal Events",f"ratio/{f}_ABflatS","BinA"),
-        "sAC": Hist(cbbounds,None,"20%-quantile C occupancy in A","Signal Events",f"ratio/{f}_ACflatS","CinA"),
-        "sBC": Hist(cbbounds,None,"20%-quantile C occupancy in B","Signal Events",f"ratio/{f}_BCflatS","CinB"),
-        "bFA": Hist(abbounds,None,"20%-quantile A occupancy","Background Events",f"ratio/{f}_FAflatB","NetA"),
-        "bFB": Hist(bbbounds,None,"20%-quantile B occupancy","Background Events",f"ratio/{f}_FBflatB","NetB"),
-        "bFC": Hist(cbbounds,None,"20%-quantile C occupancy","Background Events",f"ratio/{f}_FCflatB","NetC"),
-        "bAB": Hist(bbbounds,None,"20%-quantile B occupancy in A","Background Events",f"ratio/{f}_ABflatB","BinA"),
-        "bAC": Hist(cbbounds,None,"20%-quantile C occupancy in A","Background Events",f"ratio/{f}_ACflatB","CinA"),
-        "bBC": Hist(cbbounds,None,"20%-quantile C occupancy in B","Background Events",f"ratio/{f}_BCflatB","CinB"),
+        "sFA": Hist(abbounds,None,"20%-quantile A occupancy","Signal Events","FAflatS",f"ratio/{fs}_FA_signal"),
+        "sFB": Hist(bbbounds,None,"20%-quantile B occupancy","Signal Events","FBflatS",f"ratio/{fs}_FB_signal"),
+        "sFC": Hist(cbbounds,None,"20%-quantile C occupancy","Signal Events","FCflatS",f"ratio/{fs}_FC_signal"),
+        "sAB": Hist(bbbounds,None,"20%-quantile B occupancy in A","Signal Events",f"ratio/{fs}_ABflatS","BinA"),
+        "sAC": Hist(cbbounds,None,"20%-quantile C occupancy in A","Signal Events",f"ratio/{fs}_ACflatS","CinA"),
+        "sBC": Hist(cbbounds,None,"20%-quantile C occupancy in B","Signal Events",f"ratio/{fs}_BCflatS","CinB"),
+        "bFA": Hist(abbounds,None,"20%-quantile A occupancy","Background Events",f"ratio/{fs}_FAflatB","NetA"),
+        "bFB": Hist(bbbounds,None,"20%-quantile B occupancy","Background Events",f"ratio/{fs}_FBflatB","NetB"),
+        "bFC": Hist(cbbounds,None,"20%-quantile C occupancy","Background Events",f"ratio/{fs}_FCflatB","NetC"),
+        "bAB": Hist(bbbounds,None,"20%-quantile B occupancy in A","Background Events",f"ratio/{fs}_ABflatB","BinA"),
+        "bAC": Hist(cbbounds,None,"20%-quantile C occupancy in A","Background Events",f"ratio/{fs}_ACflatB","CinA"),
+        "bBC": Hist(cbbounds,None,"20%-quantile C occupancy in B","Background Events",f"ratio/{fs}_BCflatB","CinB"),
         }
 
     sigframe["W"] = Fdat["WS"].reset_index(drop=True)
@@ -224,8 +227,7 @@ for f in folders:
                 ABCtensor[i][0] /= (tsum / 125)
             pickle.dump(ABCtensor, open(f"{refpath}/ABCtensor.p",'wb'))
             pickle.dump(fdistplots,open(f"{refpath}/fdistplots.p",'wb'))
-        
-
+    
 
     bgframe['3DWU'] = 0
     bgframe['3DWD'] = 0
@@ -800,8 +802,10 @@ for f in folders:
     #                 # cint += 1
     #         # flatplots[f"b{n}"].fname = f"ratio/{bslice}_plot{n}_2DD"
     #         # flatplots[f"b{n}"].plot(htype='step',color='k',legend=["AB","AC","BC","Flat"],same=True)
-    outdict.update({namelist[nit]:flatplots})
-    outdict.update({namelist[nit]+'2d':distplots})
+    outdict.update({bslice:flatplots})
+    outdict.update({bslice+'2d':distplots})
+    outdict.update({bslice+'v':vdict})
+    outdict.update({bslice+'q':qdict})
     nit += 1
     if 'Data' in f:
         for net in ["A","B","C"]:
@@ -814,8 +818,9 @@ for f in folders:
         for nets in ["AB","AC","BC"]:
             th1s.append(flatplots[f"s{nets}"].toTH1(f"SignalMC_{nets[1]}in{nets[0]}",zerofill=.001))
 
+    
 rfile.Write()
 for elem in th1s + th1b:
     elem.SetDirectory(0)
 rfile.Close()
-pickle.dump(outdict,open(f"Snetplots/{path}.p",'wb'))
+pickle.dump(outdict,open(f"Snetplots/{path}_{nbin}.p",'wb'))

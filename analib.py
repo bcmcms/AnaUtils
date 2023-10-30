@@ -213,7 +213,8 @@ class Hist(object):
 
         return plot
         #return hep.histplot(s.hs[0],s.hs[0],log=logv,histtype=htype,color=color,linestyle=linestyle)
-    def plot(s,ylim=False,same=False,legend=False,figure=False,clean=False,lloc=0,**args):
+    def plot(s,ylim=False,same=False,legend=False,figure=False,clean=False,lloc=0, close=True,\
+             tsize=16, xsize=14, ysize=16, lsize='medium',**args):
         if not same:
             plt.clf()
         s.make(**args)
@@ -231,30 +232,42 @@ class Hist(object):
 
             if not clean: hep.cms.label(loc=0,year='2018',ax=args['parent'],llabel="Work in progress")
             if legend:
-                args['parent'].legend(legend,loc=lloc)
+                args['parent'].legend(legend,loc=lloc,fontsize=lsize)
             if ylim:
                 args['parent'].set_ylim(ylim)
             if s.xlabel != '':
-                args['parent'].set_xlabel(s.xlabel,fontsize=14)
+                args['parent'].set_xlabel(s.xlabel,fontsize=xsize)
             if s.ylabel != '':
-                args['parent'].set_ylabel(s.ylabel,fontsize=18)
+                args['parent'].set_ylabel(s.ylabel,fontsize=ysize)
+            if s.title != '':
+                ## Solving this problem at the library level, it's too woven into everything higher.
+                s.title.replace("Combined QCD","Combined MC")
+                args['parent'].set_title(s.title,fontsize=tsize)
         else:
             plt.grid(True)
             hep.cms.label(loc=0,year='2018',llabel="Work in progress")
             if legend:
-                 plt.legend(legend,loc=lloc)
+                 plt.legend(legend,loc=lloc,fontsize=lsize)
             if ylim:
                 plt.ylim(ylim)
             if s.xlabel != '':
-                plt.xlabel(s.xlabel,fontsize=14)
+                plt.xlabel(s.xlabel,fontsize=xsize)
             if s.ylabel != '':
-                plt.ylabel(s.ylabel,fontsize=18)
+                plt.ylabel(s.ylabel,fontsize=ysize)
             if s.title != '':
-                plt.title(s.title)
+                ## Solving this problem at the library level, it's too woven into everything higher.
+                s.title.replace("Combined QCD","Combined MC")
+                plt.title(s.title,fontsize=tsize)
         if s.fname != '':
-            if figure:  figure.savefig(s.fname)
-            else:       plt.savefig(s.fname)
-        plt.close(s.fig)
+            if figure:  
+                figure.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, hspace = 0, wspace = 0)
+                figure.margins(0,0)
+                figure.savefig(s.fname,transparent=False, bbox_inches='tight', pad_inches=0.1)
+            else:       
+                plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, hspace = 0, wspace = 0)
+                plt.margins(0,0)
+                plt.savefig(s.fname,transparent=False, bbox_inches='tight', pad_inches=0.1)
+        if close: plt.close(s.fig)
 
     ## Shortcut for creating stacked plots of two comperable datasets
     def stackplot(s,phist,ylim=False):
@@ -342,7 +355,8 @@ class Hist2d(object):
             plt.gca().set_aspect('equal')
         return out
 
-    def plot(s,logv=False,text=False,empty=False,tlen=3,fontsize=9,*args,**kwargs):
+    def plot(s,logv=False,text=False,empty=False,tlen=3,fontsize=12,\
+             tsize=16, xsize=14, ysize=16,*args,**kwargs):
         if not empty:
             s.make(*args,**kwargs)
         #print(s.hs[0])
@@ -358,13 +372,15 @@ class Hist2d(object):
         else:
             plt.colorbar()
         if s.xlabel != '':
-            plt.xlabel(s.xlabel)
+            plt.xlabel(s.xlabel,fontsize=xsize)
         if s.ylabel != '':
-            plt.ylabel(s.ylabel)
+            plt.ylabel(s.ylabel,fontsize=ysize)
         if s.title != '':
-            plt.title(s.title)
+            plt.title(s.title,fontsize=tsize)
         if s.fname != '':
-            plt.savefig(s.fname,dpi=300)
+            plt.subplots_adjust(top = 1, bottom = 0, right = 1, left = 0, hspace = 0, wspace = 0)
+            plt.margins(0,0)
+            plt.savefig(s.fname,dpi=300,transparent=False, bbox_inches='tight', pad_inches=0.1)
 
 
 def inc(var):
